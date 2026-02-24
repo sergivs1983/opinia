@@ -329,6 +329,7 @@ export default function ContentQuickCreateModal({
         {step === 'result' && resultAsset && (
           <div className="space-y-4">
             <GlassCard variant="glass" className="p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- Supabase signed URL (expiring token); next/image optimizer cannot cache these correctly */}
               <img
                 src={resultAsset.signedUrl}
                 alt={t('dashboard.contentGallery.modal.previewAlt')}

@@ -268,6 +268,7 @@ export default function ContentStudioModal({
             {previewUrl && (
               <div className="glass-card p-4 space-y-3">
                 <div className="text-sm font-medium text-white/82">{t('dashboard.studio.preview')}</div>
+                {/* eslint-disable-next-line @next/next/no-img-element -- Supabase signed URL (expiring token); next/image optimizer cannot cache these correctly */}
                 <img
                   src={previewUrl}
                   alt="Studio preview"

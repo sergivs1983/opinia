@@ -616,6 +616,7 @@ export default function StudioPage() {
               </div>
 
               {previewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- Supabase signed URL (expiring token); next/image optimizer cannot cache these correctly
                 <img
                   src={previewUrl}
                   alt={`asset-${asset.id}`}

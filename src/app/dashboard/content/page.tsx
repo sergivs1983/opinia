@@ -466,6 +466,7 @@ export default function ContentPage() {
 
                     <div className="relative overflow-hidden rounded-xl border border-white/12 bg-white/5">
                       {previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- Supabase signed URL (expiring token); next/image optimizer cannot cache these correctly
                         <img
                           src={previewUrl}
                           alt={t('dashboard.contentGallery.previewAlt')}

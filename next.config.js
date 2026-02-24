@@ -15,12 +15,15 @@ const nextConfig = {
   output: 'standalone',
 
   images: {
-    // Allow Supabase storage and Google profile images
-    remotePatterns: [
-      { protocol: 'https', hostname: '*.supabase.co' },
-      { protocol: 'https', hostname: '*.supabase.in' },
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-    ],
+    // SECURITY: remotePatterns is empty because the app uses <Image> only for
+    // local static files (e.g. /brand/logo.png).  All external images
+    // (Supabase signed URLs, Google profile pictures) are displayed with plain
+    // <img> tags and do NOT go through the /_next/image optimizer.
+    // Keeping remotePatterns empty prevents the SSRF / path-traversal vectors
+    // described in GHSA-f82v-jwr5-mffw / GHSA-3h5q-q6xp-mxc4 entirely.
+    // If a future <Image src="https://…"> is added, add a *specific* entry here
+    // (e.g. { protocol:'https', hostname:'abc123.supabase.co', pathname:'/storage/v1/object/**' }).
+    remotePatterns: [],
   },
 
   // Suppress false-positive hydration warnings from ThemeProvider
