@@ -458,8 +458,7 @@ export default function SettingsPage() {
 
       {tab === 'team' && canManageTeamTab && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <GlassCard variant="strong" className="space-y-4 p-5 md:p-6">
-          <GlassCard variant="strong" className="space-y-4 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8">
+            <GlassCard variant="strong" className="space-y-4 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8">
             <header className="space-y-1">
               <h2 className={cn('text-lg font-semibold', textMain)}>{t('settings.humanized.team.title')}</h2>
               <p className={cn('text-sm', textSub)}>{t('settings.humanized.team.subtitle')}</p>
