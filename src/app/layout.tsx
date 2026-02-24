@@ -1,17 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { getLocale } from '@/i18n/getLocale';
 import { getMessages } from '@/i18n/getMessages';
 import { I18nProvider } from '@/components/i18n/I18nContext';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-});
 
 export const metadata: Metadata = {
   title: 'OpinIA – Respostes professionals amb IA per al teu negoci',
@@ -31,14 +24,12 @@ export const metadata: Metadata = {
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
-    apple: [
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-    ],
+    apple: [{ url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' }],
   },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = getLocale();
+  const locale = await getLocale();
   const messages = await getMessages(locale);
 
   return (
@@ -46,13 +37,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <meta name="color-scheme" content="light dark" />
       </head>
-      <body className={`${inter.variable} ${inter.className} min-h-screen`}>
+      <body className="min-h-screen">
         <ThemeProvider>
           <I18nProvider locale={locale} messages={messages}>
             <ToastProvider>
-              <div className="opinia-bg min-h-screen text-white/90">
-                {children}
-              </div>
+              <div className="opinia-bg min-h-screen text-white/90">{children}</div>
             </ToastProvider>
           </I18nProvider>
         </ThemeProvider>

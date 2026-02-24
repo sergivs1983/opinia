@@ -1,5 +1,6 @@
 const path = require('path');
-process.env.NEXT_FONT_GOOGLE_MOCKED_RESPONSES = path.join(__dirname, 'src/lib/fonts/google-fonts-mock.js');
+// NOTE: NEXT_FONT_GOOGLE_MOCKED_RESPONSES removed – mock CSS referenced macOS-only
+// font paths and caused "Missing mocked response" / ENOENT errors on Vercel Linux.
 
 let withNextIntl = (config) => config;
 try {

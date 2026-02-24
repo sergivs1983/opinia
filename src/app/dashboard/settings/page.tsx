@@ -22,6 +22,12 @@ import { businessLimitForPlan, seatLimitForPlan } from '@/lib/seats';
 type SettingsTab = 'adn' | 'personality' | 'autopilot' | 'team';
 type Tone = 'professional' | 'friendly' | 'fun';
 
+function getRoleLabel(role: string | undefined, t: (key: string) => string): string {
+  if (role === 'owner') return t('settings.humanized.team.roles.owner');
+  if (role === 'manager') return t('settings.humanized.team.roles.manager');
+  return t('settings.humanized.team.roles.staff');
+}
+
 export default function SettingsPage() {
   const t = useT();
   const { biz, org, membership, businesses } = useWorkspace();
@@ -48,53 +54,44 @@ export default function SettingsPage() {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('responder');
+  const [inviteRole, setInviteRole] = useState('staff');
   const [inviting, setInviting] = useState(false);
 
   const { members: teamMembers, seats: teamSeats, refetch: refetchTeam } = useTeamMembers(org?.id);
+
   const pendingInvites = useMemo(
     () => teamMembers.filter((member) => !member.accepted_at),
     [teamMembers],
   );
+
   const planCode = teamSeats?.plan_code === 'pro_149' ? 'pro_149' : 'starter_49';
+
   const seatsLimit = Math.max(1, teamSeats?.seats_limit ?? seatLimitForPlan(planCode));
   const seatsUsed = teamSeats?.seats_used ?? teamMembers.length;
   const seatsPercentage = Math.min(100, Math.round((seatsUsed / seatsLimit) * 100));
   const seatsFull = seatsUsed >= seatsLimit;
-  const canAssignAdminRole = planCode === 'pro_149';
+
   const businessesLimit = Math.max(1, teamSeats?.business_limit ?? businessLimitForPlan(planCode));
   const businessesUsed = teamSeats?.businesses_used ?? businesses.length;
   const businessesPercentage = Math.min(100, Math.round((businessesUsed / businessesLimit) * 100));
   const businessesFull = businessesUsed >= businessesLimit;
+
   const canManageTeamTab = roleCanManageTeam(membership?.role);
-  const canManageBusinesses = normalizeMemberRole(membership?.role) === 'owner' || normalizeMemberRole(membership?.role) === 'admin';
-  const tabs = useMemo(
-    () => {
-      const baseTabs = [
-        { key: 'adn' as const, label: t('settings.humanized.tabs.adn'), testId: 'settings-tab-adn' },
-        { key: 'personality' as const, label: t('settings.humanized.tabs.personality'), testId: 'settings-tab-voice' },
-        { key: 'autopilot' as const, label: t('settings.humanized.tabs.autopilot'), testId: 'settings-tab-autopilot' },
-      ];
-      if (!canManageTeamTab) return baseTabs;
-      return [
-        ...baseTabs,
-        { key: 'team' as const, label: t('settings.humanized.tabs.team'), testId: 'settings-tab-integrations' },
-      ];
-    },
-    [canManageTeamTab, t],
-  );
+  const canManageBusinesses = normalizeMemberRole(membership?.role) === 'owner';
+
+  const tabs = useMemo(() => {
+    const baseTabs = [
+      { key: 'adn' as const, label: t('settings.humanized.tabs.adn'), testId: 'settings-tab-adn' },
+      { key: 'personality' as const, label: t('settings.humanized.tabs.personality'), testId: 'settings-tab-voice' },
+      { key: 'autopilot' as const, label: t('settings.humanized.tabs.autopilot'), testId: 'settings-tab-autopilot' },
+    ];
+    if (!canManageTeamTab) return baseTabs;
+    return [...baseTabs, { key: 'team' as const, label: t('settings.humanized.tabs.team'), testId: 'settings-tab-integrations' }];
+  }, [canManageTeamTab, t]);
 
   useEffect(() => {
-    if (!canManageTeamTab && tab === 'team') {
-      setTab('adn');
-    }
+    if (!canManageTeamTab && tab === 'team') setTab('adn');
   }, [canManageTeamTab, tab]);
-
-  useEffect(() => {
-    if (!canAssignAdminRole && inviteRole === 'admin') {
-      setInviteRole('manager');
-    }
-  }, [canAssignAdminRole, inviteRole]);
 
   const toneOptions = useMemo(
     () => [
@@ -152,9 +149,7 @@ export default function SettingsPage() {
       });
 
       const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.message || payload.error || t('settings.humanized.team.inviteError'));
-      }
+      if (!response.ok) throw new Error(payload.message || payload.error || t('settings.humanized.team.inviteError'));
 
       setInviteEmail('');
       await refetchTeam();
@@ -168,36 +163,19 @@ export default function SettingsPage() {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
+
     const payload = {
       businessId: biz?.id ?? null,
-      businessMemory: {
-        businessType,
-        topOffer,
-        complaintPolicy,
-        practicalData,
-      },
-      personality: {
-        tone,
-        signature,
-        forbiddenWords,
-        expertMode,
-        customPrompt,
-      },
-      autopilot: {
-        killSwitchRating,
-        killSwitchAction,
-        autoReplyRating,
-        autoReplyEnabled,
-      },
-      teamIntegrations: {
-        pendingInvites,
-        webhookEnabled: true,
-      },
+      businessMemory: { businessType, topOffer, complaintPolicy, practicalData },
+      personality: { tone, signature, forbiddenWords, expertMode, customPrompt },
+      autopilot: { killSwitchRating, killSwitchAction, autoReplyRating, autoReplyEnabled },
+      teamIntegrations: { pendingInvites, webhookEnabled: true },
     };
 
     console.log('[settings-humanized] save (mock)', payload);
     await new Promise((resolve) => window.setTimeout(resolve, 900));
     toast(t('settings.humanized.saveSuccess'), 'success');
+
     setSavedIndicatorVisible(true);
     window.setTimeout(() => setSavedIndicatorVisible(false), 1600);
     setSaving(false);
@@ -228,9 +206,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 pb-20" data-testid="settings-page">
       <header className={cn('space-y-1')}>
-        <h1 className={cn('font-display text-2xl font-semibold md:text-3xl', textMain)}>
-          {t('settings.humanized.title')}
-        </h1>
+        <h1 className={cn('font-display text-2xl font-semibold md:text-3xl', textMain)}>{t('settings.humanized.title')}</h1>
         <p className={cn('text-sm md:text-base', textSub)}>{t('settings.humanized.subtitle')}</p>
       </header>
 
@@ -244,9 +220,7 @@ export default function SettingsPage() {
               className={cn(
                 'whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-sm font-medium',
                 'transition-colors duration-[220ms] ease-premium',
-                tab === item.key
-                  ? 'border-emerald-500 text-white'
-                  : 'text-zinc-500 hover:text-zinc-300',
+                tab === item.key ? 'border-emerald-500 text-white' : 'text-zinc-500 hover:text-zinc-300',
               )}
               data-testid={item.testId}
             >
@@ -296,9 +270,7 @@ export default function SettingsPage() {
           />
 
           <div className="space-y-1.5">
-            <label className={cn('block text-sm font-medium', textSub)}>
-              {t('settings.humanized.adn.practicalData')}
-            </label>
+            <label className={cn('block text-sm font-medium', textSub)}>{t('settings.humanized.adn.practicalData')}</label>
             <textarea
               value={practicalData}
               onChange={(event) => setPracticalData(event.target.value)}
@@ -318,7 +290,11 @@ export default function SettingsPage() {
       )}
 
       {tab === 'personality' && (
-        <GlassCard variant="strong" className="space-y-6 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8" data-testid="settings-voice-panel">
+        <GlassCard
+          variant="strong"
+          className="space-y-6 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8"
+          data-testid="settings-voice-panel"
+        >
           <header className="space-y-1">
             <h2 className={cn('text-lg font-semibold', textMain)}>{t('settings.humanized.personality.title')}</h2>
             <p className={cn('text-sm', textSub)}>{t('settings.humanized.personality.subtitle')}</p>
@@ -382,9 +358,7 @@ export default function SettingsPage() {
                   <span className="inline-flex rounded-full border border-amber-300/40 bg-amber-300/15 px-2 py-0.5 text-xs text-amber-100">
                     {t('settings.humanized.personality.expertWarning')}
                   </span>
-                  <label className={cn('block text-sm font-medium', textSub)}>
-                    {t('settings.humanized.personality.customPrompt')}
-                  </label>
+                  <label className={cn('block text-sm font-medium', textSub)}>{t('settings.humanized.personality.customPrompt')}</label>
                   <textarea
                     value={customPrompt}
                     onChange={(event) => setCustomPrompt(event.target.value)}
@@ -458,7 +432,7 @@ export default function SettingsPage() {
 
       {tab === 'team' && canManageTeamTab && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <GlassCard variant="strong" className="space-y-4 p-5 md:p-6">
+          {/* IMPORTANT: només 1 GlassCard aquí (sense duplicats) */}
           <GlassCard variant="strong" className="space-y-4 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8">
             <header className="space-y-1">
               <h2 className={cn('text-lg font-semibold', textMain)}>{t('settings.humanized.team.title')}</h2>
@@ -481,6 +455,7 @@ export default function SettingsPage() {
                   style={{ width: `${seatsPercentage}%` }}
                 />
               </div>
+
               <div className="mt-3 flex items-center justify-between gap-3">
                 <span className={cn('text-sm font-medium', textMain)}>
                   {t('settings.humanized.team.businessCounter', { used: businessesUsed, limit: businessesLimit })}
@@ -496,27 +471,25 @@ export default function SettingsPage() {
                   style={{ width: `${businessesPercentage}%` }}
                 />
               </div>
+
               {seatsFull && (
                 <div className="flex items-center justify-between gap-2">
                   <p className={cn('text-xs', textMuted)}>{t('settings.humanized.team.limitReached')}</p>
                   <Link
                     href="/pricing"
-                    className={cn(
-                      'text-xs font-semibold text-emerald-400 transition-colors duration-[220ms] ease-premium hover:text-emerald-300',
-                    )}
+                    className={cn('text-xs font-semibold text-emerald-400 transition-colors duration-[220ms] ease-premium hover:text-emerald-300')}
                   >
                     {t('settings.humanized.team.upgradePlan')}
                   </Link>
                 </div>
               )}
+
               {businessesFull && (
                 <div className="flex items-center justify-between gap-2">
                   <p className={cn('text-xs', textMuted)}>{t('settings.humanized.team.businessLimitReached')}</p>
                   <Link
                     href="/pricing"
-                    className={cn(
-                      'text-xs font-semibold text-emerald-400 transition-colors duration-[220ms] ease-premium hover:text-emerald-300',
-                    )}
+                    className={cn('text-xs font-semibold text-emerald-400 transition-colors duration-[220ms] ease-premium hover:text-emerald-300')}
                   >
                     {t('settings.humanized.team.upgradePlan')}
                   </Link>
@@ -539,9 +512,8 @@ export default function SettingsPage() {
               label={t('settings.humanized.team.role')}
               disabled={seatsFull}
               options={[
-                ...(canAssignAdminRole ? [{ value: 'admin', label: t('settings.humanized.team.roles.admin') }] : []),
                 { value: 'manager', label: t('settings.humanized.team.roles.manager') },
-                { value: 'responder', label: t('settings.humanized.team.roles.responder') },
+                { value: 'staff', label: t('settings.humanized.team.roles.staff') },
               ]}
             />
 
@@ -561,29 +533,20 @@ export default function SettingsPage() {
               </p>
               <ul className="space-y-2">
                 {teamMembers.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between rounded-lg border border-white/10 bg-black/25 px-3 py-2"
+                  >
                     <div className="min-w-0">
-                      <p className={cn('truncate text-sm', textMain)}>
-                        {item.full_name || item.invited_email || t('common.unknown')}
-                      </p>
-                      {item.invited_email && item.full_name && (
-                        <p className={cn('truncate text-xs', textMuted)}>{item.invited_email}</p>
-                      )}
+                      <p className={cn('truncate text-sm', textMain)}>{item.full_name || item.invited_email || t('common.unknown')}</p>
+                      {item.invited_email && item.full_name && <p className={cn('truncate text-xs', textMuted)}>{item.invited_email}</p>}
                     </div>
                     <div className="ml-3 text-right">
                       <p className={cn('text-xs', textSub)}>
-                        {item.role === 'owner'
-                          ? t('settings.humanized.team.roles.owner')
-                          : item.role === 'admin'
-                            ? t('settings.humanized.team.roles.admin')
-                            : item.role === 'manager'
-                              ? t('settings.humanized.team.roles.manager')
-                              : t('settings.humanized.team.roles.responder')}
+                        {getRoleLabel(item.role, t)}
                       </p>
                       <p className={cn('text-[11px]', textMuted)}>
-                        {item.accepted_at
-                          ? t('settings.humanized.team.statusActive')
-                          : t('settings.humanized.team.statusPending')}
+                        {item.accepted_at ? t('settings.humanized.team.statusActive') : t('settings.humanized.team.statusPending')}
                       </p>
                     </div>
                   </li>
@@ -598,16 +561,13 @@ export default function SettingsPage() {
                 </p>
                 <ul className="space-y-2">
                   {pendingInvites.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between rounded-lg border border-white/10 bg-black/25 px-3 py-2"
+                    >
                       <span className={cn('text-sm', textMain)}>{item.invited_email || t('common.unknown')}</span>
                       <span className={cn('text-xs', textSub)}>
-                        {item.role === 'owner'
-                          ? t('settings.humanized.team.roles.owner')
-                          : item.role === 'admin'
-                            ? t('settings.humanized.team.roles.admin')
-                            : item.role === 'manager'
-                              ? t('settings.humanized.team.roles.manager')
-                              : t('settings.humanized.team.roles.responder')}
+                        {getRoleLabel(item.role, t)}
                       </span>
                     </li>
                   ))}

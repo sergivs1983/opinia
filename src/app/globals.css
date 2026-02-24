@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,6 +14,9 @@
 
 @layer base {
   :root {
+    /* ── Typography ── */
+    --font-body: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
     /* ── Surface ── */
     --color-bg:            #ffffff;
     --color-bg-subtle:     #f8fafc;
@@ -111,19 +116,18 @@
   }
 
   html {
+    font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background-color var(--transition-slow), color var(--transition-slow);
   }
 
   body {
-    @apply font-body;
+    font-family: var(--font-body);
     background: var(--color-bg);
     color: var(--color-text);
     min-height: 100vh;
   }
-
-  h1, h2, h3, h4, h5, h6 { @apply font-display; }
 
   *:focus-visible {
     outline: 2px solid var(--color-brand);
@@ -162,9 +166,7 @@
     transition: border-color 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms cubic-bezier(.2,.8,.2,1), background-color 220ms cubic-bezier(.2,.8,.2,1);
   }
 
-  .glass-input::placeholder {
-    color: rgba(255, 255, 255, 0.52);
-  }
+  .glass-input::placeholder { color: rgba(255, 255, 255, 0.52); }
 
   .glass-input:focus {
     outline: none;
@@ -197,14 +199,10 @@
     color: rgba(255, 255, 255, 0.95);
   }
 
-  .glass-divider {
-    border-color: rgba(255, 255, 255, 0.14);
-  }
+  .glass-divider { border-color: rgba(255, 255, 255, 0.14); }
 
   .glass-noise,
-  .opinia-noise {
-    position: relative;
-  }
+  .opinia-noise { position: relative; }
 
   .glass-noise::before,
   .opinia-noise::before {
@@ -223,10 +221,7 @@
     will-change: opacity;
   }
 
-  .glass-sweep {
-    position: relative;
-    overflow: hidden;
-  }
+  .glass-sweep { position: relative; overflow: hidden; }
 
   .glass-sweep::after {
     content: "";
@@ -253,11 +248,8 @@
       opacity 260ms cubic-bezier(.2,.8,.2,1);
   }
 
-  .glass-sweep:not(:hover)::after {
-    transition: opacity 260ms cubic-bezier(.2,.8,.2,1);
-  }
+  .glass-sweep:not(:hover)::after { transition: opacity 260ms cubic-bezier(.2,.8,.2,1); }
 
-  /* ── Card ── */
   .card {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.14);
@@ -266,6 +258,7 @@
     backdrop-filter: blur(20px);
     transition: box-shadow 220ms cubic-bezier(.2,.8,.2,1), transform 220ms cubic-bezier(.2,.8,.2,1), background-color 220ms cubic-bezier(.2,.8,.2,1);
   }
+
   .card-interactive:hover {
     background: rgba(255, 255, 255, 0.1);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
@@ -276,7 +269,6 @@
     @apply bg-gradient-to-r from-brand-primary to-brand-accent bg-clip-text text-transparent;
   }
 
-  /* ── Badge ── */
   .badge {
     @apply inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5;
     border-radius: var(--radius-full);
@@ -287,7 +279,6 @@
   .badge-warning  { background: var(--color-warning-subtle); color: var(--color-warning-text); }
   .badge-danger   { background: var(--color-danger-subtle); color: var(--color-danger-text); }
 
-  /* ── Nav ── */
   .nav-item {
     @apply flex items-center gap-2 px-3 py-2 text-sm font-medium;
     border-radius: 10px;
@@ -310,7 +301,6 @@
     box-shadow: 0 0 0 1px rgba(0,168,107,0.15), 0 14px 34px rgba(0,0,0,0.35);
   }
 
-  /* ── Dropdown ── */
   .dropdown {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.14);
@@ -319,7 +309,6 @@
     backdrop-filter: blur(20px);
   }
 
-  /* ── Skeleton ── */
   .skeleton {
     background: linear-gradient(90deg, var(--color-bg-muted) 0%, var(--color-bg-subtle) 50%, var(--color-bg-muted) 100%);
     background-size: 200% 100%;
@@ -327,7 +316,6 @@
     border-radius: var(--radius-sm);
   }
 
-  /* ── Separator ── */
   .separator   { height: 1px; background: var(--color-border); }
   .separator-v { width: 1px;  background: var(--color-border); }
 }
