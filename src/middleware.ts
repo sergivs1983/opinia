@@ -1,11 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import createIntlMiddleware from 'next-intl/middleware';
 
 // ── Inlined from @/i18n/config to keep the Edge bundle self-contained ──
+// (webpack aliases are not applied to the Edge middleware bundle)
 const locales = ['ca', 'es', 'en'] as const;
-type Locale = (typeof locales)[number];
-const defaultLocale: Locale = 'ca';
+type Locale = (typeof locales)[number]; // eslint-disable-line @typescript-eslint/no-unused-vars
 const LOCALE_COOKIE = 'opinia_locale';
 function isLocale(value: string): value is Locale {
   return (locales as readonly string[]).includes(value);
@@ -26,11 +25,6 @@ function createRequestId(): string {
  *   /dashboard/*           → Supabase session + auth guard (normal)
  *   /api/*                 → Supabase session only
  */
-
-const intlMiddleware = createIntlMiddleware({
-  locales,
-  defaultLocale,
-});
 
 function shouldSkip(pathname: string): boolean {
   if (pathname.startsWith('/api/')) return true;
@@ -62,7 +56,6 @@ export async function middleware(request: NextRequest) {
   // /ca → cookie=ca, redirect /
   const firstSeg = pathname.split('/')[1];
   if (firstSeg && isLocale(firstSeg)) {
-    intlMiddleware(request);
     const rest = pathname.slice(firstSeg.length + 1) || '/';
     const url = request.nextUrl.clone();
     url.pathname = rest;
