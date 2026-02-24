@@ -22,6 +22,12 @@ import { businessLimitForPlan, seatLimitForPlan } from '@/lib/seats';
 type SettingsTab = 'adn' | 'personality' | 'autopilot' | 'team';
 type Tone = 'professional' | 'friendly' | 'fun';
 
+function getRoleLabel(role: string | undefined, t: (key: string) => string): string {
+  if (role === 'owner') return t('settings.humanized.team.roles.owner');
+  if (role === 'manager') return t('settings.humanized.team.roles.manager');
+  return t('settings.humanized.team.roles.staff');
+}
+
 export default function SettingsPage() {
   const t = useT();
   const { biz, org, membership, businesses } = useWorkspace();
@@ -48,7 +54,7 @@ export default function SettingsPage() {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('responder');
+  const [inviteRole, setInviteRole] = useState('staff');
   const [inviting, setInviting] = useState(false);
 
   const { members: teamMembers, seats: teamSeats, refetch: refetchTeam } = useTeamMembers(org?.id);
@@ -61,13 +67,12 @@ export default function SettingsPage() {
   const seatsUsed = teamSeats?.seats_used ?? teamMembers.length;
   const seatsPercentage = Math.min(100, Math.round((seatsUsed / seatsLimit) * 100));
   const seatsFull = seatsUsed >= seatsLimit;
-  const canAssignAdminRole = planCode === 'pro_149';
   const businessesLimit = Math.max(1, teamSeats?.business_limit ?? businessLimitForPlan(planCode));
   const businessesUsed = teamSeats?.businesses_used ?? businesses.length;
   const businessesPercentage = Math.min(100, Math.round((businessesUsed / businessesLimit) * 100));
   const businessesFull = businessesUsed >= businessesLimit;
   const canManageTeamTab = roleCanManageTeam(membership?.role);
-  const canManageBusinesses = normalizeMemberRole(membership?.role) === 'owner' || normalizeMemberRole(membership?.role) === 'admin';
+  const canManageBusinesses = normalizeMemberRole(membership?.role) === 'owner';
   const tabs = useMemo(
     () => {
       const baseTabs = [
@@ -89,12 +94,6 @@ export default function SettingsPage() {
       setTab('adn');
     }
   }, [canManageTeamTab, tab]);
-
-  useEffect(() => {
-    if (!canAssignAdminRole && inviteRole === 'admin') {
-      setInviteRole('manager');
-    }
-  }, [canAssignAdminRole, inviteRole]);
 
   const toneOptions = useMemo(
     () => [
@@ -538,9 +537,8 @@ export default function SettingsPage() {
               label={t('settings.humanized.team.role')}
               disabled={seatsFull}
               options={[
-                ...(canAssignAdminRole ? [{ value: 'admin', label: t('settings.humanized.team.roles.admin') }] : []),
                 { value: 'manager', label: t('settings.humanized.team.roles.manager') },
-                { value: 'responder', label: t('settings.humanized.team.roles.responder') },
+                { value: 'staff', label: t('settings.humanized.team.roles.staff') },
               ]}
             />
 
@@ -571,13 +569,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="ml-3 text-right">
                       <p className={cn('text-xs', textSub)}>
-                        {item.role === 'owner'
-                          ? t('settings.humanized.team.roles.owner')
-                          : item.role === 'admin'
-                            ? t('settings.humanized.team.roles.admin')
-                            : item.role === 'manager'
-                              ? t('settings.humanized.team.roles.manager')
-                              : t('settings.humanized.team.roles.responder')}
+                        {getRoleLabel(item.role, t)}
                       </p>
                       <p className={cn('text-[11px]', textMuted)}>
                         {item.accepted_at
@@ -600,13 +592,7 @@ export default function SettingsPage() {
                     <li key={item.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-black/25 px-3 py-2">
                       <span className={cn('text-sm', textMain)}>{item.invited_email || t('common.unknown')}</span>
                       <span className={cn('text-xs', textSub)}>
-                        {item.role === 'owner'
-                          ? t('settings.humanized.team.roles.owner')
-                          : item.role === 'admin'
-                            ? t('settings.humanized.team.roles.admin')
-                            : item.role === 'manager'
-                              ? t('settings.humanized.team.roles.manager')
-                              : t('settings.humanized.team.roles.responder')}
+                        {getRoleLabel(item.role, t)}
                       </span>
                     </li>
                   ))}
