@@ -1,5 +1,8 @@
 const path = require('path');
-process.env.NEXT_FONT_GOOGLE_MOCKED_RESPONSES = path.join(__dirname, 'src/lib/fonts/google-fonts-mock.js');
+// NOTE: NEXT_FONT_GOOGLE_MOCKED_RESPONSES removed – mock CSS referenced macOS-only
+// font paths and caused "Missing mocked response" errors. next/font/google fetches
+// Inter at build time on Vercel (internet available). For fully-offline local builds
+// the font gracefully falls back to the CSS variable defined in globals.css.
 
 let withNextIntl = (config) => config;
 try {

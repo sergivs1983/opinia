@@ -1,17 +1,13 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+// next/font/google removed: it fetches Inter at build time from Google Fonts, which
+// fails in offline/local environments. --font-inter is now defined as a CSS custom
+// property in globals.css (font-family stack with Inter + system fallbacks, no fetch).
 import './globals.css';
 import { getLocale } from '@/i18n/getLocale';
 import { getMessages } from '@/i18n/getMessages';
 import { I18nProvider } from '@/components/i18n/I18nContext';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
-
-const inter = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-inter',
-});
 
 export const metadata: Metadata = {
   title: 'OpinIA – Respostes professionals amb IA per al teu negoci',
@@ -46,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <meta name="color-scheme" content="light dark" />
       </head>
-      <body className={`${inter.variable} ${inter.className} min-h-screen`}>
+      <body className="font-body min-h-screen">
         <ThemeProvider>
           <I18nProvider locale={locale} messages={messages}>
             <ToastProvider>

@@ -1069,7 +1069,7 @@
           "manager": "Manager",
           "responder": "Responder",
           "approver": "Solo aprobar",
-          "staff": "TODO"
+          "staff": "Personal"
         },
         "inviteCta": "Invitar",
         "currentMembers": "Equipo actual",
