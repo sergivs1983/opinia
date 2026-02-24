@@ -1,8 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createRequestId } from '@/lib/logger';
-import { LOCALE_COOKIE, defaultLocale, isLocale, locales } from '@/i18n/config';
 import createIntlMiddleware from 'next-intl/middleware';
+
+// ── Inlined from @/i18n/config to keep the Edge bundle self-contained ──
+const locales = ['ca', 'es', 'en'] as const;
+type Locale = (typeof locales)[number];
+const defaultLocale: Locale = 'ca';
+const LOCALE_COOKIE = 'opinia_locale';
+function isLocale(value: string): value is Locale {
+  return (locales as readonly string[]).includes(value);
+}
+
+// ── Inlined from @/lib/logger (only createRequestId is needed here) ──
+let _reqCounter = 0;
+function createRequestId(): string {
+  return `req_${Date.now()}_${(++_reqCounter).toString(36)}`;
+}
 
 /**
  * OpinIA Middleware v3 — i18n via cookie, NO /[locale] routes for dashboard.
