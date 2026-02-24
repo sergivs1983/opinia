@@ -1068,7 +1068,8 @@
           "admin": "Admin",
           "manager": "Manager",
           "responder": "Responder",
-          "approver": "Approver only"
+          "approver": "Approver only",
+          "staff": "TODO"
         },
         "inviteCta": "Invite",
         "currentMembers": "Current team",
