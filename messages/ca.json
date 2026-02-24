@@ -1,0 +1,1436 @@
+{
+  "common": {
+    "appName": "OpinIA",
+    "loading": "Carregant...",
+    "save": "Desar",
+    "saved": "Desat!",
+    "saving": "Desant...",
+    "cancel": "Cancel·la",
+    "delete": "Eliminar",
+    "confirm": "Confirmar",
+    "tryAgain": "Reintentar",
+    "back": "Tornar",
+    "next": "Següent",
+    "continue": "Continuar",
+    "close": "Tancar",
+    "create": "Crear",
+    "edit": "Editar",
+    "update": "Actualitzar",
+    "search": "Cercar",
+    "noResults": "Sense resultats",
+    "error": "Error",
+    "success": "Fet!",
+    "language": "Idioma",
+    "selectLanguage": "Tria idioma",
+    "saveChanges": "Desar canvis",
+    "confirmDelete": "Segur que vols eliminar?",
+    "free": "Gratis",
+    "upgradeTo": "Upgrade a {name}",
+    "switchToFree": "Canviar a Free",
+    "unknown": "Desconegut",
+    "enabled": "Activat",
+    "disabled": "Desactivat",
+    "anySentiment": "Qualsevol sentiment",
+    "locales": {
+      "ca": "Català",
+      "es": "Español",
+      "en": "English"
+    },
+    "sentiment": {
+      "positive": "Positiva",
+      "neutral": "Neutra",
+      "negative": "Negativa"
+    },
+    "platforms": {
+      "google": "Google",
+      "tripadvisor": "TripAdvisor",
+      "booking": "Booking",
+      "manual": "Manual",
+      "other": "Altre"
+    },
+    "time": {
+      "justNow": "ara mateix",
+      "minutesAgo": "fa {count} min",
+      "hoursAgo": "fa {count} h",
+      "daysAgo": "fa {count} d"
+    },
+    "replyStatus": {
+      "draft": "Esborrany",
+      "selected": "Seleccionat",
+      "published": "Publicat",
+      "archived": "Arxivat"
+    },
+    "tones": {
+      "proper": {
+        "label": "Proper",
+        "description": "Empàtic i proper"
+      },
+      "professional": {
+        "label": "Professional",
+        "description": "Clar i formal"
+      },
+      "premium": {
+        "label": "Premium",
+        "description": "Elegant i distingit"
+      }
+    },
+    "other": "Altres"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "growth": "Growth Hub",
+    "planner": "Planner",
+    "analytics": "Analytics",
+    "insights": "Insights",
+    "benchmark": "Benchmark",
+    "ops": "Operacions",
+    "content": "Contingut",
+    "studio": "Studio",
+    "exports": "Exports",
+    "settings": "Settings",
+    "help": "Ajuda",
+    "status": "Estat",
+    "logout": "Tancar sessió",
+    "switchOrg": "Canviar organització",
+    "switchBiz": "Canviar negoci"
+  },
+  "landing": {
+    "hero": "Respostes professionals amb IA per al teu negoci",
+    "heroSub": "Genera respostes personalitzades a ressenyes de Google, TripAdvisor i Booking en segons.",
+    "tryDemo": "Prova-ho ara — sense registre",
+    "demoCta": "Prova amb la teva ressenya",
+    "demoPlaceholder": "Ex: Bona ubicació però l'habitació era petita i feia molta calor a la nit...",
+    "demoRating": "Rating:",
+    "generate": "Generar",
+    "startTrial": "Comença trial gratuït",
+    "tryAnother": "Provar una altra",
+    "auditTitle": "Auditoria exprés de ressenyes",
+    "auditSub": "Enganxa les teves ressenyes i obtindràs un diagnòstic instantani.",
+    "auditPaste": "Enganxa 2-10 ressenyes (una per línia)",
+    "auditAnalyze": "Analitzar",
+    "auditReviews": "ressenyes",
+    "features": "Com funciona",
+    "step1": "Connecta",
+    "step1desc": "Importa ressenyes de Google, TripAdvisor o afegeix-les manualment.",
+    "step2": "Genera",
+    "step2desc": "La IA genera 3 opcions de resposta (concís, empàtic, formal) adaptades al teu negoci.",
+    "step3": "Revisa i publica",
+    "step3desc": "Tu tries, edites si cal i publiques. Mai res automàtic.",
+    "finalCta": "Comença a respondre professionalment",
+    "finalCtaSub": "Configura el teu negoci en 30 segons i genera respostes que reforcen la teva marca.",
+    "tryFree": "Provar ara gratis",
+    "createAccount": "Crear compte",
+    "nav": {
+      "pricing": "Pricing",
+      "help": "Ajuda",
+      "signIn": "Sign in",
+      "start": "Start"
+    },
+    "heroArtlist": {
+      "badge": "Reputació + contingut en un sol flux",
+      "title": "Respon ressenyes i converteix-les en contingut en minuts.",
+      "subtitle": "Menys mòbil. Més clients.",
+      "primaryCta": "Comença ara",
+      "secondaryCta": "Veure pricing",
+      "trust": "Sense permanència. Pots cancel·lar quan vulguis."
+    },
+    "socialProof": {
+      "title": "Triat per equips que publiquen amb constància",
+      "items": {
+        "restaurants": "Restaurants",
+        "hotels": "Hotels boutique",
+        "clinics": "Clíniques",
+        "retail": "Retail",
+        "services": "Serveis locals"
+      }
+    },
+    "howItWorks": {
+      "title": "Com funciona",
+      "steps": {
+        "reviews": {
+          "label": "Pas 1",
+          "title": "Centralitza ressenyes",
+          "description": "Agrupa el feedback i detecta què valoren més els clients."
+        },
+        "reply": {
+          "label": "Pas 2",
+          "title": "Resposta professional en segons",
+          "description": "Genera resposta amb to de marca i valida-la abans de publicar."
+        },
+        "content": {
+          "label": "Pas 3",
+          "title": "Converteix-ho en contingut",
+          "description": "Passa de review a idea, asset i planner setmanal sense sortir del flux."
+        }
+      }
+    },
+    "flow": {
+      "title": "Ressenyes → Resposta → Contingut",
+      "subtitle": "Tot connectat perquè cada opinió es converteixi en una acció útil.",
+      "cards": {
+        "reviews": {
+          "label": "Ressenyes",
+          "title": "Veus què passa al negoci",
+          "description": "Identifica punts forts i friccions recurrents sense perdre hores."
+        },
+        "reply": {
+          "label": "Resposta",
+          "title": "Respon amb criteri i to consistent",
+          "description": "Mantens una veu professional, clara i alineada amb la marca."
+        },
+        "content": {
+          "label": "Contingut",
+          "title": "Publica idees basades en proves",
+          "description": "Transformes quotes reals en peces llestes per Story, Feed o Planner."
+        }
+      }
+    },
+    "reviews": {
+      "title": "Ressenyes reals, resposta professional",
+      "subtitle": "Mosaic de feedback i resposta suggerida per reforçar confiança.",
+      "suggestedLabel": "Resposta suggerida",
+      "cards": {
+        "speed": {
+          "platform": "Google",
+          "rating": "★★★★★",
+          "snippet": "Servei molt àgil al migdia i tracte amable de l’equip.",
+          "reply": "Gràcies per destacar la rapidesa. Seguirem cuidant aquest ritme perquè l'experiència sigui igual de bona cada dia."
+        },
+        "service": {
+          "platform": "TripAdvisor",
+          "rating": "★★★★☆",
+          "snippet": "Bon ambient, però a l’hora punta vam esperar una mica.",
+          "reply": "Gràcies pel comentari. Estem ajustant torns a les franges de màxima afluència per reduir l’espera."
+        },
+        "clarity": {
+          "platform": "Booking",
+          "rating": "★★★★★",
+          "snippet": "Molt net i tot clar des del check-in fins al checkout.",
+          "reply": "Ens alegra saber que el procés va ser fluid. Continuarem prioritzant claredat i confort en cada estada."
+        },
+        "value": {
+          "platform": "Google",
+          "rating": "★★★★☆",
+          "snippet": "Relació qualitat-preu bona i recomanable per famílies.",
+          "reply": "Moltes gràcies per recomanar-nos. Seguirem treballant perquè el valor percebut es mantingui en cada visita."
+        }
+      }
+    },
+    "examples": {
+      "title": "Exemples de respostes",
+      "subtitle": "Tres estils per publicar ràpid i mantenir coherència de marca.",
+      "items": {
+        "empathy": {
+          "tone": "Proper",
+          "reply": "Gràcies per explicar-nos-ho. Ens ajuda molt i ja hem aplicat millores al servei de tarda."
+        },
+        "operations": {
+          "tone": "Professional",
+          "reply": "Agraïm la seva valoració. Hem revisat el procés intern per reduir el temps d’espera en hores punta."
+        },
+        "upsell": {
+          "tone": "Premium",
+          "reply": "Ens encanta que hagi gaudit l’experiència. A la propera visita, li recomanem provar la nostra selecció especial."
+        }
+      }
+    },
+    "mini": {
+      "title": "Studio + Planner + Export en una rutina setmanal",
+      "items": {
+        "studio": "Crea Story o Feed amb template en pocs clics.",
+        "planner": "Planifica quan publicar i marca-ho com publicat.",
+        "export": "Descarrega el pack setmanal en ZIP amb tot preparat."
+      }
+    },
+    "faqShort": {
+      "title": "FAQ ràpida",
+      "items": {
+        "fast": {
+          "q": "Quant tardo a veure valor?",
+          "a": "Normalment en la primera sessió: resposta, idea i planner en menys de 5 minuts."
+        },
+        "editing": {
+          "q": "Puc editar abans de publicar?",
+          "a": "Sí. Tot és revisable i editable abans de publicar o enviar."
+        },
+        "catalan": {
+          "q": "Funciona en català?",
+          "a": "Sí. Pots treballar en català, castellà i anglès."
+        }
+      }
+    },
+    "footer": {
+      "copy": "© 2026 OpinIA. Menys mòbil. Més clients."
+    }
+  },
+  "pricing": {
+    "sectionTitle": "Plans",
+    "hero": {
+      "title": "Plans clars per vendre més amb menys feina",
+      "subtitle": "De la ressenya al post i al planner en minuts.",
+      "trust": "Pots cancel·lar quan vulguis. Sense permanència."
+    },
+    "value": {
+      "saveHours": "Estalvia hores cada setmana",
+      "evidence": "Contingut basat en proves reals (quotes)",
+      "closedFlow": "Planifica i publica amb un flux tancat"
+    },
+    "billing": {
+      "monthly": "Mensual",
+      "yearly": "Anual",
+      "save": "Estalvia {percent}%"
+    },
+    "savings": "Estalvia {pct}%",
+    "recommended": "Recomanat",
+    "perMonth": "/mes",
+    "perYear": "/any",
+    "monthsFree": "2 mesos gratis",
+    "twoMonthsFree": "2 mesos gratis",
+    "effectiveMonthlyBilledAnnually": "{amount}/mes (facturat anualment)",
+    "tableTitle": "Comparativa completa",
+    "tableFeature": "Funcionalitat",
+    "included": "Inclòs",
+    "notIncluded": "No inclòs",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "desc": "Per negocis que comencen i volen una rutina setmanal simple.",
+        "b1": "1 local",
+        "b2": "Inbox + Growth + Studio preparats en minuts",
+        "b3": "Ideal per començar sense complexitat"
+      },
+      "pro": {
+        "name": "Pro",
+        "desc": "Per equips que volen constància de publicació i visió de rendiment.",
+        "b1": "Fins a 3 locals",
+        "b2": "Benchmarks i automatització via webhook",
+        "b3": "Pla recomanat per gerència"
+      },
+      "agency": {
+        "name": "Agency",
+        "desc": "Per gestió multi-local amb prioritat operativa.",
+        "b1": "Fins a 10 locals",
+        "b2": "Suport prioritari i render prioritzat",
+        "b3": "Pensat per agències o grups"
+      }
+    },
+    "features": {
+      "business_locations": "Locals inclosos",
+      "team_seats": "Seients d'equip",
+      "role_permissions": "Rols i permisos",
+      "ai_replies": "Respostes a ressenyes amb IA (Inbox)",
+      "multi_language": "Multi-idioma (ca/es/en)",
+      "seo_controls": "SEO (keywords + control d'agressivitat)",
+      "content_intelligence": "Content Intelligence + Growth",
+      "content_studio": "Content Studio (assets Story/Feed + X/Threads)",
+      "asset_library": "Asset Library (historial + reutilitzar)",
+      "planner": "Planner (planificar + marcar publicat)",
+      "weekly_exports": "Exports setmanals (pack ZIP)",
+      "analytics_roi": "Analytics / ROI",
+      "benchmarks": "Benchmark anònim de publicació",
+      "connectors_webhook": "Integracions via connectors (Make/Zapier webhook)",
+      "assets_monthly": "Assets inclosos per mes",
+      "multi_location_support": "Suport per múltiples locals",
+      "priority_render": "Prioritat de render",
+      "priority_support": "Suport prioritari"
+    },
+    "values": {
+      "starter": {
+        "business_locations": "1 local",
+        "team_seats": "Fins a 3 usuaris",
+        "role_permissions": "Owner, Admin, Manager i Resposta",
+        "ai_replies": "Fins a 200 respostes/mes (ús raonable)",
+        "weekly_exports": "1 export setmanal",
+        "assets_monthly": "30 assets/mes"
+      },
+      "pro": {
+        "business_locations": "Fins a 3 locals",
+        "team_seats": "Fins a 6 usuaris",
+        "role_permissions": "Owner, Admin, Manager i Resposta",
+        "ai_replies": "Il·limitades (ús raonable)",
+        "weekly_exports": "Il·limitats",
+        "assets_monthly": "150 assets/mes"
+      },
+      "agency": {
+        "business_locations": "Fins a 10 locals",
+        "team_seats": "Fins a 6 usuaris",
+        "role_permissions": "Owner, Admin, Manager i Resposta",
+        "ai_replies": "Il·limitades (ús raonable)",
+        "weekly_exports": "Il·limitats",
+        "assets_monthly": "600 assets/mes"
+      }
+    },
+    "faq": {
+      "title": "Preguntes freqüents",
+      "robotic": {
+        "q": "Sonarà robòtic?",
+        "a": "No. El text surt amb el to del teu negoci i sempre el pots editar abans de publicar."
+      },
+      "edit": {
+        "q": "Puc editar abans de publicar?",
+        "a": "Sí. El flux està pensat perquè revisis, ajustis i publiquis només quan et sembli correcte."
+      },
+      "catalan": {
+        "q": "Funciona en català?",
+        "a": "Sí. Pots treballar en català, castellà i anglès tant a respostes com a contingut."
+      },
+      "export": {
+        "q": "Què passa si marxo? Puc exportar?",
+        "a": "Sí. Tens export setmanal en ZIP amb planner, textos i assets per conservar-ho tot."
+      },
+      "integrations": {
+        "q": "Integracions: com publico automàtic?",
+        "a": "Des de Settings connectes Make/Zapier amb webhook. Quan cliques “Enviar a publicar”, s'envia el payload estàndard."
+      },
+      "limits": {
+        "q": "Hi ha límits?",
+        "a": "Sí, segons el pla. On diu il·limitat s'aplica ús raonable per garantir estabilitat de servei."
+      }
+    },
+    "cta": {
+      "primary": "Comença ara",
+      "secondary": "Veure demo",
+      "allPlans": "Veure tots els plans",
+      "finalTitle": "Activa un flux complet de reputació + contingut",
+      "finalSubtitle": "Passa de la ressenya a la publicació en una sola rutina setmanal."
+    }
+  },
+  "auth": {
+    "login": "Iniciar sessió",
+    "loginWith": "Entrar amb {provider}",
+    "loginEmail": "Entrar amb correu",
+    "emailPlaceholder": "el-teu@email.com",
+    "magicLinkSent": "Comprova el teu correu! T'hem enviat un enllaç d'accés.",
+    "or": "o",
+    "createAccount": "Crear compte",
+    "enter": "Entrar"
+  },
+  "onboarding": {
+    "welcome": "Benvingut a OpinIA!",
+    "languageStep": "En quin idioma vols utilitzar OpinIA?",
+    "businessName": "Nom del negoci",
+    "businessNamePlaceholder": "El meu restaurant",
+    "businessType": "Tipus de negoci",
+    "signature": "Signatura de resposta",
+    "signaturePlaceholder": "L'equip de {name}",
+    "step": "Pas {n} de {total}",
+    "createBusiness": "Crear negoci",
+    "configureVoice": "Veu de marca configurada",
+    "addMemory": "Business Memory (mínim 1 entrada)",
+    "bizTypes": {
+      "restaurant": "Restaurant",
+      "hotel": "Hotel",
+      "apartment": "Apartament",
+      "bar": "Bar",
+      "cafe": "Cafeteria",
+      "shop": "Botiga",
+      "other": "Altre"
+    },
+    "kbCategories": {
+      "parking": "Parking",
+      "wifi": "WiFi",
+      "horaris": "Horaris",
+      "política": "Polítiques",
+      "menú": "Menú / Cuina",
+      "equip": "Equip",
+      "instal·lacions": "Instal·lacions",
+      "ubicació": "Ubicació",
+      "espais": "Espais"
+    }
+  },
+  "onboardingReverse": {
+    "connect": {
+      "title": "Benvingut a OpinIA. Posem la teva reputació en pilot automàtic.",
+      "subtitle": "Connecta el teu perfil de Google per analitzar les teves ressenyes. Trigaràs 10 segons.",
+      "cta": "🔗 Sincronitzar amb Google Business"
+    },
+    "analyzing": {
+      "title": "Preparant el teu primer resultat",
+      "line1": "Connectant amb Google...",
+      "line2": "Analitzant les teves últimes ressenyes...",
+      "line3": "Redactant la teva primera resposta perfecta..."
+    },
+    "firstWin": {
+      "title": "Hem trobat aquesta joia d'avui. Mira com respon OpinIA.",
+      "approveCta": "✅ Aprovar i Publicar",
+      "approveError": "No s'ha pogut publicar la resposta.",
+      "generateError": "No s'ha pogut preparar la proposta.",
+      "noBusinessTitle": "Encara no hi ha cap negoci actiu.",
+      "noBusinessSubtitle": "Completa la configuració mínima i torna a provar aquest flux.",
+      "openOnboarding": "Obrir onboarding",
+      "noReviewTitle": "No hem trobat ressenyes pendents ara mateix.",
+      "noReviewSubtitle": "Pots continuar a la teva bústia d'accions quan vulguis.",
+      "goDashboard": "Anar a la meva bústia d'accions"
+    },
+    "success": {
+      "title": "Màgia pura! ✨ Has estalviat els teus primers 5 minuts.",
+      "subtitle": "Aquesta ressenya és massa bona. T'hem preparat aquest post d'Instagram.",
+      "noAsset": "No hi ha cap asset disponible encara.",
+      "dismiss": "No, gràcies",
+      "download": "Descarregar Imatge",
+      "goInbox": "Anar a la meva bústia d'accions"
+    }
+  },
+  "dashboard": {
+    "inbox": {
+      "title": "Ressenyes",
+      "pending": "Pendents",
+      "urgent": "Urgents",
+      "total": "Total",
+      "all": "Totes",
+      "pendingFilter": "Pendents",
+      "replied": "Respostes",
+      "statusGenerated": "Generada",
+      "generateResponses": "Generar respostes",
+      "regenerate": "Regenerar",
+      "approve": "Publicar resposta",
+      "panicBanner": "Mode pànic actiu — Generació IA aturada",
+      "addReview": "Afegir ressenya",
+      "noReviews": "Encara no hi ha ressenyes. Importa o afegeix la primera!",
+      "tabList": "Llista",
+      "tabDetail": "Detall",
+      "tabReply": "Resposta",
+      "detailTitle": "Detall de ressenya",
+      "replyTitle": "Resposta OpinIA",
+      "topicTags": "Temes detectats",
+      "noSelection": "Selecciona una ressenya per veure el detall.",
+      "selectReviewHint": "Selecciona una ressenya per començar a generar resposta.",
+      "noReplyYet": "La resposta apareixerà aquí...",
+      "guardrailOk": "Guardrails: OK",
+      "guardrailWarning": "Guardrails: Warning",
+      "guardrailAcknowledge": "He revisat i confirmo que la resposta és correcta",
+      "seoDisabled": "SEO no disponible",
+      "aggressiveness": "Nivell",
+      "copy": "Copiar",
+      "chars": "Caràcters",
+      "optionsCount": "3 opcions",
+      "option1": "Opció 1",
+      "option2": "Opció 2",
+      "option3": "Opció 3",
+      "seoOn": "SEO ON",
+      "seoOff": "SEO OFF",
+      "idCopied": "ID copiat",
+      "copyId": "Copiar ID",
+      "deleteReviewConfirm": "Segur que vols eliminar aquesta ressenya? Això també eliminarà les respostes associades.",
+      "businessMissing": "Cap negoci seleccionat",
+      "sourceAll": "Totes",
+      "ratingAll": "Totes ★",
+      "triggersCount": "⚡ Triggers: {count}",
+      "authorLabel": "Autor",
+      "authorPlaceholder": "Nom (opcional)",
+      "sourceLabel": "Font",
+      "ratingRequired": "Rating *",
+      "reviewTextRequired": "Text de la ressenya *",
+      "reviewTextPlaceholder": "Enganxa la ressenya...",
+      "saveReview": "Desar ressenya"
+    },
+    "home": {
+      "navHome": "Home",
+      "hoursSavedBadge": "Hores estalviades aquest mes: {hours}",
+      "title": "Hola, {name}! Tens {count} ressenyes pendents avui.",
+      "subtitle": "Liquida-les en un minut i torna a la teva feina.",
+      "progress": "{pending} pendents · {completed}/{total} completades",
+      "emptyTitle": "Tot al dia 🎉",
+      "emptySubtitle": "Has netejat la teva bústia. Gaudeix del temps estalviat.",
+      "emptySavedToday": "Has estalviat {minutes} minuts avui.",
+      "viewImpact": "Veure el meu impacte",
+      "reviewLine": "{author} a {platform}",
+      "proposalTitle": "Proposta preparada per OpinIA",
+      "proposalConfidenceLine": "To proper · Basat en l’ADN del teu negoci",
+      "proposalMissing": "Encara no hi ha proposta generada per aquesta ressenya.",
+      "platform": {
+        "google": "Google",
+        "tripadvisor": "TripAdvisor",
+        "booking": "Booking",
+        "manual": "Manual",
+        "other": "Altre"
+      },
+      "meta": {
+        "anonymousAuthor": "Client anònim",
+        "justNow": "ara mateix",
+        "minutesAgo": "fa {count} min",
+        "hoursAgo": "fa {count} h",
+        "daysAgo": "fa {count} d"
+      },
+      "actions": {
+        "edit": "Editar",
+        "redo": "Refer resposta",
+        "approvePublish": "✅ Aprovar i Publicar",
+        "toneApology": "Disculpar-se",
+        "toneContact": "Oferir contacte",
+        "dismiss": "Potser més tard",
+        "downloadImage": "📲 Descarregar imatge",
+        "schedulePost": "📅 Programar ara"
+      },
+      "toasts": {
+        "approveSuccess": "Resposta publicada.",
+        "approveError": "No s'ha pogut publicar la resposta.",
+        "generateError": "No s'ha pogut regenerar la proposta."
+      },
+      "successModal": {
+        "title": "Resposta publicada amb èxit!",
+        "subtitle": "Aquesta ressenya pot atraure nous clients.",
+        "benefitLine": "Els negocis que comparteixen ressenyes positives generen fins a 23% més confiança.",
+        "noAsset": "No hi ha cap asset disponible encara. Pots crear-lo des de Studio."
+      }
+    },
+    "layout": {
+      "accountFallback": "Compte",
+      "userFallback": "Usuari",
+      "toggleNavigation": "Obrir navegació",
+      "platformFilterAria": "Filtre de plataforma",
+      "platformAll": "Totes les plataformes",
+      "createBusiness": "+ Crear negoci",
+      "profileMenu": "Menú de perfil",
+      "accountSettings": "Configuració del compte",
+      "closeNavigationDrawer": "Tancar menú de navegació",
+      "closeSidebarPreview": "Tancar previsualització de barra lateral",
+      "expandSidebar": "Expandir barra lateral",
+      "collapseSidebar": "Col·lapsar barra lateral",
+      "enableAutoSidebar": "Activar mode auto de barra lateral",
+      "pinSidebar": "Fixar barra lateral",
+      "roleOwner": "Propietari",
+      "roleAdmin": "Administrador",
+      "roleManager": "Gestor",
+      "roleResponder": "Resposta",
+      "roleMember": "Membre",
+      "searchOrgPlaceholder": "Cerca organització...",
+      "searchOrgAria": "Cercador d'organitzacions",
+      "openCommandPalette": "Obrir command palette",
+      "commandPlaceholder": "Escriu una acció o organització...",
+      "commandAria": "Cercador de comandes",
+      "currentOrg": "Activa",
+      "goTo": "Anar a:",
+      "switchToOrg": "Canvia a",
+      "orgCommandHint": "Organització",
+      "commandGoInbox": "Anar a: Ressenyes",
+      "commandGoPlanner": "Anar a: Planner",
+      "commandGoGrowth": "Anar a: Impacte",
+      "commandGoSettings": "Anar a: Configuració",
+      "adminPanel": "Gestió",
+      "commandGoAdmin": "Anar a Gestió"
+    },
+    "engagement": {
+      "title": "Impuls setmanal",
+      "notificationLabel": "Notificació",
+      "emailLabel": "Email",
+      "empty": "No tens avisos nous avui.",
+      "mondayNotification": "Tens noves ressenyes del cap de setmana.",
+      "thursdayReminder": "2 ressenyes encara sense resposta.",
+      "fridayEmail": "Aquesta setmana has estalviat {hours} hores amb OpinIA."
+    },
+    "insights": {
+      "title": "Insights",
+      "noData": "Encara no hi ha prou activitat aquesta setmana."
+    },
+    "benchmark": {
+      "title": "Benchmark & Missions",
+      "week": "Setmana",
+      "avgRating": "La teva mitjana",
+      "reviewCount": "Ressenyes (30d)",
+      "responseRate": "Taxa resposta",
+      "weekPoints": "Punts setmana",
+      "league": "Classificació",
+      "addCompetitor": "Competidor",
+      "noCompetitors": "Sense competidors",
+      "noCompetitorsDesc": "Afegeix competidors per veure la teva posició.",
+      "weeklyMissions": "Missions setmanals",
+      "completed": "Completada!"
+    },
+    "ops": {
+      "title": "Operacions"
+    },
+    "growth": {
+      "title": "El teu Impacte",
+      "impactTitle": "El teu Impacte",
+      "subtitle": "Reputació + contingut en una sola vista setmanal.",
+      "selectBusiness": "Selecciona un negoci per obrir El teu Impacte",
+      "weekSummaryTitle": "Aquesta setmana a OpinIA",
+      "summaryReviewsAnswered": "Ressenyes respostes",
+      "summaryPostsCreated": "Posts creats",
+      "summaryHoursSaved": "Hores estalviades",
+      "summaryRatingChange": "Canvi de rating",
+      "impactSentenceImproving": "La teva reputació està millorant. Continua així.",
+      "impactSentenceNeutral": "Bona constància. El següent pas és convertir més ressenyes en contingut.",
+      "impactNoActivity": "Encara no hi ha prou activitat aquesta setmana.",
+      "insightIdLabel": "Insight ID",
+      "weekLabel": "Setmana",
+      "mixLabel": "MIX",
+      "mentionsSuffix": "mencions",
+      "generatePlan": "Generar pla setmanal",
+      "generatePlanError": "No s'ha pogut generar el pla setmanal.",
+      "strongPoint": "El teu punt fort d’aquesta setmana",
+      "opportunity": "Oportunitat clara de millora",
+      "noRecurringIssues": "No s'han detectat problemes recurrents",
+      "createContent": "Crear contingut",
+      "generateResponse": "Generar resposta",
+      "noNegativeWeekly": "No hi ha ressenyes negatives aquesta setmana",
+      "readyIdeas": "3 idees llestes per publicar",
+      "defaultIdeaTitle": "Idea",
+      "defaultPlannerTitle": "Idea de contingut",
+      "hookLabel": "Hook",
+      "captionLabel": "Caption",
+      "bestTimeLabel": "Millor hora",
+      "copyHook": "Copiar hook",
+      "copyCaption": "Copiar caption",
+      "copied": "Copiat",
+      "copyId": "Copiar ID",
+      "approve": "Aprovar",
+      "approveIdeaError": "No s'ha pogut aprovar la idea.",
+      "approved": "Aprovada",
+      "createStory": "Crear Story",
+      "createFeed": "Crear Feed",
+      "comingSoon": "Properament",
+      "planner": "Mini Planner recomanat",
+      "nextOpportunities": "Properes oportunitats",
+      "addToPlanner": "Afegir al planner",
+      "markPublished": "Marcar com publicat",
+      "published": "Publicat",
+      "plannedStatus": "Planificat",
+      "publishedStatus": "Publicat",
+      "noPlannerItems": "Cap ítem aquesta setmana",
+      "plannerErrorSave": "No s'ha pogut afegir l'ítem al planner.",
+      "plannerErrorPublish": "No s'ha pogut marcar com publicat.",
+      "sendToPublish": "Enviar a publicar",
+      "webhookSent": "Enviat",
+      "webhookFailed": "Error d'enviament",
+      "webhookSkipped": "Omès",
+      "webhookSendError": "No s'ha pogut enviar al connector.",
+      "webhookDisabled": "Connector webhook desactivat",
+      "exportWeekly": "Descarregar pack setmanal",
+      "exportLoading": "Generant ZIP setmanal...",
+      "exportDownload": "Descarregar ZIP",
+      "exportCopyLink": "Copia link",
+      "exportOpenHistory": "Veure historial d'exports",
+      "exportError": "No s'ha pogut generar l'export setmanal."
+    },
+    "metrics": {
+      "title": "Analytics / ROI",
+      "subtitle": "Impacte real: temps estalviat, ressenyes gestionades, contingut publicat i cost IA.",
+      "range": "Període",
+      "errorLoad": "No s'han pogut carregar les mètriques.",
+      "selectBusiness": "Selecciona un negoci per veure Analytics.",
+      "timeSavedHours": "Hores estalviades",
+      "timeSaved": "Temps estalviat",
+      "timeSavedHint": "Estimació amb baseline de 2 min per resposta.",
+      "repliesHandled": "Ressenyes respostes",
+      "approved": "Aprovades",
+      "contentPublished": "Contingut publicat",
+      "assetsCreated": "Assets creats",
+      "streak": "Streak",
+      "streakHint": "Setmanes consecutives amb 2+ publicacions.",
+      "benchmarkTitle": "Comparació",
+      "benchmarkEstimate": "Estimació: continua publicant per tenir comparació.",
+      "benchmarkAbove": "Per sobre de la mitjana",
+      "benchmarkAverage": "A la mitjana",
+      "benchmarkBelow": "Per sota de la mitjana",
+      "estimateBadge": "Estimació",
+      "aiCost": "Cost IA",
+      "restricted": "Restringit",
+      "aiCostHint": "Visible per owner/manager.",
+      "aiCostRestrictedHint": "Només owner/manager pot veure el cost.",
+      "seriesTitle": "Evolució diària",
+      "emptySeries": "Encara no hi ha dades per al període seleccionat.",
+      "legendReplies": "Respostes generades",
+      "legendPublished": "Planner publicat",
+      "highlightsTitle": "Highlights",
+      "emptyHighlights": "Sense highlights disponibles encara."
+    },
+    "paywall": {
+      "testButton": "Provar modal de plans",
+      "subtitle": "Tria el pla que millor s'adapta al teu negoci. Pots cancel·lar quan vulguis amb 1 clic.",
+      "close": "Tancar",
+      "perMonth": "/mes",
+      "mockCheckout": "Simulació checkout: {plan}.",
+      "titles": {
+        "default": "Puja de nivell la teva reputació.",
+        "editor_access": "Desbloqueja l'Editor Pro",
+        "limit_reached": "Has arribat al límit del teu pla",
+        "trial_start": "Activa la teva prova de 14 dies"
+      },
+      "plans": {
+        "essential": {
+          "title": "Pla Essencial",
+          "badge": "El més popular",
+          "f1": "Respon totes les teves ressenyes amb IA.",
+          "f2": "Generació de posts en 1 clic.",
+          "f3": "Analítica d'impacte.",
+          "cta": "Començar prova de 14 dies"
+        },
+        "pro": {
+          "title": "Pla Pro / Agència",
+          "f1": "Tot el pla Essencial.",
+          "f2": "Editor de disseny avançat (estil Canva).",
+          "f3": "Gestió de múltiples locals.",
+          "f4": "Regles d'automatització total.",
+          "cta": "Millorar a Pro"
+        }
+      },
+      "trust": {
+        "secure": "🔒 Pagament segur amb Stripe",
+        "invoice": "Factura automàtica amb IVA",
+        "support": "Suport prioritari"
+      }
+    },
+    "onboarding": {
+      "bannerTitle": "Completa l'onboarding (2 min)",
+      "bannerSubtitle": "Fes el setup ràpid i activa el teu primer resultat en menys de 5 minuts.",
+      "bannerStart": "Començar",
+      "bannerDismiss": "Dismiss",
+      "title": "Onboarding ràpid",
+      "subtitle": "Configura el mínim, genera valor i salta directament a Growth Hub.",
+      "skip": "Saltar",
+      "stepLabel": "Pas {n} de {total}",
+      "needBusiness": "Selecciona un negoci per iniciar l'onboarding",
+      "step1Title": "Pas 1 — Config ràpida",
+      "languageLabel": "Idioma de sortida",
+      "voiceStatus": "Estat de veu/to",
+      "brandKitStatus": "Estat de Brand Kit",
+      "statusComplete": "Complet",
+      "statusIncomplete": "Incomplet",
+      "openSettings": "Obrir Settings",
+      "continue": "Continuar",
+      "step2Title": "Pas 2 — Ressenyes",
+      "reviewsDetected": "Detectades ressenyes. Perfecte.",
+      "reviewsMissing": "No hi ha ressenyes encara. Pots carregar un pack demo segur.",
+      "seedDemo": "Carregar demo (5)",
+      "step3Title": "Pas 3 — Aha chain",
+      "runChain": "Executar cadena 1 clic",
+      "generateReply": "Generar 1 resposta",
+      "generateSuggestion": "Generar 1 idea",
+      "generateAsset": "Crear 1 asset",
+      "runAction": "Executar",
+      "view": "Veure",
+      "openStudio": "Obrir Studio",
+      "actionDone": "Fet",
+      "actionError": "Error",
+      "actionLoading": "Carregant",
+      "actionPending": "Pendent",
+      "retry": "Reintentar",
+      "step4Title": "Pas 4 — Planner + Export",
+      "addPlanner": "Afegir al planner",
+      "plannerAdded": "Ítem afegit al planner:",
+      "exportWeekly": "Descarregar pack setmanal",
+      "downloadZip": "Descarregar ZIP",
+      "copyLink": "Copia link",
+      "copied": "Copiat",
+      "finish": "Acabar",
+      "cancel": "Cancel·la",
+      "generate": "Generar",
+      "studioTitle": "Configura l'asset",
+      "studioFormat": "Format",
+      "studioTemplate": "Template",
+      "defaultPlannerTitle": "Idea setmanal",
+      "errorLoad": "No s'ha pogut carregar l'estat d'onboarding.",
+      "errorSave": "No s'ha pogut actualitzar l'onboarding.",
+      "errorSeed": "No s'ha pogut carregar el demo.",
+      "errorNoReview": "No hi ha ressenyes disponibles per generar resposta.",
+      "errorGenerateReply": "No s'ha pogut generar la resposta.",
+      "errorGenerateSuggestion": "No s'ha pogut generar la idea.",
+      "errorNeedSuggestion": "Cal generar una idea abans de crear l'asset.",
+      "errorGenerateAsset": "No s'ha pogut crear l'asset.",
+      "errorNeedSuggestionOrAsset": "Cal una suggestion o un asset per afegir al planner.",
+      "errorPlanner": "No s'ha pogut afegir al planner.",
+      "errorExport": "No s'ha pogut generar l'export setmanal."
+    },
+    "studio": {
+      "title": "Content Studio",
+      "subtitle": "Converteix una idea en peça visual i text per xarxes en minuts.",
+      "contentSubtitle": "Converteix ressenyes setmanals en idees llestes per publicar.",
+      "libraryTitle": "Libreria d'assets",
+      "librarySubtitle": "Historial de Story/Feed generats i reutilització ràpida.",
+      "close": "Tancar",
+      "savedToLibrary": "Desat a Libreria ✅",
+      "viewStudio": "Veure a Studio",
+      "formatStory": "Story (1080x1920)",
+      "formatFeed": "Feed (1080x1350)",
+      "formatAll": "Tots",
+      "languageAll": "Tots",
+      "statusAll": "Tots",
+      "templateAll": "Tots",
+      "templateLabel": "Template",
+      "templateQuoteClean": "Quote Clean",
+      "templateFeatureSplit": "Feature Split",
+      "templateTop3Reasons": "Top 3 Reasons",
+      "templateBehindScenes": "Behind the Scenes",
+      "generatePng": "Generar PNG",
+      "generatingPng": "Generant PNG...",
+      "preview": "Preview",
+      "downloadPng": "Descarregar PNG",
+      "assetId": "Asset ID",
+      "createXThreads": "Crear X/Threads",
+      "platformLabel": "Plataforma",
+      "toneLabel": "To",
+      "toneFriendly": "Proper",
+      "toneProfessional": "Professional",
+      "toneBold": "Atrevit",
+      "generateVariants": "Generar 3 variants",
+      "generatingVariants": "Generant variants...",
+      "openAsset": "Obrir",
+      "downloadAsset": "Descarregar",
+      "reuseAsset": "Reutilitzar",
+      "reuseTitle": "Reutilitzar asset",
+      "reuseGenerate": "Generar variant",
+      "reuseGenerating": "Generant variant...",
+      "loadingAssets": "Carregant assets...",
+      "noAssets": "No hi ha assets amb aquests filtres.",
+      "statusCreated": "Creat",
+      "statusFailed": "Error",
+      "copy": "Copiar",
+      "copied": "Copiat",
+      "noVariants": "Encara no hi ha variants. Genera-les per veure el resultat.",
+      "errorRender": "No s'ha pogut generar el PNG.",
+      "errorX": "No s'han pogut generar variants per X/Threads.",
+      "errorLoadAssets": "No s'ha pogut carregar la libreria.",
+      "errorSignedUrl": "No s'ha pogut obrir el preview.",
+      "openGrowthPlanner": "Obrir a Growth",
+      "formatLabel": "Format",
+      "statusLabel": "Status"
+    },
+    "contentGallery": {
+      "title": "El teu Aparador",
+      "subtitle": "Les teves millors ressenyes, llestes per a xarxes socials.",
+      "createButton": "✨ Crear nou Post",
+      "backToGallery": "← Tornar a la Galeria",
+      "weekLabel": "Setmana",
+      "languageLabel": "Idioma",
+      "languageCa": "Català",
+      "languageEs": "Español",
+      "languageEn": "English",
+      "emptyTitle": "Encara no has presumit de res.",
+      "emptyText": "Converteix les teves ressenyes de 5 estrelles en contingut per a xarxes socials amb un sol clic.",
+      "emptyAction": "✨ Crear el meu primer Post",
+      "previewAlt": "Previsualització de post",
+      "loadingPreview": "Carregant previsualització...",
+      "meta": {
+        "anonymous": "Client anònim",
+        "unknownAuthor": "Ressenya destacada",
+        "unknownSource": "sense font"
+      },
+      "actions": {
+        "variant": "🔄 Variant",
+        "download": "📥 Baixar",
+        "publish": "📅 Publicar",
+        "openEditor": "🎨 Obrir a l'Editor",
+        "customize": "🎨 Personalitzar (Avançat)"
+      },
+      "modal": {
+        "title": "Crear nou post",
+        "pickSubtitle": "Tria la ressenya",
+        "loadingSubtitle": "Generant la màgia...",
+        "resultTitle": "Post preparat",
+        "resultSubtitle": "Ja tens el teu contingut llest.",
+        "createPost": "Crear post",
+        "loadingLine1": "Connectant amb la teva ressenya destacada...",
+        "loadingLine2": "Aplicant estil visual premium...",
+        "loadingLine3": "Generant una peça llesta per publicar...",
+        "noEligibleReviews": "No hi ha ressenyes de 4-5 estrelles disponibles.",
+        "noEligibleReviewsHelp": "Quan entrin valoracions positives, podràs crear posts en un clic.",
+        "previewAlt": "Post generat"
+      },
+      "variantSuccess": "Nova variant creada.",
+      "publishSuccess": "Publicació enviada al flux manual.",
+      "errorLoadAssets": "No s'ha pogut carregar la galeria.",
+      "errorLoadReviews": "No s'han pogut carregar les ressenyes.",
+      "errorGenerateSuggestions": "No s'ha pogut preparar el contingut.",
+      "errorCreateAsset": "No s'ha pogut crear el post.",
+      "errorSignedUrl": "No s'ha pogut obrir la imatge.",
+      "errorDownload": "No s'ha pogut baixar la imatge.",
+      "errorVariant": "No s'ha pogut generar la variant.",
+      "errorPublish": "No s'ha pogut enviar a publicar."
+    },
+    "exports": {
+      "title": "Exports setmanals",
+      "subtitle": "Descarrega i torna a compartir packs ZIP de cada setmana.",
+      "empty": "No hi ha exports per aquests filtres.",
+      "refreshLink": "Refrescar enllaç",
+      "download": "Descarregar",
+      "errorLoad": "No s'ha pogut carregar la llista d'exports.",
+      "errorSignedUrl": "No s'ha pogut generar l'enllaç de descàrrega."
+    },
+    "status": {
+      "title": "Estat del sistema"
+    }
+  },
+  "settings": {
+    "title": "Configuració",
+    "tabs": {
+      "voice": "Veu IA",
+      "kb": "Business Memory",
+      "billing": "Pla i ús",
+      "integrations": "Integracions",
+      "growth": "Growth",
+      "safety": "Seguretat",
+      "triggers": "Triggers",
+      "team": "Equip",
+      "language": "Idioma"
+    },
+    "humanized": {
+      "title": "Configuració del Negoci",
+      "subtitle": "Ensenya a OpinIA com gestionar el teu local.",
+      "saveCta": "Guardar canvis",
+      "saveSuccess": "Canvis desats (simulació).",
+      "tabs": {
+        "adn": "L'ADN del Negoci",
+        "personality": "Personalitat",
+        "autopilot": "Respostes automàtiques",
+        "team": "Equip i connexions"
+      },
+      "adn": {
+        "title": "L'ADN del Negoci",
+        "subtitle": "Defineix les bases del teu local amb un llenguatge senzill.",
+        "helper": "Aquesta informació ajuda OpinIA a respondre com tu ho faries.",
+        "businessType": "Tipus de negoci",
+        "businessTypes": {
+          "restaurant": "Restaurant",
+          "hotel": "Hotel",
+          "retail": "Comerç",
+          "service": "Servei"
+        },
+        "topOffer": "El nostre plat estrella o servei top és...",
+        "topOfferPlaceholder": "Escriu el teu diferencial principal",
+        "complaintPolicy": "Si un client es queixa, la nostra política és...",
+        "complaintOptions": {
+          "apologize": "Disculpar-se",
+          "privateContact": "Oferir contacte privat",
+          "inviteBack": "Convidar-lo de nou"
+        },
+        "practicalData": "Dades pràctiques per a la IA (Opcional)",
+        "practicalDataPlaceholder": "Ex: Tanquem els dilluns, no tenim terrassa...",
+        "footer": "OpinIA farà servir aquesta informació per respondre els dubtes dels clients a les ressenyes sense que tu hagis de fer res."
+      },
+      "personality": {
+        "title": "Personalitat",
+        "subtitle": "Tria el to de comunicació i els límits de llenguatge.",
+        "howToSound": "Com vols sonar?",
+        "quickTones": {
+          "proper": "Proper",
+          "formal": "Formal",
+          "fun": "Divertit"
+        },
+        "tones": {
+          "professional": {
+            "title": "👔 Professional i Elegant",
+            "subtitle": "Respostes formals i cuidades."
+          },
+          "friendly": {
+            "title": "🤝 Proper i Amable",
+            "subtitle": "Càlid, clar i natural."
+          },
+          "fun": {
+            "title": "🎉 Divertit i Desenfadat",
+            "subtitle": "Més informal i expressiu."
+          }
+        },
+        "signature": "Signatura",
+        "signaturePlaceholder": "Ex: Salutacions de l'equip de La Riera",
+        "forbiddenWords": "Paraules Prohibides",
+        "forbiddenWordsPlaceholder": "Escriu i prem Enter",
+        "advancedOptions": "Opcions avançades",
+        "expertMode": "Mode Expert",
+        "expertModeDesc": "Mostra controls avançats per personalitzar instruccions.",
+        "expertWarning": "Només per a usuaris avançats",
+        "customPrompt": "Custom System Prompt",
+        "customPromptPlaceholder": "Defineix instruccions avançades per al model..."
+      },
+      "autopilot": {
+        "title": "Respostes automàtiques",
+        "subtitle": "Defineix regles simples tipus “si passa això, fes això”.",
+        "rule1Title": "Si rebem una ressenya negativa",
+        "rule1Stars": "Si rebem una ressenya de",
+        "rule1Action": "Llavors",
+        "rule2Title": "Si rebem una ressenya de 5 estrelles sense text",
+        "rule2Stars": "Tipus de rating",
+        "rule2Toggle": "Aprovar i publicar un “Moltes gràcies” automàticament",
+        "ratingOptions": {
+          "oneStar": "1 estrella",
+          "oneTwoStars": "1 o 2 estrelles",
+          "twoStars": "2 estrelles",
+          "fiveStars": "5 estrelles",
+          "fourFiveStars": "4 o 5 estrelles"
+        },
+        "actionOptions": {
+          "notifyNoReply": "Avisa'm i NO preparis resposta",
+          "notifyPrepare": "Avisa'm i prepara una proposta"
+        }
+      },
+      "team": {
+        "title": "Equip",
+        "subtitle": "Convida persones de confiança per revisar ressenyes.",
+        "peopleCounter": "Persones: {used}/{limit}",
+        "businessCounter": "Establiments: {used}/{limit}",
+        "email": "Correu electrònic",
+        "emailPlaceholder": "nom@empresa.com",
+        "role": "Rol",
+        "roles": {
+          "owner": "Propietari",
+          "admin": "Administrador",
+          "manager": "Gestor",
+          "responder": "Resposta",
+          "approver": "Només aprovar"
+        },
+        "inviteCta": "Convida",
+        "currentMembers": "Equip actual",
+        "statusActive": "Actiu",
+        "statusPending": "Pendent",
+        "pendingInvites": "Invitacions preparades",
+        "limitReached": "Límit assolit. Puja de pla.",
+        "businessLimitReached": "Has arribat al límit d'establiments del teu pla.",
+        "limitTooltip": "Límit assolit. Puja de pla.",
+        "upgradePlan": "Actualitzar pla",
+        "manageBusinessesHint": "La creació de negocis es gestiona des de l'espai d'administració.",
+        "manageBusinessesCta": "Gestionar negocis",
+        "invalidEmail": "Introdueix un correu vàlid.",
+        "duplicateInvite": "Aquest correu ja està a la llista.",
+        "inviteQueued": "Invitació enviada.",
+        "inviteError": "No s'ha pogut enviar la invitació."
+      },
+      "integrations": {
+        "title": "Integracions",
+        "subtitle": "Connecta els teus fluxos sense complicacions tècniques.",
+        "webhookUrl": "Webhook URL",
+        "webhookPlaceholder": "https://hooks.zapier.com/...",
+        "cardTitle": "Connecta amb Zapier/Make",
+        "cardText": "Quan activis automatitzacions, OpinIA enviarà els esdeveniments al teu webhook."
+      }
+    },
+    "voice": {
+      "title": "Veu IA",
+      "signature": "Signatura",
+      "instructions": "Instruccions per a la IA",
+      "instructionsPlaceholder": "Ex: Mai mencionar preus. Sempre convidar a tornar.",
+      "posKeywords": "Paraules a USAR (separades per coma)",
+      "posPlaceholder": "hospitalitat, excel·lència, benvinguda",
+      "negKeywords": "Paraules a EVITAR (separades per coma)",
+      "negPlaceholder": "barat, descàrrec, problema",
+      "seo": "SEO & Visibilitat",
+      "seoDesc": "Keywords que s'integraran naturalment a les respostes per millorar el posicionament a Google Maps.",
+      "seoKeywords": "Keywords SEO (separades per coma)",
+      "seoKeywordsPlaceholder": "millors tapes Barcelona, restaurant terrassa Tarragona",
+      "seoIntensity": "Intensitat",
+      "seoLevels": [
+        "—",
+        "Suau",
+        "Mitjà",
+        "Alt"
+      ],
+      "seoMaxKw": "màx {n} keyword/s per resposta",
+      "saveChanges": "Desar canvis",
+      "aiEngineDesc": "Motor de generació optimitzat per OpinIA.",
+      "brandImageTitle": "Imatge del negoci",
+      "brandImageDesc": "Puja un logo o cover per mostrar-lo al switcher del dashboard.",
+      "brandImageLogo": "Logo",
+      "brandImageCover": "Cover",
+      "brandImageFormats": "Formats: PNG/JPG/WEBP",
+      "brandImageMaxSize": "Mida màxima: 4MB",
+      "brandImageSaved": "Imatge desada",
+      "brandImageSelectFirst": "Selecciona una imatge abans de desar.",
+      "brandImageErrorType": "Format no suportat. Usa PNG, JPG o WEBP.",
+      "brandImageErrorSize": "La imatge supera els 4MB.",
+      "brandImageErrorSave": "No s'ha pogut desar la imatge."
+    },
+    "kb": {
+      "title": "Business Memory",
+      "newEntry": "Nova entrada de memòria",
+      "editEntry": "Editar entrada",
+      "saveEntry": "Desar entrada",
+      "updateEntry": "Actualitzar",
+      "deleteConfirm": "Eliminar aquesta entrada?",
+      "category": "Categoria",
+      "triggers": "Triggers (paraules clau)",
+      "content": "Contingut",
+      "sentiment": "Context de sentiment",
+      "categories": {
+        "parking": "Parking",
+        "wifi": "WiFi",
+        "horaris": "Horaris",
+        "política": "Política",
+        "menú": "Menú / Cuina",
+        "equip": "Equip",
+        "instal·lacions": "Instal·lacions",
+        "ubicació": "Ubicació",
+        "promoció": "Promocions",
+        "altres": "Altres"
+      }
+    },
+    "billing": {
+      "title": "Pla i ús",
+      "currentPlan": "Pla actual",
+      "usage": "Ús",
+      "monthlyReviews": "Ressenyes mensuals",
+      "changePlan": "Canviar pla",
+      "aiGenerations": "Generacions IA",
+      "syncedReviews": "Ressenyes sync",
+      "monthlyLimit": "Límit mensual",
+      "errorLoad": "Error carregant dades de facturació",
+      "usageProgress": "{used} / {total} generacions"
+    },
+    "integrations": {
+      "title": "Integracions",
+      "comingSoon": "Pròximament: Google Business, TripAdvisor, Booking.",
+      "webhookDesc": "Connecta Make/Zapier per publicar automàticament des del Planner.",
+      "webhookEnable": "Activar connector webhook",
+      "webhookEnableHint": "Quan cliquis “Enviar a publicar”, enviarem un POST al teu webhook.",
+      "webhookUrl": "URL del webhook",
+      "webhookChannels": "Canals habilitats",
+      "testWebhook": "Test webhook",
+      "secretConfigured": "Secret configurat ✅",
+      "secretMissing": "Secret no configurat",
+      "regenerateSecret": "Regenerar secret",
+      "secretRegenerated": "Secret regenerat",
+      "copyId": "Copiar ID"
+    },
+    "triggers": {
+      "title": "Action Triggers",
+      "create": "Crear trigger",
+      "update": "Actualitzar",
+      "deleteConfirm": "Eliminar aquest trigger?",
+      "name": "Nom",
+      "namePlaceholder": "Ex: Alerta reviews negatives",
+      "matchTopics": "Topics a detectar",
+      "matchPhrases": "Frases a detectar",
+      "minRating": "Rating mínim",
+      "sentimentFilter": "Filtre de sentiment",
+      "actionType": "Tipus d'acció",
+      "actionTarget": "Destí de l'acció",
+      "enabled": "Activat",
+      "noTriggers": "Cap trigger configurat.",
+      "test": "Provar triggers",
+      "testText": "Text de prova",
+      "testRating": "Rating de prova",
+      "testSentiment": "Sentiment de prova",
+      "newTitle": "⚡ Nou trigger d'acció",
+      "editTitle": "✏️ Editar trigger",
+      "matchTopicsPlaceholder": "parking, soroll, neteja",
+      "matchPhrasesPlaceholder": "massa car, mal servei",
+      "minRatingAny": "Qualsevol",
+      "activeCount": "Triggers actius ({count})",
+      "topicPrefix": "topic",
+      "phrasePrefix": "frase",
+      "testTitle": "🧪 Provar triggers",
+      "testDescription": "Enganxa una ressenya per veure quins triggers s'activarien.",
+      "testPlaceholder": "Ex: El parking estava fatal i el personal molt sec...",
+      "runMatch": "Executar match",
+      "noMatches": "No hi ha cap trigger que faci match.",
+      "matchedPrefix": "match",
+      "sentimentOptions": {
+        "negative": "😠 Negatiu",
+        "neutral": "😐 Neutre",
+        "positive": "😊 Positiu"
+      },
+      "actionTypes": {
+        "in_app_alert": "🔔 Alerta in-app",
+        "email": "📧 Email (properament)",
+        "slack": "💬 Slack (properament)",
+        "webhook": "🔗 Webhook (properament)"
+      }
+    },
+    "team": {
+      "title": "Equip",
+      "members": "Membres",
+      "invite": "Convidar membre",
+      "inviteEmail": "Correu electrònic",
+      "invitePlaceholder": "nom@empresa.com",
+      "inviteRole": "Rol",
+      "sendInvite": "Enviar invitació",
+      "remove": "Eliminar",
+      "removeConfirm": "Segur que vols eliminar aquest membre?",
+      "pending": "Pendent",
+      "roles": {
+        "owner": "Propietari",
+        "admin": "Administrador",
+        "manager": "Gestor",
+        "responder": "Resposta",
+        "staff": "Personal"
+      },
+      "lastOwnerError": "No es pot eliminar l'últim propietari."
+    },
+    "safety": {
+      "panicTitle": "Mode pànic (Kill Switch)",
+      "panicDesc": "Atura tota generació IA per aquest negoci. Activar en cas de crisi reputacional o incidència.",
+      "panicActive": "IA aturada des de {date}",
+      "panicReason": "Motiu (opcional)",
+      "panicReasonPlaceholder": "Ex: Crisi reputacional, revisió interna...",
+      "constraints": "Frases prohibides (anti-robot)",
+      "constraintsDesc": "Afegeix frases que la IA MAI ha d'utilitzar. Una per línia.",
+      "constraintsPlaceholder": "No mencionar preus concrets\nNo dir 'disculpi les molèsties'\nNo usar 'estimat client'",
+      "saveConstraints": "Desar restriccions",
+      "defaultsInfo": "Defaults anti-robot: \"Dear customer\", \"We are thrilled\", \"We regret any inconvenience\", disculpar-se més d'una vegada, frases genèriques corporatives. Sempre actives, no cal afegir-les."
+    },
+    "language": {
+      "title": "Idioma de la interfície",
+      "desc": "Canvia l'idioma de tot el dashboard. La preferència es guarda al teu perfil."
+    },
+    "growth": {
+      "title": "Growth Links",
+      "createNew": "Crear nou enllaç de ressenya",
+      "createDesc": "Enganxa el teu Google review link per generar un QR i enllaç curt amb tracking.",
+      "activeLinks": "Enllaços actius",
+      "clicks7d": "Clics (7 dies)",
+      "totalScans": "Total escanejos",
+      "noLinks": "Cap enllaç creat",
+      "noLinksDesc": "Crea el teu primer growth link per començar a recollir ressenyes.",
+      "url": "URL de ressenya",
+      "urlPlaceholder": "https://g.page/review/...",
+      "deleteConfirm": "Eliminar aquest enllaç?"
+    }
+  },
+  "legal": {
+    "terms": "Termes i Condicions",
+    "privacy": "Política de Privacitat",
+    "security": "Seguretat",
+    "support": "Centre de Suport",
+    "lastUpdated": "Última actualització",
+    "footerRights": "Tots els drets reservats"
+  },
+  "supportPage": {
+    "title": "Centre de Suport",
+    "lastUpdated": "18 de febrer de 2026",
+    "contact": {
+      "emailTitle": "Email de suport",
+      "emailAddress": "support@opinia.cat",
+      "emailSla": "Resposta en < 24h laborables",
+      "docsTitle": "Documentació",
+      "docsSubtitle": "Guies, API, tutorials",
+      "docsStatus": "Properament"
+    },
+    "status": {
+      "okTitle": "Tots els sistemes operatius",
+      "okSubtitle": "Estat en temps real: {path}",
+      "linkLabel": "dashboard/status"
+    },
+    "faq": {
+      "title": "Preguntes freqüents",
+      "items": {
+        "generate": {
+          "q": "Com funciona la generació de respostes?",
+          "a": "OpinIA analitza cada ressenya amb IA (classificació + context del teu negoci) i genera 3 opcions de resposta amb tons diferents. Tu tries, edites si cal, i publiques. Cap resposta es publica automàticament."
+        },
+        "providers": {
+          "q": "Quins proveïdors d'IA utilitzeu?",
+          "a": "Utilitzem diversos proveïdors d'IA segons la configuració del teu compte. El sistema té fallback automàtic: si un proveïdor falla, un altre assumeix."
+        },
+        "training": {
+          "q": "Les meves dades s'utilitzen per entrenar models?",
+          "a": "No. Les ressenyes s'envien als proveïdors d'IA exclusivament per generar respostes. Utilitzem polítiques de zero-retention quan disponible. Consulteu la nostra Política de Privacitat per a més detalls."
+        },
+        "gbp": {
+          "q": "Puc connectar Google Business Profile?",
+          "a": "Sí, la integració amb GBP està en fase pilot. Actualment pots importar ressenyes manualment o via CSV. La connexió directa permetrà importació i publicació automàtiques."
+        },
+        "memory": {
+          "q": "Com funciona el Business Memory?",
+          "a": "El Business Memory conté fets verificats del teu negoci (horaris, preus, polítiques). La IA els utilitza com a context per generar respostes precises. Com més el nodreixes, més precises seran les respostes."
+        },
+        "incorrect": {
+          "q": "Què passa si la IA genera informació incorrecta?",
+          "a": "El sistema de guardrails detecta preus, horaris i dades no verificades i t'avisa amb alertes. Sempre revisa les respostes abans de publicar. La precisió millora a mesura que enriqueixes el Business Memory."
+        },
+        "plans": {
+          "q": "Quins plans oferiu?",
+          "a": "Starter ({starter}/mes), Pro ({pro}/mes) i Agency ({agency}/mes). Consulta la pàgina de pricing per límits i funcionalitats actualitzades."
+        },
+        "cancel": {
+          "q": "Com cancel·lo el meu compte?",
+          "a": "Pots cancel·lar en qualsevol moment des de Settings > Pla i ús. Les dades es retenen 90 dies i després s'eliminen permanentment."
+        }
+      }
+    }
+  },
+  "inbox": {
+    "greeting": "Hola, {{userName}}! Tens {{pendingCount}} ressenyes pendents avui.",
+    "subtitle": "Liquida-les en un minut i torna a la teva feina.",
+    "emptyTitle": "Tot al dia! 🎉",
+    "emptySubtitle": "Has netejat la teva bústia. Gaudeix del temps estalviat.",
+    "viewImpact": "Veure el meu impacte",
+    "proposal": "Proposta d'OpinIA",
+    "redo": "Refer resposta",
+    "apologize": "Disculpar-se",
+    "offerContact": "Oferir contacte",
+    "publishedSuccess": "Resposta publicada amb èxit!",
+    "dismiss": "No, gràcies",
+    "downloadImage": "Descarregar imatge",
+    "schedulePost": "Programar post"
+  },
+  "content": {
+    "title": "El teu Aparador.",
+    "subtitle": "Les teves millors ressenyes, llestes per a xarxes socials.",
+    "emptyTitle": "Encara no has presumit de res.",
+    "emptySubtitle": "Converteix les teves ressenyes de 5 estrelles en contingut amb un sol clic.",
+    "createNew": "✨ Crear nou Post",
+    "variant": "🔄 Variant",
+    "openEditor": "🎨 Obrir a l'Editor",
+    "customizeAdvanced": "Personalitzar (Avançat)",
+    "backToGallery": "Tornar a la Galeria"
+  },
+  "paywall": {
+    "title": "Puja de nivell la teva reputació.",
+    "subtitle": "Tria el pla que millor s'adapti al teu negoci. Cancel·la quan vulguis en 1 clic.",
+    "essentialPlan": "Pla Essencial",
+    "essentialBadge": "El més popular",
+    "agencyProPlan": "Pla Agència / Pro",
+    "f1": "Respon totes les ressenyes amb IA",
+    "f2": "Generació de posts en 1 clic",
+    "f3": "Analítica d'impacte",
+    "f4": "Editor de disseny avançat (Estil Canva)",
+    "f5": "Gestió de múltiples locals",
+    "f6": "Regles d'automatització total",
+    "trust1": "Pagament segur amb Stripe",
+    "trust2": "Factura automàtica amb IVA",
+    "trust3": "Suport prioritari",
+    "ctaTrial": "Començar prova de 14 dies",
+    "ctaPro": "Millorar a Pro"
+  },
+  "admin": {
+    "title": "Gestió",
+    "subtitle": "Administra equip, negocis i pla de l’organització activa.",
+    "forbidden": "No tens permisos per accedir a aquesta secció.",
+    "tabs": {
+      "team": "Equip",
+      "businesses": "Negocis",
+      "plan": "Pla"
+    },
+    "seatsCounter": "Persones: {used}/{limit}",
+    "businessesCounter": "Establiments: {used}/{limit}",
+    "team": {
+      "inviteTitle": "Convidar persona",
+      "membersTitle": "Equip actual",
+      "pendingTitle": "Invitacions pendents",
+      "businessAssignments": "Negocis assignats",
+      "saveAssignments": "Desar assignacions",
+      "assignmentsSaved": "Assignacions desades.",
+      "roleUpdated": "Rol actualitzat.",
+      "memberRemoved": "Membre eliminat."
+    },
+    "businesses": {
+      "createTitle": "Crear negoci",
+      "nameLabel": "Nom del negoci",
+      "namePlaceholder": "Ex. Hotel Central",
+      "typeLabel": "Tipus",
+      "createCta": "Crear negoci",
+      "counter": "Establiments: {used}/{limit}",
+      "limitReached": "Límit d'establiments assolit. Actualitza el pla per crear-ne més.",
+      "limitTooltip": "Límit d'establiments assolit. Actualitza el pla.",
+      "listTitle": "Negocis i prioritat",
+      "savingOrder": "Desant ordre...",
+      "orderSaved": "Ordre desat.",
+      "businessUpdated": "Negoci actualitzat.",
+      "businessCreated": "Negoci creat.",
+      "nameRequired": "Introdueix un nom de negoci.",
+      "visible": "Visible",
+      "hidden": "Ocult"
+    },
+    "plan": {
+      "title": "Pla i seients",
+      "subtitle": "Els límits de persones i establiments es calculen automàticament segons el pla.",
+      "starter": "Starter 49€",
+      "starterSeats": "Fins a 2 persones · 3 establiments",
+      "pro": "Pro 149€",
+      "proSeats": "Fins a 6 persones · 10 establiments",
+      "updateCta": "Actualitzar pla",
+      "updated": "Pla actualitzat.",
+      "ownerOnly": "Només l’Owner pot actualitzar el pla."
+    }
+  }
+}

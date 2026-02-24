@@ -1,0 +1,1436 @@
+{
+  "common": {
+    "appName": "OpinIA",
+    "loading": "Loading...",
+    "save": "Save",
+    "saved": "Saved!",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "tryAgain": "Try again",
+    "back": "Back",
+    "next": "Next",
+    "continue": "Continue",
+    "close": "Close",
+    "create": "Create",
+    "edit": "Edit",
+    "update": "Update",
+    "search": "Search",
+    "noResults": "No results",
+    "error": "Error",
+    "success": "Done!",
+    "language": "Language",
+    "selectLanguage": "Choose language",
+    "saveChanges": "Save changes",
+    "confirmDelete": "Are you sure you want to delete?",
+    "free": "Free",
+    "upgradeTo": "Upgrade to {name}",
+    "switchToFree": "Switch to Free",
+    "unknown": "Unknown",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "anySentiment": "Any sentiment",
+    "locales": {
+      "ca": "Català",
+      "es": "Español",
+      "en": "English"
+    },
+    "sentiment": {
+      "positive": "Positive",
+      "neutral": "Neutral",
+      "negative": "Negative"
+    },
+    "platforms": {
+      "google": "Google",
+      "tripadvisor": "TripAdvisor",
+      "booking": "Booking",
+      "manual": "Manual",
+      "other": "Other"
+    },
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{count} min ago",
+      "hoursAgo": "{count} h ago",
+      "daysAgo": "{count} d ago"
+    },
+    "replyStatus": {
+      "draft": "Draft",
+      "selected": "Selected",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "tones": {
+      "proper": {
+        "label": "Friendly",
+        "description": "Empathetic and friendly"
+      },
+      "professional": {
+        "label": "Professional",
+        "description": "Clear and formal"
+      },
+      "premium": {
+        "label": "Premium",
+        "description": "Elegant and polished"
+      }
+    },
+    "other": "Other"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "growth": "Growth Hub",
+    "planner": "Planner",
+    "analytics": "Analytics",
+    "insights": "Insights",
+    "benchmark": "Benchmark",
+    "ops": "Operations",
+    "content": "Content",
+    "studio": "Studio",
+    "exports": "Exports",
+    "settings": "Settings",
+    "help": "Help",
+    "status": "Status",
+    "logout": "Log out",
+    "switchOrg": "Switch organization",
+    "switchBiz": "Switch business"
+  },
+  "landing": {
+    "hero": "Professional AI-powered review responses for your business",
+    "heroSub": "Generate personalized responses to Google, TripAdvisor, and Booking reviews in seconds.",
+    "tryDemo": "Try it now — no signup required",
+    "demoCta": "Try with your review",
+    "demoPlaceholder": "E.g.: Great location but the room was small and very hot at night...",
+    "demoRating": "Rating:",
+    "generate": "Generate",
+    "startTrial": "Start free trial",
+    "tryAnother": "Try another",
+    "auditTitle": "Express review audit",
+    "auditSub": "Paste your reviews and get an instant diagnosis.",
+    "auditPaste": "Paste 2-10 reviews (one per line)",
+    "auditAnalyze": "Analyze",
+    "auditReviews": "reviews",
+    "features": "How it works",
+    "step1": "Connect",
+    "step1desc": "Import reviews from Google, TripAdvisor, or add them manually.",
+    "step2": "Generate",
+    "step2desc": "AI generates 3 response options (concise, empathetic, formal) tailored to your business.",
+    "step3": "Review & publish",
+    "step3desc": "You choose, edit if needed, and publish. Nothing is ever automatic.",
+    "finalCta": "Start responding professionally",
+    "finalCtaSub": "Set up your business in 30 seconds and generate responses that strengthen your brand.",
+    "tryFree": "Try free now",
+    "createAccount": "Create account",
+    "nav": {
+      "pricing": "Pricing",
+      "help": "Help",
+      "signIn": "Sign in",
+      "start": "Start"
+    },
+    "heroArtlist": {
+      "badge": "Reputation + content in one workflow",
+      "title": "Reply to reviews and turn them into content in minutes.",
+      "subtitle": "Less scrolling. More customers.",
+      "primaryCta": "Start now",
+      "secondaryCta": "View pricing",
+      "trust": "No lock-in. Cancel anytime."
+    },
+    "socialProof": {
+      "title": "Trusted by teams that publish consistently",
+      "items": {
+        "restaurants": "Restaurants",
+        "hotels": "Boutique hotels",
+        "clinics": "Clinics",
+        "retail": "Retail",
+        "services": "Local services"
+      }
+    },
+    "howItWorks": {
+      "title": "How it works",
+      "steps": {
+        "reviews": {
+          "label": "Step 1",
+          "title": "Centralize reviews",
+          "description": "Collect feedback and detect what your customers value most."
+        },
+        "reply": {
+          "label": "Step 2",
+          "title": "Professional replies in seconds",
+          "description": "Generate brand-aligned replies and review before posting."
+        },
+        "content": {
+          "label": "Step 3",
+          "title": "Turn feedback into content",
+          "description": "Move from review to idea, asset, and weekly planner in one flow."
+        }
+      }
+    },
+    "flow": {
+      "title": "Reviews → Reply → Content",
+      "subtitle": "Everything connected so each opinion becomes useful action.",
+      "cards": {
+        "reviews": {
+          "label": "Reviews",
+          "title": "See what is happening in your business",
+          "description": "Spot strengths and recurring friction without losing hours."
+        },
+        "reply": {
+          "label": "Reply",
+          "title": "Respond with consistency and clarity",
+          "description": "Keep a professional voice aligned with your brand."
+        },
+        "content": {
+          "label": "Content",
+          "title": "Publish ideas backed by evidence",
+          "description": "Turn real quotes into ready-to-post Story, Feed, or Planner items."
+        }
+      }
+    },
+    "reviews": {
+      "title": "Real reviews, professional response",
+      "subtitle": "Elegant review mosaic with suggested replies to build trust.",
+      "suggestedLabel": "Suggested reply",
+      "cards": {
+        "speed": {
+          "platform": "Google",
+          "rating": "★★★★★",
+          "snippet": "Fast lunch service and a very friendly team.",
+          "reply": "Thanks for highlighting speed. We will keep this pace so every visit stays smooth."
+        },
+        "service": {
+          "platform": "TripAdvisor",
+          "rating": "★★★★☆",
+          "snippet": "Great atmosphere, but we waited a bit during peak hours.",
+          "reply": "Thanks for the feedback. We are adjusting staffing at peak times to reduce waiting."
+        },
+        "clarity": {
+          "platform": "Booking",
+          "rating": "★★★★★",
+          "snippet": "Very clean and clear from check-in to checkout.",
+          "reply": "Great to hear. We will keep prioritizing clarity and comfort across every stay."
+        },
+        "value": {
+          "platform": "Google",
+          "rating": "★★★★☆",
+          "snippet": "Great value for money and ideal for families.",
+          "reply": "Thank you for recommending us. We will keep protecting that value every week."
+        }
+      }
+    },
+    "examples": {
+      "title": "Reply examples",
+      "subtitle": "Three tones to publish fast and stay on-brand.",
+      "items": {
+        "empathy": {
+          "tone": "Warm",
+          "reply": "Thanks for sharing this with us. It helps a lot, and we already applied improvements."
+        },
+        "operations": {
+          "tone": "Professional",
+          "reply": "Thank you for your feedback. We reviewed our process to reduce waiting times during peak hours."
+        },
+        "upsell": {
+          "tone": "Premium",
+          "reply": "We are glad you enjoyed the experience. On your next visit, try our special selection."
+        }
+      }
+    },
+    "mini": {
+      "title": "Studio + Planner + Export in one weekly routine",
+      "items": {
+        "studio": "Create Story or Feed visuals from templates in a few clicks.",
+        "planner": "Schedule posts and mark them as published.",
+        "export": "Download a weekly ZIP pack with everything ready."
+      }
+    },
+    "faqShort": {
+      "title": "Quick FAQ",
+      "items": {
+        "fast": {
+          "q": "How fast do I see value?",
+          "a": "Usually in the first session: reply, idea, and planner in under 5 minutes."
+        },
+        "editing": {
+          "q": "Can I edit before publishing?",
+          "a": "Yes. Everything is reviewable and editable before posting or sending."
+        },
+        "catalan": {
+          "q": "Does it work in Catalan?",
+          "a": "Yes. You can work in Catalan, Spanish, and English."
+        }
+      }
+    },
+    "footer": {
+      "copy": "© 2026 OpinIA. Less scrolling. More customers."
+    }
+  },
+  "pricing": {
+    "sectionTitle": "Plans",
+    "hero": {
+      "title": "Clear plans to sell more with less work",
+      "subtitle": "From review to post and planner in minutes.",
+      "trust": "Cancel anytime. No long-term commitment."
+    },
+    "value": {
+      "saveHours": "Save hours every week",
+      "evidence": "Content based on real evidence (quotes)",
+      "closedFlow": "Plan and publish with a closed-loop workflow"
+    },
+    "billing": {
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "save": "Save {percent}%"
+    },
+    "savings": "Save {pct}%",
+    "recommended": "Recommended",
+    "perMonth": "/mo",
+    "perYear": "/yr",
+    "monthsFree": "2 months free",
+    "twoMonthsFree": "2 months free",
+    "effectiveMonthlyBilledAnnually": "{amount}/mo (billed annually)",
+    "tableTitle": "Full comparison",
+    "tableFeature": "Feature",
+    "included": "Included",
+    "notIncluded": "Not included",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "desc": "For businesses getting started with a simple weekly routine.",
+        "b1": "1 location",
+        "b2": "Inbox + Growth + Studio ready in minutes",
+        "b3": "Best to start without complexity"
+      },
+      "pro": {
+        "name": "Pro",
+        "desc": "For teams that need publishing consistency and performance visibility.",
+        "b1": "Up to 3 locations",
+        "b2": "Benchmarks and webhook automation",
+        "b3": "Recommended plan for managers"
+      },
+      "agency": {
+        "name": "Agency",
+        "desc": "For multi-location operations with priority support.",
+        "b1": "Up to 10 locations",
+        "b2": "Priority support and render priority",
+        "b3": "Built for agencies and groups"
+      }
+    },
+    "features": {
+      "business_locations": "Included locations",
+      "team_seats": "Team seats",
+      "role_permissions": "Roles and permissions",
+      "ai_replies": "AI review replies (Inbox)",
+      "multi_language": "Multi-language (ca/es/en)",
+      "seo_controls": "SEO (keywords + aggressiveness control)",
+      "content_intelligence": "Content Intelligence + Growth",
+      "content_studio": "Content Studio (Story/Feed assets + X/Threads)",
+      "asset_library": "Asset Library (history + reuse)",
+      "planner": "Planner (schedule + mark published)",
+      "weekly_exports": "Weekly exports (ZIP pack)",
+      "analytics_roi": "Analytics / ROI",
+      "benchmarks": "Anonymous publishing benchmark",
+      "connectors_webhook": "Connector integrations (Make/Zapier webhook)",
+      "assets_monthly": "Included assets per month",
+      "multi_location_support": "Multi-location support",
+      "priority_render": "Render priority",
+      "priority_support": "Priority support"
+    },
+    "values": {
+      "starter": {
+        "business_locations": "1 location",
+        "team_seats": "Up to 3 users",
+        "role_permissions": "Owner, Admin, Manager, and Responder",
+        "ai_replies": "Up to 200 replies/month (fair use)",
+        "weekly_exports": "1 weekly export",
+        "assets_monthly": "30 assets/month"
+      },
+      "pro": {
+        "business_locations": "Up to 3 locations",
+        "team_seats": "Up to 6 users",
+        "role_permissions": "Owner, Admin, Manager, and Responder",
+        "ai_replies": "Unlimited (fair use)",
+        "weekly_exports": "Unlimited",
+        "assets_monthly": "150 assets/month"
+      },
+      "agency": {
+        "business_locations": "Up to 10 locations",
+        "team_seats": "Up to 6 users",
+        "role_permissions": "Owner, Admin, Manager, and Responder",
+        "ai_replies": "Unlimited (fair use)",
+        "weekly_exports": "Unlimited",
+        "assets_monthly": "600 assets/month"
+      }
+    },
+    "faq": {
+      "title": "FAQ",
+      "robotic": {
+        "q": "Will it sound robotic?",
+        "a": "No. Output follows your brand tone and you can always edit before publishing."
+      },
+      "edit": {
+        "q": "Can I edit before publishing?",
+        "a": "Yes. The workflow is built so you review, adjust, and publish only when ready."
+      },
+      "catalan": {
+        "q": "Does it work in Catalan?",
+        "a": "Yes. You can work in Catalan, Spanish, and English across replies and content."
+      },
+      "export": {
+        "q": "What if I leave? Can I export?",
+        "a": "Yes. Weekly ZIP exports include planner, texts, and assets so you keep everything."
+      },
+      "integrations": {
+        "q": "Integrations: how do I auto-publish?",
+        "a": "Connect Make/Zapier webhook in Settings. When you click “Send to publish”, the standard payload is sent."
+      },
+      "limits": {
+        "q": "Are there limits?",
+        "a": "Yes, by plan. Where it says unlimited, fair use applies to keep service stable."
+      }
+    },
+    "cta": {
+      "primary": "Start now",
+      "secondary": "View demo",
+      "allPlans": "View all plans",
+      "finalTitle": "Activate a full reputation + content workflow",
+      "finalSubtitle": "Go from review to publication in one weekly routine."
+    }
+  },
+  "auth": {
+    "login": "Sign in",
+    "loginWith": "Sign in with {provider}",
+    "loginEmail": "Sign in with email",
+    "emailPlaceholder": "your@email.com",
+    "magicLinkSent": "Check your email! We've sent you a sign-in link.",
+    "or": "or",
+    "createAccount": "Create account",
+    "enter": "Enter"
+  },
+  "onboarding": {
+    "welcome": "Welcome to OpinIA!",
+    "languageStep": "What language would you like to use OpinIA in?",
+    "businessName": "Business name",
+    "businessNamePlaceholder": "My restaurant",
+    "businessType": "Business type",
+    "signature": "Response signature",
+    "signaturePlaceholder": "The {name} team",
+    "step": "Step {n} of {total}",
+    "createBusiness": "Create business",
+    "configureVoice": "Brand voice configured",
+    "addMemory": "Business Memory (at least 1 entry)",
+    "bizTypes": {
+      "restaurant": "Restaurant",
+      "hotel": "Hotel",
+      "apartment": "Apartment",
+      "bar": "Bar",
+      "cafe": "Café",
+      "shop": "Shop",
+      "other": "Other"
+    },
+    "kbCategories": {
+      "parking": "Parking",
+      "wifi": "WiFi",
+      "horaris": "Hours",
+      "política": "Policies",
+      "menú": "Menu / Cuisine",
+      "equip": "Team",
+      "instal·lacions": "Facilities",
+      "ubicació": "Location",
+      "espais": "Spaces"
+    }
+  },
+  "onboardingReverse": {
+    "connect": {
+      "title": "Welcome to OpinIA. Put your reputation on autopilot.",
+      "subtitle": "Connect your Google profile to analyze your reviews. It takes 10 seconds.",
+      "cta": "🔗 Sync with Google Business"
+    },
+    "analyzing": {
+      "title": "Preparing your first result",
+      "line1": "Connecting with Google...",
+      "line2": "Analyzing your latest reviews...",
+      "line3": "Drafting your first perfect reply..."
+    },
+    "firstWin": {
+      "title": "We found this gem from today. See how OpinIA responds.",
+      "approveCta": "✅ Approve & Publish",
+      "approveError": "Could not publish the reply.",
+      "generateError": "Could not prepare the proposal.",
+      "noBusinessTitle": "There is no active business yet.",
+      "noBusinessSubtitle": "Complete the minimum setup and try this flow again.",
+      "openOnboarding": "Open onboarding",
+      "noReviewTitle": "We could not find pending reviews right now.",
+      "noReviewSubtitle": "You can continue in your action inbox anytime.",
+      "goDashboard": "Go to my action inbox"
+    },
+    "success": {
+      "title": "Pure magic! ✨ You saved your first 5 minutes.",
+      "subtitle": "This review is too good to hide. We prepared this Instagram post for you.",
+      "noAsset": "No asset is available yet.",
+      "dismiss": "No, thanks",
+      "download": "Download image",
+      "goInbox": "Go to my action inbox"
+    }
+  },
+  "dashboard": {
+    "inbox": {
+      "title": "Reviews",
+      "pending": "Pending",
+      "urgent": "Urgent",
+      "total": "Total",
+      "all": "All",
+      "pendingFilter": "Pending",
+      "replied": "Replied",
+      "statusGenerated": "Generated",
+      "generateResponses": "Generate responses",
+      "regenerate": "Regenerate",
+      "approve": "Publish response",
+      "panicBanner": "Panic mode active — AI generation stopped",
+      "addReview": "Add review",
+      "noReviews": "No reviews yet. Import or add your first one!",
+      "tabList": "List",
+      "tabDetail": "Detail",
+      "tabReply": "Reply",
+      "detailTitle": "Review detail",
+      "replyTitle": "OpinIA reply",
+      "topicTags": "Detected topics",
+      "noSelection": "Select a review to see details.",
+      "selectReviewHint": "Select a review to start generating a reply.",
+      "noReplyYet": "Reply text will appear here...",
+      "guardrailOk": "Guardrails: OK",
+      "guardrailWarning": "Guardrails: Warning",
+      "guardrailAcknowledge": "I reviewed and confirm the response is correct",
+      "seoDisabled": "SEO unavailable",
+      "aggressiveness": "Level",
+      "copy": "Copy",
+      "chars": "Chars",
+      "optionsCount": "3 options",
+      "option1": "Option 1",
+      "option2": "Option 2",
+      "option3": "Option 3",
+      "seoOn": "SEO ON",
+      "seoOff": "SEO OFF",
+      "idCopied": "ID copied",
+      "copyId": "Copy ID",
+      "deleteReviewConfirm": "Are you sure you want to delete this review? Its linked replies will also be deleted.",
+      "businessMissing": "No business selected",
+      "sourceAll": "All",
+      "ratingAll": "All ★",
+      "triggersCount": "⚡ Triggers: {count}",
+      "authorLabel": "Author",
+      "authorPlaceholder": "Name (optional)",
+      "sourceLabel": "Source",
+      "ratingRequired": "Rating *",
+      "reviewTextRequired": "Review text *",
+      "reviewTextPlaceholder": "Paste the review...",
+      "saveReview": "Save review"
+    },
+    "home": {
+      "navHome": "Home",
+      "hoursSavedBadge": "Hours saved this month: {hours}",
+      "title": "Hi, {name}! You have {count} pending reviews today.",
+      "subtitle": "Clear them in a minute and get back to work.",
+      "progress": "{pending} pending · {completed}/{total} completed",
+      "emptyTitle": "All clear! 🎉",
+      "emptySubtitle": "You've cleaned your inbox. Enjoy the saved time.",
+      "emptySavedToday": "You saved {minutes} minutes today.",
+      "viewImpact": "View my impact",
+      "reviewLine": "{author} on {platform}",
+      "proposalTitle": "Draft prepared by OpinIA",
+      "proposalConfidenceLine": "Warm tone · Based on your business DNA",
+      "proposalMissing": "There is no generated proposal for this review yet.",
+      "platform": {
+        "google": "Google",
+        "tripadvisor": "TripAdvisor",
+        "booking": "Booking",
+        "manual": "Manual",
+        "other": "Other"
+      },
+      "meta": {
+        "anonymousAuthor": "Anonymous customer",
+        "justNow": "just now",
+        "minutesAgo": "{count} min ago",
+        "hoursAgo": "{count} h ago",
+        "daysAgo": "{count} d ago"
+      },
+      "actions": {
+        "edit": "Edit",
+        "redo": "Redo reply",
+        "approvePublish": "✅ Approve & Publish",
+        "toneApology": "Apologize",
+        "toneContact": "Offer contact",
+        "dismiss": "Maybe later",
+        "downloadImage": "📲 Download image",
+        "schedulePost": "📅 Schedule now"
+      },
+      "toasts": {
+        "approveSuccess": "Reply published.",
+        "approveError": "Could not publish the reply.",
+        "generateError": "Could not regenerate the proposal."
+      },
+      "successModal": {
+        "title": "Reply published successfully!",
+        "subtitle": "This review can attract new customers.",
+        "benefitLine": "Businesses that share positive reviews generate up to 23% more trust.",
+        "noAsset": "No asset is available yet. You can create one from Studio."
+      }
+    },
+    "layout": {
+      "accountFallback": "Account",
+      "userFallback": "User",
+      "toggleNavigation": "Open navigation",
+      "platformFilterAria": "Platform filter",
+      "platformAll": "All platforms",
+      "createBusiness": "+ Create business",
+      "profileMenu": "Profile menu",
+      "accountSettings": "Account settings",
+      "closeNavigationDrawer": "Close navigation drawer",
+      "closeSidebarPreview": "Close sidebar preview",
+      "expandSidebar": "Expand sidebar",
+      "collapseSidebar": "Collapse sidebar",
+      "enableAutoSidebar": "Enable auto sidebar mode",
+      "pinSidebar": "Pin sidebar",
+      "roleOwner": "Owner",
+      "roleAdmin": "Admin",
+      "roleManager": "Manager",
+      "roleResponder": "Responder",
+      "roleMember": "Member",
+      "searchOrgPlaceholder": "Search organization...",
+      "searchOrgAria": "Organization search",
+      "openCommandPalette": "Open command palette",
+      "commandPlaceholder": "Type an action or organization...",
+      "commandAria": "Command search",
+      "currentOrg": "Active",
+      "goTo": "Go to:",
+      "switchToOrg": "Switch to",
+      "orgCommandHint": "Organization",
+      "commandGoInbox": "Go to: Inbox",
+      "commandGoPlanner": "Go to: Planner",
+      "commandGoGrowth": "Go to: Growth",
+      "commandGoSettings": "Go to: Settings",
+      "adminPanel": "Management",
+      "commandGoAdmin": "Go to Management"
+    },
+    "engagement": {
+      "title": "Weekly engagement",
+      "notificationLabel": "Notification",
+      "emailLabel": "Email",
+      "empty": "You have no new nudges today.",
+      "mondayNotification": "You have new reviews from the weekend.",
+      "thursdayReminder": "2 reviews still unanswered.",
+      "fridayEmail": "This week you saved {hours} hours with OpinIA."
+    },
+    "insights": {
+      "title": "Insights",
+      "noData": "There is not enough activity this week yet."
+    },
+    "benchmark": {
+      "title": "Benchmark & Missions",
+      "week": "Week",
+      "avgRating": "Your average",
+      "reviewCount": "Reviews (30d)",
+      "responseRate": "Response rate",
+      "weekPoints": "Week points",
+      "league": "Leaderboard",
+      "addCompetitor": "Competitor",
+      "noCompetitors": "No competitors",
+      "noCompetitorsDesc": "Add competitors to see your position.",
+      "weeklyMissions": "Weekly missions",
+      "completed": "Completed!"
+    },
+    "ops": {
+      "title": "Operations"
+    },
+    "growth": {
+      "title": "Growth Hub",
+      "impactTitle": "Your Impact",
+      "subtitle": "Reputation + content in one weekly view.",
+      "selectBusiness": "Select a business to open Your Impact",
+      "weekSummaryTitle": "This week at OpinIA",
+      "summaryReviewsAnswered": "Reviews answered",
+      "summaryPostsCreated": "Posts created",
+      "summaryHoursSaved": "Hours saved",
+      "summaryRatingChange": "Rating change",
+      "impactSentenceImproving": "Your reputation is improving. Keep it going.",
+      "impactSentenceNeutral": "Strong consistency. The next step is turning more reviews into content.",
+      "impactNoActivity": "There is not enough activity this week yet.",
+      "insightIdLabel": "Insight ID",
+      "weekLabel": "Week",
+      "mixLabel": "MIX",
+      "mentionsSuffix": "mentions",
+      "generatePlan": "Generate weekly plan",
+      "generatePlanError": "Could not generate the weekly plan.",
+      "strongPoint": "Your strongest point this week",
+      "opportunity": "Clear improvement opportunity",
+      "noRecurringIssues": "No recurrent issue detected",
+      "createContent": "Create content",
+      "generateResponse": "Generate response",
+      "noNegativeWeekly": "No negative reviews this week",
+      "readyIdeas": "3 ready-to-publish ideas",
+      "defaultIdeaTitle": "Idea",
+      "defaultPlannerTitle": "Content idea",
+      "hookLabel": "Hook",
+      "captionLabel": "Caption",
+      "bestTimeLabel": "Best time",
+      "copyHook": "Copy hook",
+      "copyCaption": "Copy caption",
+      "copied": "Copied",
+      "copyId": "Copy ID",
+      "approve": "Approve",
+      "approveIdeaError": "Could not approve the idea.",
+      "approved": "Approved",
+      "createStory": "Create Story",
+      "createFeed": "Create Feed",
+      "comingSoon": "Coming soon",
+      "planner": "Recommended mini planner",
+      "nextOpportunities": "Upcoming opportunities",
+      "addToPlanner": "Add to planner",
+      "markPublished": "Mark as published",
+      "published": "Published",
+      "plannedStatus": "Planned",
+      "publishedStatus": "Published",
+      "noPlannerItems": "No items this week",
+      "plannerErrorSave": "Could not add the item to planner.",
+      "plannerErrorPublish": "Could not mark as published.",
+      "sendToPublish": "Send to publish",
+      "webhookSent": "Sent",
+      "webhookFailed": "Send failed",
+      "webhookSkipped": "Skipped",
+      "webhookSendError": "Could not send to connector.",
+      "webhookDisabled": "Webhook connector disabled",
+      "exportWeekly": "Download weekly pack",
+      "exportLoading": "Generating weekly ZIP...",
+      "exportDownload": "Download ZIP",
+      "exportCopyLink": "Copy link",
+      "exportOpenHistory": "Open export history",
+      "exportError": "Could not generate weekly export."
+    },
+    "metrics": {
+      "title": "Analytics / ROI",
+      "subtitle": "Real impact: time saved, handled reviews, published content, and AI cost.",
+      "range": "Range",
+      "errorLoad": "Could not load metrics.",
+      "selectBusiness": "Select a business to open Analytics.",
+      "timeSavedHours": "Hours saved",
+      "timeSaved": "Time saved",
+      "timeSavedHint": "Estimated with a 2 min baseline per manual reply.",
+      "repliesHandled": "Handled reviews",
+      "approved": "Approved",
+      "contentPublished": "Published content",
+      "assetsCreated": "Assets created",
+      "streak": "Streak",
+      "streakHint": "Consecutive weeks with 2+ published posts.",
+      "benchmarkTitle": "Benchmark",
+      "benchmarkEstimate": "Estimate: keep publishing to unlock comparison.",
+      "benchmarkAbove": "Above average",
+      "benchmarkAverage": "Average",
+      "benchmarkBelow": "Below average",
+      "estimateBadge": "Estimate",
+      "aiCost": "AI cost",
+      "restricted": "Restricted",
+      "aiCostHint": "Visible to owner/manager.",
+      "aiCostRestrictedHint": "Only owner/manager can view AI cost.",
+      "seriesTitle": "Daily trend",
+      "emptySeries": "No data available for the selected range yet.",
+      "legendReplies": "Generated replies",
+      "legendPublished": "Published planner items",
+      "highlightsTitle": "Highlights",
+      "emptyHighlights": "No highlights available yet."
+    },
+    "paywall": {
+      "testButton": "Test pricing modal",
+      "subtitle": "Choose the plan that fits your business. Cancel anytime in 1 click.",
+      "close": "Close",
+      "perMonth": "/month",
+      "mockCheckout": "Mock checkout redirect: {plan}.",
+      "titles": {
+        "default": "Level up your reputation.",
+        "editor_access": "Unlock the Pro Editor",
+        "limit_reached": "You reached your current plan limit",
+        "trial_start": "Start your 14-day trial"
+      },
+      "plans": {
+        "essential": {
+          "title": "Essential Plan",
+          "badge": "Most popular",
+          "f1": "Reply to all your reviews with AI.",
+          "f2": "1-click post generation.",
+          "f3": "Impact analytics.",
+          "cta": "Start 14-day trial"
+        },
+        "pro": {
+          "title": "Pro / Agency Plan",
+          "f1": "Everything in Essential.",
+          "f2": "Advanced design editor (Canva-style).",
+          "f3": "Multi-location management.",
+          "f4": "Full automation rules.",
+          "cta": "Upgrade to Pro"
+        }
+      },
+      "trust": {
+        "secure": "🔒 Secure payments with Stripe",
+        "invoice": "Automatic VAT invoice",
+        "support": "Priority support"
+      }
+    },
+    "onboarding": {
+      "bannerTitle": "Complete onboarding (2 min)",
+      "bannerSubtitle": "Run the quick setup and unlock first value in under 5 minutes.",
+      "bannerStart": "Start",
+      "bannerDismiss": "Dismiss",
+      "title": "Quick onboarding",
+      "subtitle": "Set the basics, generate value, and jump into Growth Hub.",
+      "skip": "Skip",
+      "stepLabel": "Step {n} of {total}",
+      "needBusiness": "Select a business to start onboarding",
+      "step1Title": "Step 1 — Quick setup",
+      "languageLabel": "Output language",
+      "voiceStatus": "Voice/tone status",
+      "brandKitStatus": "Brand Kit status",
+      "statusComplete": "Complete",
+      "statusIncomplete": "Incomplete",
+      "openSettings": "Open Settings",
+      "continue": "Continue",
+      "step2Title": "Step 2 — Reviews",
+      "reviewsDetected": "Reviews detected. Perfect.",
+      "reviewsMissing": "No reviews yet. You can load a safe demo pack.",
+      "seedDemo": "Load demo (5)",
+      "step3Title": "Step 3 — Aha chain",
+      "runChain": "Run 1-click chain",
+      "generateReply": "Generate 1 reply",
+      "generateSuggestion": "Generate 1 idea",
+      "generateAsset": "Create 1 asset",
+      "runAction": "Run",
+      "view": "View",
+      "openStudio": "Open Studio",
+      "actionDone": "Done",
+      "actionError": "Error",
+      "actionLoading": "Loading",
+      "actionPending": "Pending",
+      "retry": "Retry",
+      "step4Title": "Step 4 — Planner + Export",
+      "addPlanner": "Add to planner",
+      "plannerAdded": "Item added to planner:",
+      "exportWeekly": "Download weekly pack",
+      "downloadZip": "Download ZIP",
+      "copyLink": "Copy link",
+      "copied": "Copied",
+      "finish": "Finish",
+      "cancel": "Cancel",
+      "generate": "Generate",
+      "studioTitle": "Configure asset",
+      "studioFormat": "Format",
+      "studioTemplate": "Template",
+      "defaultPlannerTitle": "Weekly idea",
+      "errorLoad": "Could not load onboarding state.",
+      "errorSave": "Could not update onboarding.",
+      "errorSeed": "Could not load demo data.",
+      "errorNoReview": "No reviews available to generate a reply.",
+      "errorGenerateReply": "Could not generate reply.",
+      "errorGenerateSuggestion": "Could not generate suggestion.",
+      "errorNeedSuggestion": "Generate a suggestion before creating the asset.",
+      "errorGenerateAsset": "Could not create asset.",
+      "errorNeedSuggestionOrAsset": "A suggestion or asset is required to add to planner.",
+      "errorPlanner": "Could not add to planner.",
+      "errorExport": "Could not generate weekly export."
+    },
+    "studio": {
+      "title": "Content Studio",
+      "subtitle": "Turn one idea into a visual asset and social text in minutes.",
+      "contentSubtitle": "Turn weekly reviews into publish-ready ideas.",
+      "libraryTitle": "Asset Library",
+      "librarySubtitle": "History of generated Story/Feed assets with quick reuse.",
+      "close": "Close",
+      "savedToLibrary": "Saved to Library ✅",
+      "viewStudio": "View in Studio",
+      "formatStory": "Story (1080x1920)",
+      "formatFeed": "Feed (1080x1350)",
+      "formatAll": "All",
+      "languageAll": "All",
+      "statusAll": "All",
+      "templateAll": "All",
+      "templateLabel": "Template",
+      "templateQuoteClean": "Quote Clean",
+      "templateFeatureSplit": "Feature Split",
+      "templateTop3Reasons": "Top 3 Reasons",
+      "templateBehindScenes": "Behind the Scenes",
+      "generatePng": "Generate PNG",
+      "generatingPng": "Generating PNG...",
+      "preview": "Preview",
+      "downloadPng": "Download PNG",
+      "assetId": "Asset ID",
+      "createXThreads": "Create X/Threads",
+      "platformLabel": "Platform",
+      "toneLabel": "Tone",
+      "toneFriendly": "Friendly",
+      "toneProfessional": "Professional",
+      "toneBold": "Bold",
+      "generateVariants": "Generate 3 variants",
+      "generatingVariants": "Generating variants...",
+      "openAsset": "Open",
+      "downloadAsset": "Download",
+      "reuseAsset": "Reuse",
+      "reuseTitle": "Reuse asset",
+      "reuseGenerate": "Generate variant",
+      "reuseGenerating": "Generating variant...",
+      "loadingAssets": "Loading assets...",
+      "noAssets": "No assets found with current filters.",
+      "statusCreated": "Created",
+      "statusFailed": "Failed",
+      "copy": "Copy",
+      "copied": "Copied",
+      "noVariants": "No variants yet. Generate them to view results.",
+      "errorRender": "Could not generate PNG.",
+      "errorX": "Could not generate X/Threads variants.",
+      "errorLoadAssets": "Could not load asset library.",
+      "errorSignedUrl": "Could not open preview.",
+      "openGrowthPlanner": "Open in Growth",
+      "formatLabel": "Format",
+      "statusLabel": "Status"
+    },
+    "contentGallery": {
+      "title": "Your Showcase",
+      "subtitle": "Your best reviews, ready for social media.",
+      "createButton": "✨ Create new Post",
+      "backToGallery": "← Back to Gallery",
+      "weekLabel": "Week",
+      "languageLabel": "Language",
+      "languageCa": "Catalan",
+      "languageEs": "Spanish",
+      "languageEn": "English",
+      "emptyTitle": "You have not shown off anything yet.",
+      "emptyText": "Turn your 5-star reviews into social content with one click.",
+      "emptyAction": "✨ Create my first Post",
+      "previewAlt": "Post preview",
+      "loadingPreview": "Loading preview...",
+      "meta": {
+        "anonymous": "Anonymous customer",
+        "unknownAuthor": "Featured review",
+        "unknownSource": "unknown source"
+      },
+      "actions": {
+        "variant": "🔄 Variant",
+        "download": "📥 Download",
+        "publish": "📅 Publish",
+        "openEditor": "🎨 Open in Editor",
+        "customize": "🎨 Customize (Advanced)"
+      },
+      "modal": {
+        "title": "Create new post",
+        "pickSubtitle": "Choose the review",
+        "loadingSubtitle": "Generating magic...",
+        "resultTitle": "Post ready",
+        "resultSubtitle": "Your content is ready to share.",
+        "createPost": "Create post",
+        "loadingLine1": "Connecting with your highlighted review...",
+        "loadingLine2": "Applying premium visual style...",
+        "loadingLine3": "Generating a publish-ready creative...",
+        "noEligibleReviews": "No 4-5 star reviews are available.",
+        "noEligibleReviewsHelp": "As soon as positive ratings arrive, you can create posts in one click.",
+        "previewAlt": "Generated post"
+      },
+      "variantSuccess": "New variant created.",
+      "publishSuccess": "Post sent to the manual publishing flow.",
+      "errorLoadAssets": "Could not load the gallery.",
+      "errorLoadReviews": "Could not load reviews.",
+      "errorGenerateSuggestions": "Could not prepare content.",
+      "errorCreateAsset": "Could not create the post.",
+      "errorSignedUrl": "Could not open image.",
+      "errorDownload": "Could not download image.",
+      "errorVariant": "Could not generate variant.",
+      "errorPublish": "Could not send to publish."
+    },
+    "exports": {
+      "title": "Weekly exports",
+      "subtitle": "Download and reuse ZIP packs for each week.",
+      "empty": "No exports found for current filters.",
+      "refreshLink": "Refresh link",
+      "download": "Download",
+      "errorLoad": "Could not load export list.",
+      "errorSignedUrl": "Could not generate download link."
+    },
+    "status": {
+      "title": "System status"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "tabs": {
+      "voice": "AI Voice",
+      "kb": "Business Memory",
+      "billing": "Plan & Usage",
+      "integrations": "Integrations",
+      "growth": "Growth",
+      "safety": "Safety",
+      "triggers": "Triggers",
+      "team": "Team",
+      "language": "Language"
+    },
+    "humanized": {
+      "title": "Business Settings",
+      "subtitle": "Teach OpinIA how to handle your venue.",
+      "saveCta": "Save changes",
+      "saveSuccess": "Changes saved (simulation).",
+      "tabs": {
+        "adn": "Business DNA",
+        "personality": "Personality",
+        "autopilot": "Automatic replies",
+        "team": "Team & connections"
+      },
+      "adn": {
+        "title": "Business DNA",
+        "subtitle": "Define your place basics with simple language.",
+        "helper": "This information helps OpinIA reply the way you would.",
+        "businessType": "Business type",
+        "businessTypes": {
+          "restaurant": "Restaurant",
+          "hotel": "Hotel",
+          "retail": "Retail",
+          "service": "Service"
+        },
+        "topOffer": "Our star dish or top service is...",
+        "topOfferPlaceholder": "Write your main differentiator",
+        "complaintPolicy": "If a customer complains, our policy is...",
+        "complaintOptions": {
+          "apologize": "Apologize",
+          "privateContact": "Offer private contact",
+          "inviteBack": "Invite them back"
+        },
+        "practicalData": "Practical data for AI (Optional)",
+        "practicalDataPlaceholder": "Ex: We close on Mondays, no terrace...",
+        "footer": "OpinIA will use this information to answer customer questions in reviews without extra work from you."
+      },
+      "personality": {
+        "title": "Personality",
+        "subtitle": "Choose your communication tone and language limits.",
+        "howToSound": "How do you want to sound?",
+        "quickTones": {
+          "proper": "Friendly",
+          "formal": "Formal",
+          "fun": "Fun"
+        },
+        "tones": {
+          "professional": {
+            "title": "👔 Professional & Elegant",
+            "subtitle": "Formal and polished responses."
+          },
+          "friendly": {
+            "title": "🤝 Warm & Friendly",
+            "subtitle": "Clear, close and natural."
+          },
+          "fun": {
+            "title": "🎉 Fun & Casual",
+            "subtitle": "More informal and expressive."
+          }
+        },
+        "signature": "Signature",
+        "signaturePlaceholder": "Ex: Greetings from the La Riera team",
+        "forbiddenWords": "Forbidden words",
+        "forbiddenWordsPlaceholder": "Type and press Enter",
+        "advancedOptions": "Advanced options",
+        "expertMode": "Expert Mode",
+        "expertModeDesc": "Show advanced controls to customize instructions.",
+        "expertWarning": "Advanced users only",
+        "customPrompt": "Custom System Prompt",
+        "customPromptPlaceholder": "Define advanced model instructions..."
+      },
+      "autopilot": {
+        "title": "Automatic replies",
+        "subtitle": "Set simple “if this, then that” rules.",
+        "rule1Title": "If we receive a negative review",
+        "rule1Stars": "If we receive a review of",
+        "rule1Action": "Then",
+        "rule2Title": "If we receive a 5-star review with no text",
+        "rule2Stars": "Rating type",
+        "rule2Toggle": "Approve and publish a “Thank you” automatically",
+        "ratingOptions": {
+          "oneStar": "1 star",
+          "oneTwoStars": "1 or 2 stars",
+          "twoStars": "2 stars",
+          "fiveStars": "5 stars",
+          "fourFiveStars": "4 or 5 stars"
+        },
+        "actionOptions": {
+          "notifyNoReply": "Notify me and DO NOT prepare reply",
+          "notifyPrepare": "Notify me and prepare a draft"
+        }
+      },
+      "team": {
+        "title": "Team",
+        "subtitle": "Invite trusted people to review replies.",
+        "peopleCounter": "People: {used}/{limit}",
+        "businessCounter": "Businesses: {used}/{limit}",
+        "email": "Email",
+        "emailPlaceholder": "name@company.com",
+        "role": "Role",
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "manager": "Manager",
+          "responder": "Responder",
+          "approver": "Approver only"
+        },
+        "inviteCta": "Invite",
+        "currentMembers": "Current team",
+        "statusActive": "Active",
+        "statusPending": "Pending",
+        "pendingInvites": "Queued invites",
+        "limitReached": "Limit reached. Upgrade your plan.",
+        "businessLimitReached": "You've reached your plan's business limit.",
+        "limitTooltip": "Limit reached. Upgrade your plan.",
+        "upgradePlan": "Upgrade plan",
+        "manageBusinessesHint": "Business creation is managed from the admin area.",
+        "manageBusinessesCta": "Manage businesses",
+        "invalidEmail": "Enter a valid email.",
+        "duplicateInvite": "This email is already in the list.",
+        "inviteQueued": "Invite sent.",
+        "inviteError": "Could not send the invite."
+      },
+      "integrations": {
+        "title": "Integrations",
+        "subtitle": "Connect your flows without technical overhead.",
+        "webhookUrl": "Webhook URL",
+        "webhookPlaceholder": "https://hooks.zapier.com/...",
+        "cardTitle": "Connect Zapier/Make",
+        "cardText": "When automations are enabled, OpinIA will send events to your webhook."
+      }
+    },
+    "voice": {
+      "title": "AI Voice",
+      "signature": "Signature",
+      "instructions": "AI Instructions",
+      "instructionsPlaceholder": "E.g.: Never mention prices. Always invite to return.",
+      "posKeywords": "Words to USE (comma-separated)",
+      "posPlaceholder": "hospitality, excellence, welcome",
+      "negKeywords": "Words to AVOID (comma-separated)",
+      "negPlaceholder": "cheap, discount, issue",
+      "seo": "SEO & Visibility",
+      "seoDesc": "Keywords that will be naturally integrated into responses to improve your Google Maps ranking.",
+      "seoKeywords": "SEO Keywords (comma-separated)",
+      "seoKeywordsPlaceholder": "best tapas Barcelona, terrace restaurant Tarragona",
+      "seoIntensity": "Intensity",
+      "seoLevels": [
+        "—",
+        "Soft",
+        "Medium",
+        "High"
+      ],
+      "seoMaxKw": "max {n} keyword(s) per response",
+      "saveChanges": "Save changes",
+      "aiEngineDesc": "Generation engine optimized by OpinIA.",
+      "brandImageTitle": "Business image",
+      "brandImageDesc": "Upload a logo or cover to show it in the dashboard switcher.",
+      "brandImageLogo": "Logo",
+      "brandImageCover": "Cover",
+      "brandImageFormats": "Formats: PNG/JPG/WEBP",
+      "brandImageMaxSize": "Maximum size: 4MB",
+      "brandImageSaved": "Image saved",
+      "brandImageSelectFirst": "Select an image before saving.",
+      "brandImageErrorType": "Unsupported format. Use PNG, JPG, or WEBP.",
+      "brandImageErrorSize": "Image exceeds 4MB.",
+      "brandImageErrorSave": "Could not save the image."
+    },
+    "kb": {
+      "title": "Business Memory",
+      "newEntry": "New memory entry",
+      "editEntry": "Edit entry",
+      "saveEntry": "Save entry",
+      "updateEntry": "Update",
+      "deleteConfirm": "Delete this entry?",
+      "category": "Category",
+      "triggers": "Triggers (keywords)",
+      "content": "Content",
+      "sentiment": "Sentiment context",
+      "categories": {
+        "parking": "Parking",
+        "wifi": "WiFi",
+        "horaris": "Hours",
+        "política": "Policy",
+        "menú": "Menu / Cuisine",
+        "equip": "Team",
+        "instal·lacions": "Facilities",
+        "ubicació": "Location",
+        "promoció": "Promotions",
+        "altres": "Other"
+      }
+    },
+    "billing": {
+      "title": "Plan & Usage",
+      "currentPlan": "Current plan",
+      "usage": "Usage",
+      "monthlyReviews": "Monthly reviews",
+      "changePlan": "Change plan",
+      "aiGenerations": "AI generations",
+      "syncedReviews": "Synced reviews",
+      "monthlyLimit": "Monthly limit",
+      "errorLoad": "Error loading billing data",
+      "usageProgress": "{used} / {total} generations"
+    },
+    "integrations": {
+      "title": "Integrations",
+      "comingSoon": "Coming soon: Google Business, TripAdvisor, Booking.",
+      "webhookDesc": "Connect Make/Zapier to publish automatically from Planner.",
+      "webhookEnable": "Enable webhook connector",
+      "webhookEnableHint": "When you click “Send to publish”, we will POST to your webhook.",
+      "webhookUrl": "Webhook URL",
+      "webhookChannels": "Enabled channels",
+      "testWebhook": "Test webhook",
+      "secretConfigured": "Secret configured ✅",
+      "secretMissing": "Secret not configured",
+      "regenerateSecret": "Regenerate secret",
+      "secretRegenerated": "Secret regenerated",
+      "copyId": "Copy ID"
+    },
+    "triggers": {
+      "title": "Action Triggers",
+      "create": "Create trigger",
+      "update": "Update",
+      "deleteConfirm": "Delete this trigger?",
+      "name": "Name",
+      "namePlaceholder": "E.g.: Negative review alert",
+      "matchTopics": "Topics to detect",
+      "matchPhrases": "Phrases to detect",
+      "minRating": "Minimum rating",
+      "sentimentFilter": "Sentiment filter",
+      "actionType": "Action type",
+      "actionTarget": "Action target",
+      "enabled": "Enabled",
+      "noTriggers": "No triggers configured.",
+      "test": "Test triggers",
+      "testText": "Test text",
+      "testRating": "Test rating",
+      "testSentiment": "Test sentiment",
+      "newTitle": "⚡ New action trigger",
+      "editTitle": "✏️ Edit trigger",
+      "matchTopicsPlaceholder": "parking, noise, cleanliness",
+      "matchPhrasesPlaceholder": "too expensive, bad service",
+      "minRatingAny": "Any",
+      "activeCount": "Active triggers ({count})",
+      "topicPrefix": "topic",
+      "phrasePrefix": "phrase",
+      "testTitle": "🧪 Test triggers",
+      "testDescription": "Paste a review to see which triggers would fire.",
+      "testPlaceholder": "e.g. Parking was terrible and staff was rude...",
+      "runMatch": "Run match",
+      "noMatches": "No triggers matched.",
+      "matchedPrefix": "matched",
+      "sentimentOptions": {
+        "negative": "😠 Negative",
+        "neutral": "😐 Neutral",
+        "positive": "😊 Positive"
+      },
+      "actionTypes": {
+        "in_app_alert": "🔔 In-app alert",
+        "email": "📧 Email (coming soon)",
+        "slack": "💬 Slack (coming soon)",
+        "webhook": "🔗 Webhook (coming soon)"
+      }
+    },
+    "team": {
+      "title": "Team",
+      "members": "Members",
+      "invite": "Invite member",
+      "inviteEmail": "Email address",
+      "invitePlaceholder": "name@company.com",
+      "inviteRole": "Role",
+      "sendInvite": "Send invite",
+      "remove": "Remove",
+      "removeConfirm": "Are you sure you want to remove this member?",
+      "pending": "Pending",
+      "roles": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "manager": "Manager",
+        "responder": "Responder",
+        "staff": "Staff"
+      },
+      "lastOwnerError": "Cannot remove the last owner."
+    },
+    "safety": {
+      "panicTitle": "Panic mode (Kill Switch)",
+      "panicDesc": "Stops all AI generation for this business. Activate in case of reputational crisis or incident.",
+      "panicActive": "AI stopped since {date}",
+      "panicReason": "Reason (optional)",
+      "panicReasonPlaceholder": "E.g.: Reputational crisis, internal review...",
+      "constraints": "Prohibited phrases (anti-robot)",
+      "constraintsDesc": "Add phrases the AI must NEVER use. One per line.",
+      "constraintsPlaceholder": "Don't mention specific prices\nDon't say 'we apologize for the inconvenience'\nDon't use 'dear customer'",
+      "saveConstraints": "Save restrictions",
+      "defaultsInfo": "Anti-robot defaults: \"Dear customer\", \"We are thrilled\", \"We regret any inconvenience\", apologizing more than once, generic corporate phrases. Always active, no need to add them."
+    },
+    "language": {
+      "title": "Interface language",
+      "desc": "Change the language of the entire dashboard. The preference is saved to your profile."
+    },
+    "growth": {
+      "title": "Growth Links",
+      "createNew": "Create new review link",
+      "createDesc": "Paste your Google review link to generate a QR code and short link with tracking.",
+      "activeLinks": "Active links",
+      "clicks7d": "Clicks (7 days)",
+      "totalScans": "Total scans",
+      "noLinks": "No links created",
+      "noLinksDesc": "Create your first growth link to start collecting reviews.",
+      "url": "Review URL",
+      "urlPlaceholder": "https://g.page/review/...",
+      "deleteConfirm": "Delete this link?"
+    }
+  },
+  "legal": {
+    "terms": "Terms & Conditions",
+    "privacy": "Privacy Policy",
+    "security": "Security",
+    "support": "Support Center",
+    "lastUpdated": "Last updated",
+    "footerRights": "All rights reserved"
+  },
+  "supportPage": {
+    "title": "Support Center",
+    "lastUpdated": "February 18, 2026",
+    "contact": {
+      "emailTitle": "Support email",
+      "emailAddress": "support@opinia.cat",
+      "emailSla": "Reply in < 24 business hours",
+      "docsTitle": "Documentation",
+      "docsSubtitle": "Guides, API, tutorials",
+      "docsStatus": "Coming soon"
+    },
+    "status": {
+      "okTitle": "All systems operational",
+      "okSubtitle": "Real-time status: {path}",
+      "linkLabel": "dashboard/status"
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "items": {
+        "generate": {
+          "q": "How does reply generation work?",
+          "a": "OpinIA analyzes each review with AI (classification + business context) and generates 3 reply options with different tones. You choose, edit if needed, and publish. No reply is posted automatically."
+        },
+        "providers": {
+          "q": "Which AI providers do you use?",
+          "a": "We use multiple AI providers depending on your account configuration. The system includes automatic fallback: if one provider fails, another takes over."
+        },
+        "training": {
+          "q": "Are my data used to train models?",
+          "a": "No. Reviews are sent to AI providers only to generate replies. We use zero-retention policies when available. See our Privacy Policy for more details."
+        },
+        "gbp": {
+          "q": "Can I connect Google Business Profile?",
+          "a": "Yes, GBP integration is in pilot phase. For now you can import reviews manually or via CSV. Direct connection will enable automatic import and publishing."
+        },
+        "memory": {
+          "q": "How does Business Memory work?",
+          "a": "Business Memory stores verified facts about your business (hours, prices, policies). AI uses them as context to generate accurate replies. The more you feed it, the better the results."
+        },
+        "incorrect": {
+          "q": "What if AI generates incorrect information?",
+          "a": "Guardrails detect prices, hours, and unverified data, then alert you. Always review replies before publishing. Accuracy improves as you enrich your Business Memory."
+        },
+        "plans": {
+          "q": "What plans do you offer?",
+          "a": "Starter ({starter}/mo), Pro ({pro}/mo), and Agency ({agency}/mo). Check the pricing page for the latest limits and features."
+        },
+        "cancel": {
+          "q": "How do I cancel my account?",
+          "a": "You can cancel anytime from Settings > Plan & Usage. Data is retained for 90 days and then permanently deleted."
+        }
+      }
+    }
+  },
+  "inbox": {
+    "greeting": "Hi, {{userName}}! You have {{pendingCount}} reviews pending today.",
+    "subtitle": "Clear them in a minute and get back to work.",
+    "emptyTitle": "All caught up! 🎉",
+    "emptySubtitle": "You cleared your inbox. Enjoy the time saved.",
+    "viewImpact": "View my impact",
+    "proposal": "OpinIA proposal",
+    "redo": "Redo reply",
+    "apologize": "Apologize",
+    "offerContact": "Offer contact",
+    "publishedSuccess": "Reply published successfully!",
+    "dismiss": "No, thanks",
+    "downloadImage": "Download image",
+    "schedulePost": "Schedule post"
+  },
+  "content": {
+    "title": "Your Showcase.",
+    "subtitle": "Your best reviews, ready for social media.",
+    "emptyTitle": "You haven't shown off anything yet.",
+    "emptySubtitle": "Turn your 5-star reviews into content in one click.",
+    "createNew": "✨ Create new Post",
+    "variant": "🔄 Variant",
+    "openEditor": "🎨 Open in Editor",
+    "customizeAdvanced": "Customize (Advanced)",
+    "backToGallery": "Back to Gallery"
+  },
+  "paywall": {
+    "title": "Level up your reputation.",
+    "subtitle": "Choose the plan that fits your business best. Cancel anytime in 1 click.",
+    "essentialPlan": "Essential Plan",
+    "essentialBadge": "Most popular",
+    "agencyProPlan": "Agency / Pro Plan",
+    "f1": "Reply to all reviews with AI",
+    "f2": "1-click post generation",
+    "f3": "Impact analytics",
+    "f4": "Advanced design editor (Canva-style)",
+    "f5": "Multi-location management",
+    "f6": "Full automation rules",
+    "trust1": "Secure payments with Stripe",
+    "trust2": "Automatic VAT invoice",
+    "trust3": "Priority support",
+    "ctaTrial": "Start 14-day trial",
+    "ctaPro": "Upgrade to Pro"
+  },
+  "admin": {
+    "title": "Management",
+    "subtitle": "Manage team, businesses, and plan for the active organization.",
+    "forbidden": "You do not have permission to access this section.",
+    "tabs": {
+      "team": "Team",
+      "businesses": "Businesses",
+      "plan": "Plan"
+    },
+    "seatsCounter": "Seats: {used}/{limit}",
+    "businessesCounter": "Businesses: {used}/{limit}",
+    "team": {
+      "inviteTitle": "Invite teammate",
+      "membersTitle": "Current team",
+      "pendingTitle": "Pending invites",
+      "businessAssignments": "Assigned businesses",
+      "saveAssignments": "Save assignments",
+      "assignmentsSaved": "Assignments saved.",
+      "roleUpdated": "Role updated.",
+      "memberRemoved": "Member removed."
+    },
+    "businesses": {
+      "createTitle": "Create business",
+      "nameLabel": "Business name",
+      "namePlaceholder": "Ex. Central Hotel",
+      "typeLabel": "Type",
+      "createCta": "Create business",
+      "counter": "Businesses: {used}/{limit}",
+      "limitReached": "Business limit reached. Upgrade your plan to add more.",
+      "limitTooltip": "Business limit reached. Upgrade your plan.",
+      "listTitle": "Businesses and priority",
+      "savingOrder": "Saving order...",
+      "orderSaved": "Order saved.",
+      "businessUpdated": "Business updated.",
+      "businessCreated": "Business created.",
+      "nameRequired": "Enter a business name.",
+      "visible": "Visible",
+      "hidden": "Hidden"
+    },
+    "plan": {
+      "title": "Plan and seats",
+      "subtitle": "Seat and business limits are calculated automatically from your plan.",
+      "starter": "Starter €49",
+      "starterSeats": "Up to 2 people · 3 businesses",
+      "pro": "Pro €149",
+      "proSeats": "Up to 6 people · 10 businesses",
+      "updateCta": "Update plan",
+      "updated": "Plan updated.",
+      "ownerOnly": "Only the Owner can update the plan."
+    }
+  }
+}

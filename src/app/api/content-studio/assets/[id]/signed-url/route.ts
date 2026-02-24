@@ -1,0 +1,94 @@
+import { NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { createLogger, createRequestId } from '@/lib/logger';
+import {
+  validateParams,
+  ContentStudioAssetParamsSchema,
+} from '@/lib/validations';
+import { storagePathToObjectPath } from '@/lib/content-studio';
+import type { ContentAsset } from '@/types/database';
+
+type AssetSignedRow = Pick<ContentAsset,
+  'id' | 'business_id' | 'storage_bucket' | 'storage_path' | 'status'>;
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } },
+) {
+  const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
+  const log = createLogger({ request_id: requestId, route: '/api/content-studio/assets/[id]/signed-url' });
+
+  const withResponseRequestId = (response: NextResponse) => {
+    response.headers.set('x-request-id', requestId);
+    return response;
+  };
+
+  try {
+    const supabase = createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return withResponseRequestId(NextResponse.json({ error: 'unauthorized', message: 'Auth required' }, { status: 401 }));
+    }
+
+    const [routeParams, paramsErr] = validateParams(params, ContentStudioAssetParamsSchema);
+    if (paramsErr) return withResponseRequestId(paramsErr);
+
+    const { data: assetData, error: assetError } = await supabase
+      .from('content_assets')
+      .select('id, business_id, storage_bucket, storage_path, status')
+      .eq('id', routeParams.id)
+      .single();
+
+    if (assetError || !assetData) {
+      return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Asset not found' }, { status: 404 }));
+    }
+
+    const asset = assetData as AssetSignedRow;
+    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
+
+    if (workspaceBusinessId && workspaceBusinessId !== asset.business_id) {
+      return withResponseRequestId(
+        NextResponse.json({ error: 'forbidden', message: 'Asset does not belong to current workspace' }, { status: 403 }),
+      );
+    }
+
+    const { data: businessAccess, error: businessAccessError } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('id', asset.business_id)
+      .single();
+
+    if (businessAccessError || !businessAccess) {
+      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business' }, { status: 403 }));
+    }
+
+    const objectPath = storagePathToObjectPath(asset.storage_path, asset.storage_bucket);
+    const admin = createAdminClient();
+    const { data: signedData, error: signedError } = await admin.storage
+      .from(asset.storage_bucket)
+      .createSignedUrl(objectPath, 60 * 60 * 24);
+
+    if (signedError || !signedData?.signedUrl) {
+      log.error('Failed to create signed URL for existing asset', {
+        error: signedError?.message || 'unknown',
+        asset_id: asset.id,
+      });
+      return withResponseRequestId(
+        NextResponse.json({ error: 'storage_error', message: 'Failed to create signed URL', request_id: requestId }, { status: 500 }),
+      );
+    }
+
+    return withResponseRequestId(NextResponse.json({ signedUrl: signedData.signedUrl, request_id: requestId }));
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown';
+    log.error('Unhandled content asset signed-url error', { error: message });
+    return withResponseRequestId(
+      NextResponse.json(
+        { error: 'internal_error', message: 'Error intern del servidor', request_id: requestId },
+        { status: 500 },
+      ),
+    );
+  }
+}

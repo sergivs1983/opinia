@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/jobs",
+      "schedule": "0 3 * * *",
+      "comment": "Rebuild insights daily at 3am UTC"
+    }
+  ]
+}

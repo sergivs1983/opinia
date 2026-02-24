@@ -1,0 +1,1436 @@
+{
+  "common": {
+    "appName": "OpinIA",
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "saved": "¡Guardado!",
+    "saving": "Guardando...",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "confirm": "Confirmar",
+    "tryAgain": "Reintentar",
+    "back": "Volver",
+    "next": "Siguiente",
+    "continue": "Continuar",
+    "close": "Cerrar",
+    "create": "Crear",
+    "edit": "Editar",
+    "update": "Actualizar",
+    "search": "Buscar",
+    "noResults": "Sin resultados",
+    "error": "Error",
+    "success": "¡Hecho!",
+    "language": "Idioma",
+    "selectLanguage": "Elige idioma",
+    "saveChanges": "Guardar cambios",
+    "confirmDelete": "¿Seguro que quieres eliminar?",
+    "free": "Gratis",
+    "upgradeTo": "Upgrade a {name}",
+    "switchToFree": "Cambiar a Free",
+    "unknown": "Desconocido",
+    "enabled": "Activado",
+    "disabled": "Desactivado",
+    "anySentiment": "Cualquier sentimiento",
+    "locales": {
+      "ca": "Català",
+      "es": "Español",
+      "en": "English"
+    },
+    "sentiment": {
+      "positive": "Positivo",
+      "neutral": "Neutro",
+      "negative": "Negativo"
+    },
+    "platforms": {
+      "google": "Google",
+      "tripadvisor": "TripAdvisor",
+      "booking": "Booking",
+      "manual": "Manual",
+      "other": "Otro"
+    },
+    "time": {
+      "justNow": "justo ahora",
+      "minutesAgo": "hace {count} min",
+      "hoursAgo": "hace {count} h",
+      "daysAgo": "hace {count} d"
+    },
+    "replyStatus": {
+      "draft": "Borrador",
+      "selected": "Seleccionado",
+      "published": "Publicado",
+      "archived": "Archivado"
+    },
+    "tones": {
+      "proper": {
+        "label": "Cercano",
+        "description": "Empático y cercano"
+      },
+      "professional": {
+        "label": "Profesional",
+        "description": "Claro y formal"
+      },
+      "premium": {
+        "label": "Premium",
+        "description": "Elegante y distinguido"
+      }
+    },
+    "other": "Otros"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "growth": "Growth Hub",
+    "planner": "Planner",
+    "analytics": "Analytics",
+    "insights": "Insights",
+    "benchmark": "Benchmark",
+    "ops": "Operaciones",
+    "content": "Contenido",
+    "studio": "Studio",
+    "exports": "Exports",
+    "settings": "Settings",
+    "help": "Ayuda",
+    "status": "Estado",
+    "logout": "Cerrar sesión",
+    "switchOrg": "Cambiar organización",
+    "switchBiz": "Cambiar negocio"
+  },
+  "landing": {
+    "hero": "Respuestas profesionales con IA para tu negocio",
+    "heroSub": "Genera respuestas personalizadas a reseñas de Google, TripAdvisor y Booking en segundos.",
+    "tryDemo": "Pruébalo ahora — sin registro",
+    "demoCta": "Prueba con tu reseña",
+    "demoPlaceholder": "Ej: Buena ubicación pero la habitación era pequeña y hacía mucho calor por la noche...",
+    "demoRating": "Rating:",
+    "generate": "Generar",
+    "startTrial": "Empieza tu trial gratuito",
+    "tryAnother": "Probar otra",
+    "auditTitle": "Auditoría exprés de reseñas",
+    "auditSub": "Pega tus reseñas y obtendrás un diagnóstico instantáneo.",
+    "auditPaste": "Pega 2-10 reseñas (una por línea)",
+    "auditAnalyze": "Analizar",
+    "auditReviews": "reseñas",
+    "features": "Cómo funciona",
+    "step1": "Conecta",
+    "step1desc": "Importa reseñas de Google, TripAdvisor o añádelas manualmente.",
+    "step2": "Genera",
+    "step2desc": "La IA genera 3 opciones de respuesta (conciso, empático, formal) adaptadas a tu negocio.",
+    "step3": "Revisa y publica",
+    "step3desc": "Tú eliges, editas si quieres y publicas. Nunca nada automático.",
+    "finalCta": "Empieza a responder profesionalmente",
+    "finalCtaSub": "Configura tu negocio en 30 segundos y genera respuestas que refuercen tu marca.",
+    "tryFree": "Probar ahora gratis",
+    "createAccount": "Crear cuenta",
+    "nav": {
+      "pricing": "Pricing",
+      "help": "Ayuda",
+      "signIn": "Sign in",
+      "start": "Start"
+    },
+    "heroArtlist": {
+      "badge": "Reputación + contenido en un solo flujo",
+      "title": "Responde reseñas y conviértelas en contenido en minutos.",
+      "subtitle": "Menos móvil. Más clientes.",
+      "primaryCta": "Empieza ahora",
+      "secondaryCta": "Ver pricing",
+      "trust": "Sin permanencia. Puedes cancelar cuando quieras."
+    },
+    "socialProof": {
+      "title": "Elegido por equipos que publican con constancia",
+      "items": {
+        "restaurants": "Restaurantes",
+        "hotels": "Hoteles boutique",
+        "clinics": "Clínicas",
+        "retail": "Retail",
+        "services": "Servicios locales"
+      }
+    },
+    "howItWorks": {
+      "title": "Cómo funciona",
+      "steps": {
+        "reviews": {
+          "label": "Paso 1",
+          "title": "Centraliza reseñas",
+          "description": "Agrupa el feedback y detecta qué valoran más tus clientes."
+        },
+        "reply": {
+          "label": "Paso 2",
+          "title": "Respuesta profesional en segundos",
+          "description": "Genera respuesta con voz de marca y revísala antes de publicar."
+        },
+        "content": {
+          "label": "Paso 3",
+          "title": "Convierte todo en contenido",
+          "description": "Pasa de reseña a idea, asset y planner semanal en un solo flujo."
+        }
+      }
+    },
+    "flow": {
+      "title": "Reseñas → Respuesta → Contenido",
+      "subtitle": "Todo conectado para convertir cada opinión en una acción útil.",
+      "cards": {
+        "reviews": {
+          "label": "Reseñas",
+          "title": "Ves qué ocurre en tu negocio",
+          "description": "Detecta puntos fuertes y fricciones recurrentes sin perder horas."
+        },
+        "reply": {
+          "label": "Respuesta",
+          "title": "Responde con criterio y tono consistente",
+          "description": "Mantienes una voz profesional, clara y alineada con tu marca."
+        },
+        "content": {
+          "label": "Contenido",
+          "title": "Publica ideas con evidencia real",
+          "description": "Transforma quotes reales en piezas listas para Story, Feed o Planner."
+        }
+      }
+    },
+    "reviews": {
+      "title": "Reseñas reales, respuesta profesional",
+      "subtitle": "Mosaico elegante de feedback + respuesta sugerida para reforzar confianza.",
+      "suggestedLabel": "Respuesta sugerida",
+      "cards": {
+        "speed": {
+          "platform": "Google",
+          "rating": "★★★★★",
+          "snippet": "Servicio muy ágil al mediodía y trato cercano del equipo.",
+          "reply": "Gracias por destacar la rapidez. Seguiremos cuidando ese ritmo para mantener la experiencia."
+        },
+        "service": {
+          "platform": "TripAdvisor",
+          "rating": "★★★★☆",
+          "snippet": "Buen ambiente, aunque en hora punta esperamos un poco.",
+          "reply": "Gracias por compartirlo. Estamos ajustando turnos en franjas de alta demanda para reducir esperas."
+        },
+        "clarity": {
+          "platform": "Booking",
+          "rating": "★★★★★",
+          "snippet": "Muy limpio y todo claro desde el check-in al checkout.",
+          "reply": "Nos alegra saberlo. Seguiremos priorizando claridad y confort en cada estancia."
+        },
+        "value": {
+          "platform": "Google",
+          "rating": "★★★★☆",
+          "snippet": "Muy buena relación calidad-precio, recomendable para familias.",
+          "reply": "Gracias por recomendarnos. Seguiremos trabajando para mantener ese valor en cada visita."
+        }
+      }
+    },
+    "examples": {
+      "title": "Ejemplos de respuestas",
+      "subtitle": "Tres estilos para publicar rápido y mantener coherencia de marca.",
+      "items": {
+        "empathy": {
+          "tone": "Cercano",
+          "reply": "Gracias por contárnoslo. Nos ayuda mucho y ya aplicamos mejoras en el servicio de tarde."
+        },
+        "operations": {
+          "tone": "Profesional",
+          "reply": "Agradecemos su valoración. Hemos revisado el proceso interno para reducir esperas en horas punta."
+        },
+        "upsell": {
+          "tone": "Premium",
+          "reply": "Nos encanta que hayas disfrutado la experiencia. En tu próxima visita, te recomendamos nuestra selección especial."
+        }
+      }
+    },
+    "mini": {
+      "title": "Studio + Planner + Export en una rutina semanal",
+      "items": {
+        "studio": "Crea Story o Feed con template en pocos clics.",
+        "planner": "Planifica cuándo publicar y márcalo como publicado.",
+        "export": "Descarga el pack semanal en ZIP con todo listo."
+      }
+    },
+    "faqShort": {
+      "title": "FAQ rápida",
+      "items": {
+        "fast": {
+          "q": "¿Cuándo veo valor?",
+          "a": "Normalmente en la primera sesión: respuesta, idea y planner en menos de 5 minutos."
+        },
+        "editing": {
+          "q": "¿Puedo editar antes de publicar?",
+          "a": "Sí. Todo es revisable y editable antes de publicar o enviar."
+        },
+        "catalan": {
+          "q": "¿Funciona en catalán?",
+          "a": "Sí. Puedes trabajar en catalán, castellano e inglés."
+        }
+      }
+    },
+    "footer": {
+      "copy": "© 2026 OpinIA. Menos móvil. Más clientes."
+    }
+  },
+  "pricing": {
+    "sectionTitle": "Planes",
+    "hero": {
+      "title": "Planes claros para vender más con menos trabajo",
+      "subtitle": "De la reseña al post y al planner en minutos.",
+      "trust": "Puedes cancelar cuando quieras. Sin permanencia."
+    },
+    "value": {
+      "saveHours": "Ahorra horas cada semana",
+      "evidence": "Contenido basado en pruebas reales (quotes)",
+      "closedFlow": "Planifica y publica con un flujo cerrado"
+    },
+    "billing": {
+      "monthly": "Mensual",
+      "yearly": "Anual",
+      "save": "Ahorra {percent}%"
+    },
+    "savings": "Ahorra {pct}%",
+    "recommended": "Recomendado",
+    "perMonth": "/mes",
+    "perYear": "/año",
+    "monthsFree": "2 meses gratis",
+    "twoMonthsFree": "2 meses gratis",
+    "effectiveMonthlyBilledAnnually": "{amount}/mes (facturado anualmente)",
+    "tableTitle": "Comparativa completa",
+    "tableFeature": "Funcionalidad",
+    "included": "Incluido",
+    "notIncluded": "No incluido",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "desc": "Para negocios que empiezan y quieren una rutina semanal simple.",
+        "b1": "1 local",
+        "b2": "Inbox + Growth + Studio listos en minutos",
+        "b3": "Ideal para empezar sin complejidad"
+      },
+      "pro": {
+        "name": "Pro",
+        "desc": "Para equipos que quieren constancia de publicación y visión de rendimiento.",
+        "b1": "Hasta 3 locales",
+        "b2": "Benchmarks y automatización vía webhook",
+        "b3": "Plan recomendado para gerencia"
+      },
+      "agency": {
+        "name": "Agency",
+        "desc": "Para gestión multi-local con prioridad operativa.",
+        "b1": "Hasta 10 locales",
+        "b2": "Soporte prioritario y render priorizado",
+        "b3": "Pensado para agencias o grupos"
+      }
+    },
+    "features": {
+      "business_locations": "Locales incluidos",
+      "team_seats": "Asientos de equipo",
+      "role_permissions": "Roles y permisos",
+      "ai_replies": "Respuestas a reseñas con IA (Inbox)",
+      "multi_language": "Multi-idioma (ca/es/en)",
+      "seo_controls": "SEO (keywords + control de agresividad)",
+      "content_intelligence": "Content Intelligence + Growth",
+      "content_studio": "Content Studio (assets Story/Feed + X/Threads)",
+      "asset_library": "Asset Library (historial + reutilizar)",
+      "planner": "Planner (planificar + marcar publicado)",
+      "weekly_exports": "Exports semanales (pack ZIP)",
+      "analytics_roi": "Analytics / ROI",
+      "benchmarks": "Benchmark anónimo de publicación",
+      "connectors_webhook": "Integraciones vía connectors (Make/Zapier webhook)",
+      "assets_monthly": "Assets incluidos por mes",
+      "multi_location_support": "Soporte para múltiples locales",
+      "priority_render": "Prioridad de render",
+      "priority_support": "Soporte prioritario"
+    },
+    "values": {
+      "starter": {
+        "business_locations": "1 local",
+        "team_seats": "Hasta 3 usuarios",
+        "role_permissions": "Owner, Admin, Manager y Responder",
+        "ai_replies": "Hasta 200 respuestas/mes (uso razonable)",
+        "weekly_exports": "1 export semanal",
+        "assets_monthly": "30 assets/mes"
+      },
+      "pro": {
+        "business_locations": "Hasta 3 locales",
+        "team_seats": "Hasta 6 usuarios",
+        "role_permissions": "Owner, Admin, Manager y Responder",
+        "ai_replies": "Ilimitadas (uso razonable)",
+        "weekly_exports": "Ilimitados",
+        "assets_monthly": "150 assets/mes"
+      },
+      "agency": {
+        "business_locations": "Hasta 10 locales",
+        "team_seats": "Hasta 6 usuarios",
+        "role_permissions": "Owner, Admin, Manager y Responder",
+        "ai_replies": "Ilimitadas (uso razonable)",
+        "weekly_exports": "Ilimitados",
+        "assets_monthly": "600 assets/mes"
+      }
+    },
+    "faq": {
+      "title": "Preguntas frecuentes",
+      "robotic": {
+        "q": "¿Sonará robótico?",
+        "a": "No. El texto sale con el tono de tu negocio y siempre puedes editar antes de publicar."
+      },
+      "edit": {
+        "q": "¿Puedo editar antes de publicar?",
+        "a": "Sí. El flujo está pensado para que revises, ajustes y publiques solo cuando lo veas bien."
+      },
+      "catalan": {
+        "q": "¿Funciona en catalán?",
+        "a": "Sí. Puedes trabajar en catalán, castellano e inglés tanto en respuestas como en contenido."
+      },
+      "export": {
+        "q": "¿Qué pasa si me voy? ¿Puedo exportar?",
+        "a": "Sí. Tienes export semanal en ZIP con planner, textos y assets para conservarlo todo."
+      },
+      "integrations": {
+        "q": "Integraciones: ¿cómo publico automático?",
+        "a": "Desde Settings conectas Make/Zapier con webhook. Cuando haces click en “Enviar a publicar”, se envía el payload estándar."
+      },
+      "limits": {
+        "q": "¿Hay límites?",
+        "a": "Sí, según el plan. Donde dice ilimitado aplica uso razonable para garantizar estabilidad del servicio."
+      }
+    },
+    "cta": {
+      "primary": "Empieza ahora",
+      "secondary": "Ver demo",
+      "allPlans": "Ver todos los planes",
+      "finalTitle": "Activa un flujo completo de reputación + contenido",
+      "finalSubtitle": "Pasa de la reseña a la publicación en una sola rutina semanal."
+    }
+  },
+  "auth": {
+    "login": "Iniciar sesión",
+    "loginWith": "Entrar con {provider}",
+    "loginEmail": "Entrar con correo",
+    "emailPlaceholder": "tu@email.com",
+    "magicLinkSent": "¡Revisa tu correo! Te hemos enviado un enlace de acceso.",
+    "or": "o",
+    "createAccount": "Crear cuenta",
+    "enter": "Entrar"
+  },
+  "onboarding": {
+    "welcome": "¡Bienvenido a OpinIA!",
+    "languageStep": "¿En qué idioma quieres usar OpinIA?",
+    "businessName": "Nombre del negocio",
+    "businessNamePlaceholder": "Mi restaurante",
+    "businessType": "Tipo de negocio",
+    "signature": "Firma de respuesta",
+    "signaturePlaceholder": "El equipo de {name}",
+    "step": "Paso {n} de {total}",
+    "createBusiness": "Crear negocio",
+    "configureVoice": "Voz de marca configurada",
+    "addMemory": "Business Memory (mínimo 1 entrada)",
+    "bizTypes": {
+      "restaurant": "Restaurante",
+      "hotel": "Hotel",
+      "apartment": "Apartamento",
+      "bar": "Bar",
+      "cafe": "Cafetería",
+      "shop": "Tienda",
+      "other": "Otro"
+    },
+    "kbCategories": {
+      "parking": "Parking",
+      "wifi": "WiFi",
+      "horaris": "Horarios",
+      "política": "Políticas",
+      "menú": "Menú / Cocina",
+      "equip": "Equipo",
+      "instal·lacions": "Instalaciones",
+      "ubicació": "Ubicación",
+      "espais": "Espacios"
+    }
+  },
+  "onboardingReverse": {
+    "connect": {
+      "title": "Bienvenido a OpinIA. Ponemos tu reputación en piloto automático.",
+      "subtitle": "Conecta tu perfil de Google para analizar tus reseñas. Tardarás 10 segundos.",
+      "cta": "🔗 Sincronizar con Google Business"
+    },
+    "analyzing": {
+      "title": "Preparando tu primer resultado",
+      "line1": "Conectando con Google...",
+      "line2": "Analizando tus últimas reseñas...",
+      "line3": "Redactando tu primera respuesta perfecta..."
+    },
+    "firstWin": {
+      "title": "Hemos encontrado esta joya de hoy. Mira cómo responde OpinIA.",
+      "approveCta": "✅ Aprobar y Publicar",
+      "approveError": "No se pudo publicar la respuesta.",
+      "generateError": "No se pudo preparar la propuesta.",
+      "noBusinessTitle": "Aún no hay ningún negocio activo.",
+      "noBusinessSubtitle": "Completa la configuración mínima y vuelve a probar este flujo.",
+      "openOnboarding": "Abrir onboarding",
+      "noReviewTitle": "No encontramos reseñas pendientes ahora mismo.",
+      "noReviewSubtitle": "Puedes continuar en tu bandeja de acciones cuando quieras.",
+      "goDashboard": "Ir a mi bandeja de acciones"
+    },
+    "success": {
+      "title": "¡Magia pura! ✨ Has ahorrado tus primeros 5 minutos.",
+      "subtitle": "Esta reseña es demasiado buena. Te preparamos este post de Instagram.",
+      "noAsset": "Todavía no hay un asset disponible.",
+      "dismiss": "No, gracias",
+      "download": "Descargar imagen",
+      "goInbox": "Ir a mi bandeja de acciones"
+    }
+  },
+  "dashboard": {
+    "inbox": {
+      "title": "Reseñas",
+      "pending": "Pendientes",
+      "urgent": "Urgentes",
+      "total": "Total",
+      "all": "Todas",
+      "pendingFilter": "Pendientes",
+      "replied": "Respondidas",
+      "statusGenerated": "Generada",
+      "generateResponses": "Generar respuestas",
+      "regenerate": "Regenerar",
+      "approve": "Publicar respuesta",
+      "panicBanner": "Modo pánico activo — Generación IA detenida",
+      "addReview": "Añadir reseña",
+      "noReviews": "Aún no hay reseñas. ¡Importa o añade la primera!",
+      "tabList": "Lista",
+      "tabDetail": "Detalle",
+      "tabReply": "Respuesta",
+      "detailTitle": "Detalle de reseña",
+      "replyTitle": "Respuesta OpinIA",
+      "topicTags": "Temas detectados",
+      "noSelection": "Selecciona una reseña para ver el detalle.",
+      "selectReviewHint": "Selecciona una reseña para empezar a generar respuesta.",
+      "noReplyYet": "La respuesta aparecerá aquí...",
+      "guardrailOk": "Guardrails: OK",
+      "guardrailWarning": "Guardrails: Warning",
+      "guardrailAcknowledge": "He revisado y confirmo que la respuesta es correcta",
+      "seoDisabled": "SEO no disponible",
+      "aggressiveness": "Nivel",
+      "copy": "Copiar",
+      "chars": "Caracteres",
+      "optionsCount": "3 opciones",
+      "option1": "Opción 1",
+      "option2": "Opción 2",
+      "option3": "Opción 3",
+      "seoOn": "SEO ON",
+      "seoOff": "SEO OFF",
+      "idCopied": "ID copiado",
+      "copyId": "Copiar ID",
+      "deleteReviewConfirm": "¿Seguro que quieres eliminar esta reseña? También se eliminarán sus respuestas asociadas.",
+      "businessMissing": "No hay negocio seleccionado",
+      "sourceAll": "Todas",
+      "ratingAll": "Todas ★",
+      "triggersCount": "⚡ Triggers: {count}",
+      "authorLabel": "Autor",
+      "authorPlaceholder": "Nombre (opcional)",
+      "sourceLabel": "Fuente",
+      "ratingRequired": "Rating *",
+      "reviewTextRequired": "Texto de la reseña *",
+      "reviewTextPlaceholder": "Pega la reseña...",
+      "saveReview": "Guardar reseña"
+    },
+    "home": {
+      "navHome": "Home",
+      "hoursSavedBadge": "Horas ahorradas este mes: {hours}",
+      "title": "Hola, {name}! Tienes {count} reseñas pendientes hoy.",
+      "subtitle": "Liquídalas en un minuto y vuelve a tu trabajo.",
+      "progress": "{pending} pendientes · {completed}/{total} completadas",
+      "emptyTitle": "¡Todo al día! 🎉",
+      "emptySubtitle": "Has vaciado tu bandeja. Disfruta del tiempo ahorrado.",
+      "emptySavedToday": "Has ahorrado {minutes} minutos hoy.",
+      "viewImpact": "Ver mi impacto",
+      "reviewLine": "{author} en {platform}",
+      "proposalTitle": "Propuesta preparada por OpinIA",
+      "proposalConfidenceLine": "Tono cercano · Basado en el ADN de tu negocio",
+      "proposalMissing": "Aún no hay propuesta generada para esta reseña.",
+      "platform": {
+        "google": "Google",
+        "tripadvisor": "TripAdvisor",
+        "booking": "Booking",
+        "manual": "Manual",
+        "other": "Otro"
+      },
+      "meta": {
+        "anonymousAuthor": "Cliente anónimo",
+        "justNow": "justo ahora",
+        "minutesAgo": "hace {count} min",
+        "hoursAgo": "hace {count} h",
+        "daysAgo": "hace {count} d"
+      },
+      "actions": {
+        "edit": "Editar",
+        "redo": "Rehacer respuesta",
+        "approvePublish": "✅ Aprobar y Publicar",
+        "toneApology": "Disculparse",
+        "toneContact": "Ofrecer contacto",
+        "dismiss": "Quizá más tarde",
+        "downloadImage": "📲 Descargar imagen",
+        "schedulePost": "📅 Programar ahora"
+      },
+      "toasts": {
+        "approveSuccess": "Respuesta publicada.",
+        "approveError": "No se pudo publicar la respuesta.",
+        "generateError": "No se pudo regenerar la propuesta."
+      },
+      "successModal": {
+        "title": "¡Respuesta publicada con éxito!",
+        "subtitle": "Esta reseña puede atraer nuevos clientes.",
+        "benefitLine": "Los negocios que comparten reseñas positivas generan hasta un 23% más de confianza.",
+        "noAsset": "Aún no hay un asset disponible. Puedes crearlo desde Studio."
+      }
+    },
+    "layout": {
+      "accountFallback": "Cuenta",
+      "userFallback": "Usuario",
+      "toggleNavigation": "Abrir navegación",
+      "platformFilterAria": "Filtro de plataforma",
+      "platformAll": "Todas las plataformas",
+      "createBusiness": "+ Crear negocio",
+      "profileMenu": "Menú de perfil",
+      "accountSettings": "Configuración de la cuenta",
+      "closeNavigationDrawer": "Cerrar menú de navegación",
+      "closeSidebarPreview": "Cerrar vista previa de barra lateral",
+      "expandSidebar": "Expandir barra lateral",
+      "collapseSidebar": "Colapsar barra lateral",
+      "enableAutoSidebar": "Activar modo automático de barra lateral",
+      "pinSidebar": "Fijar barra lateral",
+      "roleOwner": "Owner",
+      "roleAdmin": "Admin",
+      "roleManager": "Manager",
+      "roleResponder": "Responder",
+      "roleMember": "Member",
+      "searchOrgPlaceholder": "Buscar organización...",
+      "searchOrgAria": "Buscador de organizaciones",
+      "openCommandPalette": "Abrir command palette",
+      "commandPlaceholder": "Escribe una acción u organización...",
+      "commandAria": "Buscador de comandos",
+      "currentOrg": "Activa",
+      "goTo": "Ir a:",
+      "switchToOrg": "Cambiar a",
+      "orgCommandHint": "Organización",
+      "commandGoInbox": "Ir a: Reseñas",
+      "commandGoPlanner": "Ir a: Planner",
+      "commandGoGrowth": "Ir a: Impacto",
+      "commandGoSettings": "Ir a: Configuración",
+      "adminPanel": "Gestión",
+      "commandGoAdmin": "Ir a Gestión"
+    },
+    "engagement": {
+      "title": "Impulso semanal",
+      "notificationLabel": "Notificación",
+      "emailLabel": "Email",
+      "empty": "No tienes avisos nuevos hoy.",
+      "mondayNotification": "Tienes nuevas reseñas del fin de semana.",
+      "thursdayReminder": "2 reseñas aún sin respuesta.",
+      "fridayEmail": "Esta semana has ahorrado {hours} horas con OpinIA."
+    },
+    "insights": {
+      "title": "Insights",
+      "noData": "Aún no hay suficiente actividad esta semana."
+    },
+    "benchmark": {
+      "title": "Benchmark & Misiones",
+      "week": "Semana",
+      "avgRating": "Tu media",
+      "reviewCount": "Reseñas (30d)",
+      "responseRate": "Tasa respuesta",
+      "weekPoints": "Puntos semana",
+      "league": "Clasificación",
+      "addCompetitor": "Competidor",
+      "noCompetitors": "Sin competidores",
+      "noCompetitorsDesc": "Añade competidores para ver tu posición.",
+      "weeklyMissions": "Misiones semanales",
+      "completed": "¡Completada!"
+    },
+    "ops": {
+      "title": "Operaciones"
+    },
+    "growth": {
+      "title": "Growth Hub",
+      "impactTitle": "Tu Impacto",
+      "subtitle": "Reputación + contenido en una sola vista semanal.",
+      "selectBusiness": "Selecciona un negocio para abrir Tu Impacto",
+      "weekSummaryTitle": "Esta semana en OpinIA",
+      "summaryReviewsAnswered": "Reseñas respondidas",
+      "summaryPostsCreated": "Posts creados",
+      "summaryHoursSaved": "Horas ahorradas",
+      "summaryRatingChange": "Cambio de rating",
+      "impactSentenceImproving": "Tu reputación está mejorando. Sigue así.",
+      "impactSentenceNeutral": "Buena constancia. El siguiente paso es convertir más reseñas en contenido.",
+      "impactNoActivity": "Aún no hay suficiente actividad esta semana.",
+      "insightIdLabel": "Insight ID",
+      "weekLabel": "Semana",
+      "mixLabel": "MIX",
+      "mentionsSuffix": "menciones",
+      "generatePlan": "Generar plan semanal",
+      "generatePlanError": "No se pudo generar el plan semanal.",
+      "strongPoint": "Tu punto fuerte de esta semana",
+      "opportunity": "Oportunidad clara de mejora",
+      "noRecurringIssues": "No se detectaron problemas recurrentes",
+      "createContent": "Crear contenido",
+      "generateResponse": "Generar respuesta",
+      "noNegativeWeekly": "No hay reseñas negativas esta semana",
+      "readyIdeas": "3 ideas listas para publicar",
+      "defaultIdeaTitle": "Idea",
+      "defaultPlannerTitle": "Idea de contenido",
+      "hookLabel": "Hook",
+      "captionLabel": "Caption",
+      "bestTimeLabel": "Mejor hora",
+      "copyHook": "Copiar hook",
+      "copyCaption": "Copiar caption",
+      "copied": "Copiado",
+      "copyId": "Copiar ID",
+      "approve": "Aprobar",
+      "approveIdeaError": "No se pudo aprobar la idea.",
+      "approved": "Aprobada",
+      "createStory": "Crear Story",
+      "createFeed": "Crear Feed",
+      "comingSoon": "Próximamente",
+      "planner": "Mini Planner recomendado",
+      "nextOpportunities": "Próximas oportunidades",
+      "addToPlanner": "Añadir al planner",
+      "markPublished": "Marcar como publicado",
+      "published": "Publicado",
+      "plannedStatus": "Planificado",
+      "publishedStatus": "Publicado",
+      "noPlannerItems": "No hay ítems esta semana",
+      "plannerErrorSave": "No se pudo añadir el ítem al planner.",
+      "plannerErrorPublish": "No se pudo marcar como publicado.",
+      "sendToPublish": "Enviar a publicar",
+      "webhookSent": "Enviado",
+      "webhookFailed": "Error de envío",
+      "webhookSkipped": "Omitido",
+      "webhookSendError": "No se pudo enviar al conector.",
+      "webhookDisabled": "Conector webhook desactivado",
+      "exportWeekly": "Descargar pack semanal",
+      "exportLoading": "Generando ZIP semanal...",
+      "exportDownload": "Descargar ZIP",
+      "exportCopyLink": "Copiar link",
+      "exportOpenHistory": "Ver historial de exports",
+      "exportError": "No se pudo generar el export semanal."
+    },
+    "metrics": {
+      "title": "Analytics / ROI",
+      "subtitle": "Impacto real: tiempo ahorrado, reseñas gestionadas, contenido publicado y coste IA.",
+      "range": "Periodo",
+      "errorLoad": "No se pudieron cargar las métricas.",
+      "selectBusiness": "Selecciona un negocio para ver Analytics.",
+      "timeSavedHours": "Horas ahorradas",
+      "timeSaved": "Tiempo ahorrado",
+      "timeSavedHint": "Estimación con baseline de 2 min por respuesta.",
+      "repliesHandled": "Reseñas respondidas",
+      "approved": "Aprobadas",
+      "contentPublished": "Contenido publicado",
+      "assetsCreated": "Assets creados",
+      "streak": "Racha",
+      "streakHint": "Semanas consecutivas con 2+ publicaciones.",
+      "benchmarkTitle": "Comparación",
+      "benchmarkEstimate": "Estimación: sigue publicando para tener comparativa.",
+      "benchmarkAbove": "Por encima de la media",
+      "benchmarkAverage": "En la media",
+      "benchmarkBelow": "Por debajo de la media",
+      "estimateBadge": "Estimación",
+      "aiCost": "Coste IA",
+      "restricted": "Restringido",
+      "aiCostHint": "Visible para owner/manager.",
+      "aiCostRestrictedHint": "Solo owner/manager puede ver el coste.",
+      "seriesTitle": "Evolución diaria",
+      "emptySeries": "Aún no hay datos para el periodo seleccionado.",
+      "legendReplies": "Respuestas generadas",
+      "legendPublished": "Planner publicado",
+      "highlightsTitle": "Highlights",
+      "emptyHighlights": "Aún no hay highlights disponibles."
+    },
+    "paywall": {
+      "testButton": "Probar modal de planes",
+      "subtitle": "Elige el plan que mejor se adapte a tu negocio. Cancela cuando quieras en 1 clic.",
+      "close": "Cerrar",
+      "perMonth": "/mes",
+      "mockCheckout": "Checkout simulado: {plan}.",
+      "titles": {
+        "default": "Sube de nivel tu reputación.",
+        "editor_access": "Desbloquea el Editor Pro",
+        "limit_reached": "Has alcanzado el límite de tu plan",
+        "trial_start": "Activa tu prueba de 14 días"
+      },
+      "plans": {
+        "essential": {
+          "title": "Plan Esencial",
+          "badge": "El más popular",
+          "f1": "Responde todas tus reseñas con IA.",
+          "f2": "Generación de posts en 1 clic.",
+          "f3": "Analítica de impacto.",
+          "cta": "Empezar prueba de 14 días"
+        },
+        "pro": {
+          "title": "Plan Pro / Agencia",
+          "f1": "Todo lo del plan Esencial.",
+          "f2": "Editor de diseño avanzado (estilo Canva).",
+          "f3": "Gestión de múltiples locales.",
+          "f4": "Reglas de automatización total.",
+          "cta": "Mejorar a Pro"
+        }
+      },
+      "trust": {
+        "secure": "🔒 Pago seguro con Stripe",
+        "invoice": "Factura automática con IVA",
+        "support": "Soporte prioritario"
+      }
+    },
+    "onboarding": {
+      "bannerTitle": "Completa el onboarding (2 min)",
+      "bannerSubtitle": "Haz la configuración rápida y activa tu primer resultado en menos de 5 minutos.",
+      "bannerStart": "Empezar",
+      "bannerDismiss": "Descartar",
+      "title": "Onboarding rápido",
+      "subtitle": "Configura lo mínimo, genera valor y salta directo a Growth Hub.",
+      "skip": "Saltar",
+      "stepLabel": "Paso {n} de {total}",
+      "needBusiness": "Selecciona un negocio para iniciar el onboarding",
+      "step1Title": "Paso 1 — Config rápida",
+      "languageLabel": "Idioma de salida",
+      "voiceStatus": "Estado de voz/tono",
+      "brandKitStatus": "Estado de Brand Kit",
+      "statusComplete": "Completo",
+      "statusIncomplete": "Incompleto",
+      "openSettings": "Abrir Settings",
+      "continue": "Continuar",
+      "step2Title": "Paso 2 — Reseñas",
+      "reviewsDetected": "Reseñas detectadas. Perfecto.",
+      "reviewsMissing": "Aún no hay reseñas. Puedes cargar un pack demo seguro.",
+      "seedDemo": "Cargar demo (5)",
+      "step3Title": "Paso 3 — Cadena Aha",
+      "runChain": "Ejecutar cadena 1 clic",
+      "generateReply": "Generar 1 respuesta",
+      "generateSuggestion": "Generar 1 idea",
+      "generateAsset": "Crear 1 asset",
+      "runAction": "Ejecutar",
+      "view": "Ver",
+      "openStudio": "Abrir Studio",
+      "actionDone": "Hecho",
+      "actionError": "Error",
+      "actionLoading": "Cargando",
+      "actionPending": "Pendiente",
+      "retry": "Reintentar",
+      "step4Title": "Paso 4 — Planner + Export",
+      "addPlanner": "Añadir al planner",
+      "plannerAdded": "Ítem añadido al planner:",
+      "exportWeekly": "Descargar pack semanal",
+      "downloadZip": "Descargar ZIP",
+      "copyLink": "Copiar link",
+      "copied": "Copiado",
+      "finish": "Finalizar",
+      "cancel": "Cancelar",
+      "generate": "Generar",
+      "studioTitle": "Configura el asset",
+      "studioFormat": "Formato",
+      "studioTemplate": "Template",
+      "defaultPlannerTitle": "Idea semanal",
+      "errorLoad": "No se pudo cargar el estado de onboarding.",
+      "errorSave": "No se pudo actualizar el onboarding.",
+      "errorSeed": "No se pudo cargar el demo.",
+      "errorNoReview": "No hay reseñas disponibles para generar respuesta.",
+      "errorGenerateReply": "No se pudo generar la respuesta.",
+      "errorGenerateSuggestion": "No se pudo generar la idea.",
+      "errorNeedSuggestion": "Debes generar una idea antes de crear el asset.",
+      "errorGenerateAsset": "No se pudo crear el asset.",
+      "errorNeedSuggestionOrAsset": "Hace falta una suggestion o un asset para añadir al planner.",
+      "errorPlanner": "No se pudo añadir al planner.",
+      "errorExport": "No se pudo generar el export semanal."
+    },
+    "studio": {
+      "title": "Content Studio",
+      "subtitle": "Convierte una idea en pieza visual y texto para redes en minutos.",
+      "contentSubtitle": "Convierte reseñas semanales en ideas listas para publicar.",
+      "libraryTitle": "Librería de assets",
+      "librarySubtitle": "Historial de Story/Feed generados y reutilización rápida.",
+      "close": "Cerrar",
+      "savedToLibrary": "Guardado en Librería ✅",
+      "viewStudio": "Ver en Studio",
+      "formatStory": "Story (1080x1920)",
+      "formatFeed": "Feed (1080x1350)",
+      "formatAll": "Todos",
+      "languageAll": "Todos",
+      "statusAll": "Todos",
+      "templateAll": "Todos",
+      "templateLabel": "Plantilla",
+      "templateQuoteClean": "Quote Clean",
+      "templateFeatureSplit": "Feature Split",
+      "templateTop3Reasons": "Top 3 Reasons",
+      "templateBehindScenes": "Behind the Scenes",
+      "generatePng": "Generar PNG",
+      "generatingPng": "Generando PNG...",
+      "preview": "Vista previa",
+      "downloadPng": "Descargar PNG",
+      "assetId": "Asset ID",
+      "createXThreads": "Crear X/Threads",
+      "platformLabel": "Plataforma",
+      "toneLabel": "Tono",
+      "toneFriendly": "Cercano",
+      "toneProfessional": "Profesional",
+      "toneBold": "Atrevido",
+      "generateVariants": "Generar 3 variantes",
+      "generatingVariants": "Generando variantes...",
+      "openAsset": "Abrir",
+      "downloadAsset": "Descargar",
+      "reuseAsset": "Reutilizar",
+      "reuseTitle": "Reutilizar asset",
+      "reuseGenerate": "Generar variante",
+      "reuseGenerating": "Generando variante...",
+      "loadingAssets": "Cargando assets...",
+      "noAssets": "No hay assets con estos filtros.",
+      "statusCreated": "Creado",
+      "statusFailed": "Error",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "noVariants": "Aún no hay variantes. Genéralas para ver el resultado.",
+      "errorRender": "No se pudo generar el PNG.",
+      "errorX": "No se pudieron generar variantes para X/Threads.",
+      "errorLoadAssets": "No se pudo cargar la librería.",
+      "errorSignedUrl": "No se pudo abrir la vista previa.",
+      "openGrowthPlanner": "Abrir en Growth",
+      "formatLabel": "Formato",
+      "statusLabel": "Estado"
+    },
+    "contentGallery": {
+      "title": "Tu Escaparate",
+      "subtitle": "Tus mejores reseñas, listas para redes sociales.",
+      "createButton": "✨ Crear nuevo Post",
+      "backToGallery": "← Volver a la Galería",
+      "weekLabel": "Semana",
+      "languageLabel": "Idioma",
+      "languageCa": "Catalán",
+      "languageEs": "Español",
+      "languageEn": "English",
+      "emptyTitle": "Aún no has presumido de nada.",
+      "emptyText": "Convierte tus reseñas de 5 estrellas en contenido para redes sociales con un solo clic.",
+      "emptyAction": "✨ Crear mi primer Post",
+      "previewAlt": "Vista previa del post",
+      "loadingPreview": "Cargando vista previa...",
+      "meta": {
+        "anonymous": "Cliente anónimo",
+        "unknownAuthor": "Reseña destacada",
+        "unknownSource": "sin fuente"
+      },
+      "actions": {
+        "variant": "🔄 Variante",
+        "download": "📥 Descargar",
+        "publish": "📅 Publicar",
+        "openEditor": "🎨 Abrir en el Editor",
+        "customize": "🎨 Personalizar (Avanzado)"
+      },
+      "modal": {
+        "title": "Crear nuevo post",
+        "pickSubtitle": "Elige la reseña",
+        "loadingSubtitle": "Generando la magia...",
+        "resultTitle": "Post listo",
+        "resultSubtitle": "Ya tienes tu contenido preparado.",
+        "createPost": "Crear post",
+        "loadingLine1": "Conectando con tu reseña destacada...",
+        "loadingLine2": "Aplicando estilo visual premium...",
+        "loadingLine3": "Generando una pieza lista para publicar...",
+        "noEligibleReviews": "No hay reseñas de 4-5 estrellas disponibles.",
+        "noEligibleReviewsHelp": "Cuando entren valoraciones positivas, podrás crear posts en un clic.",
+        "previewAlt": "Post generado"
+      },
+      "variantSuccess": "Nueva variante creada.",
+      "publishSuccess": "Publicación enviada al flujo manual.",
+      "errorLoadAssets": "No se pudo cargar la galería.",
+      "errorLoadReviews": "No se pudieron cargar las reseñas.",
+      "errorGenerateSuggestions": "No se pudo preparar el contenido.",
+      "errorCreateAsset": "No se pudo crear el post.",
+      "errorSignedUrl": "No se pudo abrir la imagen.",
+      "errorDownload": "No se pudo descargar la imagen.",
+      "errorVariant": "No se pudo generar la variante.",
+      "errorPublish": "No se pudo enviar a publicar."
+    },
+    "exports": {
+      "title": "Exports semanales",
+      "subtitle": "Descarga y reutiliza packs ZIP de cada semana.",
+      "empty": "No hay exports para estos filtros.",
+      "refreshLink": "Refrescar enlace",
+      "download": "Descargar",
+      "errorLoad": "No se pudo cargar la lista de exports.",
+      "errorSignedUrl": "No se pudo generar el enlace de descarga."
+    },
+    "status": {
+      "title": "Estado del sistema"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "tabs": {
+      "voice": "Voz IA",
+      "kb": "Business Memory",
+      "billing": "Plan y uso",
+      "integrations": "Integraciones",
+      "growth": "Growth",
+      "safety": "Seguridad",
+      "triggers": "Triggers",
+      "team": "Equipo",
+      "language": "Idioma"
+    },
+    "humanized": {
+      "title": "Configuración del Negocio",
+      "subtitle": "Enseña a OpinIA cómo gestionar tu local.",
+      "saveCta": "Guardar cambios",
+      "saveSuccess": "Cambios guardados (simulación).",
+      "tabs": {
+        "adn": "El ADN del Negocio",
+        "personality": "Personalidad",
+        "autopilot": "Respuestas automáticas",
+        "team": "Equipo y conexiones"
+      },
+      "adn": {
+        "title": "El ADN del Negocio",
+        "subtitle": "Define las bases de tu local con lenguaje sencillo.",
+        "helper": "Esta información ayuda a OpinIA a responder como lo harías tú.",
+        "businessType": "Tipo de negocio",
+        "businessTypes": {
+          "restaurant": "Restaurante",
+          "hotel": "Hotel",
+          "retail": "Comercio",
+          "service": "Servicio"
+        },
+        "topOffer": "Nuestro plato estrella o servicio top es...",
+        "topOfferPlaceholder": "Escribe tu principal diferencial",
+        "complaintPolicy": "Si un cliente se queja, nuestra política es...",
+        "complaintOptions": {
+          "apologize": "Disculparse",
+          "privateContact": "Ofrecer contacto privado",
+          "inviteBack": "Invitarle de nuevo"
+        },
+        "practicalData": "Datos prácticos para la IA (Opcional)",
+        "practicalDataPlaceholder": "Ej: Cerramos los lunes, no tenemos terraza...",
+        "footer": "OpinIA usará esta información para responder dudas de clientes en reseñas sin que tú tengas que hacer nada."
+      },
+      "personality": {
+        "title": "Personalidad",
+        "subtitle": "Elige el tono y los límites del lenguaje.",
+        "howToSound": "¿Cómo quieres sonar?",
+        "quickTones": {
+          "proper": "Cercano",
+          "formal": "Formal",
+          "fun": "Divertido"
+        },
+        "tones": {
+          "professional": {
+            "title": "👔 Profesional y Elegante",
+            "subtitle": "Respuestas formales y cuidadas."
+          },
+          "friendly": {
+            "title": "🤝 Cercano y Amable",
+            "subtitle": "Cálido, claro y natural."
+          },
+          "fun": {
+            "title": "🎉 Divertido y Desenfadado",
+            "subtitle": "Más informal y expresivo."
+          }
+        },
+        "signature": "Firma",
+        "signaturePlaceholder": "Ej: Saludos del equipo de La Riera",
+        "forbiddenWords": "Palabras Prohibidas",
+        "forbiddenWordsPlaceholder": "Escribe y pulsa Enter",
+        "advancedOptions": "Opciones avanzadas",
+        "expertMode": "Modo Experto",
+        "expertModeDesc": "Muestra controles avanzados para personalizar instrucciones.",
+        "expertWarning": "Solo para usuarios avanzados",
+        "customPrompt": "Custom System Prompt",
+        "customPromptPlaceholder": "Define instrucciones avanzadas para el modelo..."
+      },
+      "autopilot": {
+        "title": "Respuestas automáticas",
+        "subtitle": "Define reglas simples tipo “si pasa esto, haz esto”.",
+        "rule1Title": "Si recibimos una reseña negativa",
+        "rule1Stars": "Si recibimos una reseña de",
+        "rule1Action": "Entonces",
+        "rule2Title": "Si recibimos una reseña de 5 estrellas sin texto",
+        "rule2Stars": "Tipo de rating",
+        "rule2Toggle": "Aprobar y publicar un “Muchas gracias” automáticamente",
+        "ratingOptions": {
+          "oneStar": "1 estrella",
+          "oneTwoStars": "1 o 2 estrellas",
+          "twoStars": "2 estrellas",
+          "fiveStars": "5 estrellas",
+          "fourFiveStars": "4 o 5 estrellas"
+        },
+        "actionOptions": {
+          "notifyNoReply": "Avísame y NO prepares respuesta",
+          "notifyPrepare": "Avísame y prepara una propuesta"
+        }
+      },
+      "team": {
+        "title": "Equipo",
+        "subtitle": "Invita a personas de confianza para revisar reseñas.",
+        "peopleCounter": "Personas: {used}/{limit}",
+        "businessCounter": "Negocios: {used}/{limit}",
+        "email": "Correo electrónico",
+        "emailPlaceholder": "nombre@empresa.com",
+        "role": "Rol",
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "manager": "Manager",
+          "responder": "Responder",
+          "approver": "Solo aprobar"
+        },
+        "inviteCta": "Invitar",
+        "currentMembers": "Equipo actual",
+        "statusActive": "Activo",
+        "statusPending": "Pendiente",
+        "pendingInvites": "Invitaciones preparadas",
+        "limitReached": "Límite alcanzado. Sube de plan.",
+        "businessLimitReached": "Has llegado al límite de negocios de tu plan.",
+        "limitTooltip": "Límite alcanzado. Sube de plan.",
+        "upgradePlan": "Actualizar plan",
+        "manageBusinessesHint": "La creación de negocios se gestiona desde el área de administración.",
+        "manageBusinessesCta": "Gestionar negocios",
+        "invalidEmail": "Introduce un correo válido.",
+        "duplicateInvite": "Este correo ya está en la lista.",
+        "inviteQueued": "Invitación enviada.",
+        "inviteError": "No se pudo enviar la invitación."
+      },
+      "integrations": {
+        "title": "Integraciones",
+        "subtitle": "Conecta tus flujos sin complicaciones técnicas.",
+        "webhookUrl": "Webhook URL",
+        "webhookPlaceholder": "https://hooks.zapier.com/...",
+        "cardTitle": "Conecta con Zapier/Make",
+        "cardText": "Cuando actives automatizaciones, OpinIA enviará eventos a tu webhook."
+      }
+    },
+    "voice": {
+      "title": "Voz IA",
+      "signature": "Firma",
+      "instructions": "Instrucciones para la IA",
+      "instructionsPlaceholder": "Ej: Nunca mencionar precios. Siempre invitar a volver.",
+      "posKeywords": "Palabras a USAR (separadas por coma)",
+      "posPlaceholder": "hospitalidad, excelencia, bienvenida",
+      "negKeywords": "Palabras a EVITAR (separadas por coma)",
+      "negPlaceholder": "barato, descarga, problema",
+      "seo": "SEO & Visibilidad",
+      "seoDesc": "Keywords que se integrarán naturalmente en las respuestas para mejorar el posicionamiento en Google Maps.",
+      "seoKeywords": "Keywords SEO (separadas por coma)",
+      "seoKeywordsPlaceholder": "mejores tapas Barcelona, restaurante terraza Tarragona",
+      "seoIntensity": "Intensidad",
+      "seoLevels": [
+        "—",
+        "Suave",
+        "Medio",
+        "Alto"
+      ],
+      "seoMaxKw": "máx {n} keyword/s por respuesta",
+      "saveChanges": "Guardar cambios",
+      "aiEngineDesc": "Motor de generación optimizado por OpinIA.",
+      "brandImageTitle": "Imagen del negocio",
+      "brandImageDesc": "Sube un logo o cover para mostrarlo en el switcher del dashboard.",
+      "brandImageLogo": "Logo",
+      "brandImageCover": "Cover",
+      "brandImageFormats": "Formatos: PNG/JPG/WEBP",
+      "brandImageMaxSize": "Tamaño máximo: 4MB",
+      "brandImageSaved": "Imagen guardada",
+      "brandImageSelectFirst": "Selecciona una imagen antes de guardar.",
+      "brandImageErrorType": "Formato no soportado. Usa PNG, JPG o WEBP.",
+      "brandImageErrorSize": "La imagen supera los 4MB.",
+      "brandImageErrorSave": "No se pudo guardar la imagen."
+    },
+    "kb": {
+      "title": "Business Memory",
+      "newEntry": "Nueva entrada de memoria",
+      "editEntry": "Editar entrada",
+      "saveEntry": "Guardar entrada",
+      "updateEntry": "Actualizar",
+      "deleteConfirm": "¿Eliminar esta entrada?",
+      "category": "Categoría",
+      "triggers": "Triggers (palabras clave)",
+      "content": "Contenido",
+      "sentiment": "Contexto de sentimiento",
+      "categories": {
+        "parking": "Parking",
+        "wifi": "WiFi",
+        "horaris": "Horarios",
+        "política": "Política",
+        "menú": "Menú / Cocina",
+        "equip": "Equipo",
+        "instal·lacions": "Instalaciones",
+        "ubicació": "Ubicación",
+        "promoció": "Promociones",
+        "altres": "Otros"
+      }
+    },
+    "billing": {
+      "title": "Plan y uso",
+      "currentPlan": "Plan actual",
+      "usage": "Uso",
+      "monthlyReviews": "Reseñas mensuales",
+      "changePlan": "Cambiar plan",
+      "aiGenerations": "Generaciones IA",
+      "syncedReviews": "Reseñas sync",
+      "monthlyLimit": "Límite mensual",
+      "errorLoad": "Error cargando datos de facturación",
+      "usageProgress": "{used} / {total} generaciones"
+    },
+    "integrations": {
+      "title": "Integraciones",
+      "comingSoon": "Próximamente: Google Business, TripAdvisor, Booking.",
+      "webhookDesc": "Conecta Make/Zapier para publicar automáticamente desde el Planner.",
+      "webhookEnable": "Activar conector webhook",
+      "webhookEnableHint": "Cuando hagas clic en “Enviar a publicar”, enviaremos un POST a tu webhook.",
+      "webhookUrl": "URL del webhook",
+      "webhookChannels": "Canales habilitados",
+      "testWebhook": "Probar webhook",
+      "secretConfigured": "Secret configurado ✅",
+      "secretMissing": "Secret no configurado",
+      "regenerateSecret": "Regenerar secret",
+      "secretRegenerated": "Secret regenerado",
+      "copyId": "Copiar ID"
+    },
+    "triggers": {
+      "title": "Action Triggers",
+      "create": "Crear trigger",
+      "update": "Actualizar",
+      "deleteConfirm": "¿Eliminar este trigger?",
+      "name": "Nombre",
+      "namePlaceholder": "Ej: Alerta reviews negativas",
+      "matchTopics": "Topics a detectar",
+      "matchPhrases": "Frases a detectar",
+      "minRating": "Rating mínimo",
+      "sentimentFilter": "Filtro de sentimiento",
+      "actionType": "Tipo de acción",
+      "actionTarget": "Destino de la acción",
+      "enabled": "Activado",
+      "noTriggers": "Ningún trigger configurado.",
+      "test": "Probar triggers",
+      "testText": "Texto de prueba",
+      "testRating": "Rating de prueba",
+      "testSentiment": "Sentimiento de prueba",
+      "newTitle": "⚡ Nuevo trigger de acción",
+      "editTitle": "✏️ Editar trigger",
+      "matchTopicsPlaceholder": "parking, ruido, limpieza",
+      "matchPhrasesPlaceholder": "demasiado caro, mal servicio",
+      "minRatingAny": "Cualquiera",
+      "activeCount": "Triggers activos ({count})",
+      "topicPrefix": "tema",
+      "phrasePrefix": "frase",
+      "testTitle": "🧪 Probar triggers",
+      "testDescription": "Pega una reseña para ver qué triggers se activarían.",
+      "testPlaceholder": "Ej: El parking fatal y el personal muy seco...",
+      "runMatch": "Ejecutar match",
+      "noMatches": "No hay triggers que hagan match.",
+      "matchedPrefix": "coincide",
+      "sentimentOptions": {
+        "negative": "😠 Negativo",
+        "neutral": "😐 Neutro",
+        "positive": "😊 Positivo"
+      },
+      "actionTypes": {
+        "in_app_alert": "🔔 Alerta in-app",
+        "email": "📧 Email (próximamente)",
+        "slack": "💬 Slack (próximamente)",
+        "webhook": "🔗 Webhook (próximamente)"
+      }
+    },
+    "team": {
+      "title": "Equipo",
+      "members": "Miembros",
+      "invite": "Invitar miembro",
+      "inviteEmail": "Correo electrónico",
+      "invitePlaceholder": "nombre@empresa.com",
+      "inviteRole": "Rol",
+      "sendInvite": "Enviar invitación",
+      "remove": "Eliminar",
+      "removeConfirm": "¿Seguro que quieres eliminar a este miembro?",
+      "pending": "Pendiente",
+      "roles": {
+        "owner": "Propietario",
+        "admin": "Administrador",
+        "manager": "Gestor",
+        "responder": "Responder",
+        "staff": "Personal"
+      },
+      "lastOwnerError": "No se puede eliminar al último propietario."
+    },
+    "safety": {
+      "panicTitle": "Modo pánico (Kill Switch)",
+      "panicDesc": "Detiene toda generación IA para este negocio. Activar en caso de crisis reputacional o incidencia.",
+      "panicActive": "IA detenida desde {date}",
+      "panicReason": "Motivo (opcional)",
+      "panicReasonPlaceholder": "Ej: Crisis reputacional, revisión interna...",
+      "constraints": "Frases prohibidas (anti-robot)",
+      "constraintsDesc": "Añade frases que la IA NUNCA debe utilizar. Una por línea.",
+      "constraintsPlaceholder": "No mencionar precios concretos\nNo decir 'disculpe las molestias'\nNo usar 'estimado cliente'",
+      "saveConstraints": "Guardar restricciones",
+      "defaultsInfo": "Defaults anti-robot: \"Dear customer\", \"We are thrilled\", \"We regret any inconvenience\", disculparse más de una vez, frases genéricas corporativas. Siempre activos, no hace falta añadirlos."
+    },
+    "language": {
+      "title": "Idioma de la interfaz",
+      "desc": "Cambia el idioma de todo el dashboard. La preferencia se guarda en tu perfil."
+    },
+    "growth": {
+      "title": "Growth Links",
+      "createNew": "Crear nuevo enlace de reseña",
+      "createDesc": "Pega tu Google review link para generar un QR y enlace corto con tracking.",
+      "activeLinks": "Enlaces activos",
+      "clicks7d": "Clics (7 días)",
+      "totalScans": "Total escaneos",
+      "noLinks": "Ningún enlace creado",
+      "noLinksDesc": "Crea tu primer growth link para empezar a recoger reseñas.",
+      "url": "URL de reseña",
+      "urlPlaceholder": "https://g.page/review/...",
+      "deleteConfirm": "¿Eliminar este enlace?"
+    }
+  },
+  "legal": {
+    "terms": "Términos y Condiciones",
+    "privacy": "Política de Privacidad",
+    "security": "Seguridad",
+    "support": "Centro de Soporte",
+    "lastUpdated": "Última actualización",
+    "footerRights": "Todos los derechos reservados"
+  },
+  "supportPage": {
+    "title": "Centro de Soporte",
+    "lastUpdated": "18 de febrero de 2026",
+    "contact": {
+      "emailTitle": "Email de soporte",
+      "emailAddress": "support@opinia.cat",
+      "emailSla": "Respuesta en < 24h laborables",
+      "docsTitle": "Documentación",
+      "docsSubtitle": "Guías, API, tutoriales",
+      "docsStatus": "Próximamente"
+    },
+    "status": {
+      "okTitle": "Todos los sistemas operativos",
+      "okSubtitle": "Estado en tiempo real: {path}",
+      "linkLabel": "dashboard/status"
+    },
+    "faq": {
+      "title": "Preguntas frecuentes",
+      "items": {
+        "generate": {
+          "q": "¿Cómo funciona la generación de respuestas?",
+          "a": "OpinIA analiza cada reseña con IA (clasificación + contexto de tu negocio) y genera 3 opciones de respuesta con tonos distintos. Tú eliges, editas si hace falta y publicas. Ninguna respuesta se publica automáticamente."
+        },
+        "providers": {
+          "q": "¿Qué proveedores de IA utilizáis?",
+          "a": "Usamos varios proveedores de IA según la configuración de tu cuenta. El sistema tiene fallback automático: si un proveedor falla, otro asume."
+        },
+        "training": {
+          "q": "¿Mis datos se usan para entrenar modelos?",
+          "a": "No. Las reseñas se envían a proveedores de IA únicamente para generar respuestas. Usamos políticas de zero-retention cuando están disponibles. Consulta nuestra Política de Privacidad para más detalles."
+        },
+        "gbp": {
+          "q": "¿Puedo conectar Google Business Profile?",
+          "a": "Sí, la integración con GBP está en fase piloto. Actualmente puedes importar reseñas manualmente o vía CSV. La conexión directa permitirá importación y publicación automáticas."
+        },
+        "memory": {
+          "q": "¿Cómo funciona el Business Memory?",
+          "a": "El Business Memory contiene hechos verificados de tu negocio (horarios, precios, políticas). La IA los usa como contexto para generar respuestas precisas. Cuanto más lo alimentes, más precisas serán las respuestas."
+        },
+        "incorrect": {
+          "q": "¿Qué pasa si la IA genera información incorrecta?",
+          "a": "El sistema de guardrails detecta precios, horarios y datos no verificados, y te avisa con alertas. Revisa siempre las respuestas antes de publicar. La precisión mejora a medida que enriqueces el Business Memory."
+        },
+        "plans": {
+          "q": "¿Qué planes ofrecéis?",
+          "a": "Starter ({starter}/mes), Pro ({pro}/mes) y Agency ({agency}/mes). Consulta la página de pricing para límites y funcionalidades actualizadas."
+        },
+        "cancel": {
+          "q": "¿Cómo cancelo mi cuenta?",
+          "a": "Puedes cancelar en cualquier momento desde Settings > Plan y uso. Los datos se retienen 90 días y luego se eliminan de forma permanente."
+        }
+      }
+    }
+  },
+  "inbox": {
+    "greeting": "Hola, {{userName}}! Tienes {{pendingCount}} reseñas pendientes hoy.",
+    "subtitle": "Resuélvelas en un minuto y vuelve a tu trabajo.",
+    "emptyTitle": "¡Todo al día! 🎉",
+    "emptySubtitle": "Has limpiado tu bandeja. Disfruta del tiempo ahorrado.",
+    "viewImpact": "Ver mi impacto",
+    "proposal": "Propuesta de OpinIA",
+    "redo": "Rehacer respuesta",
+    "apologize": "Disculparse",
+    "offerContact": "Ofrecer contacto",
+    "publishedSuccess": "¡Respuesta publicada con éxito!",
+    "dismiss": "No, gracias",
+    "downloadImage": "Descargar imagen",
+    "schedulePost": "Programar post"
+  },
+  "content": {
+    "title": "Tu Escaparate.",
+    "subtitle": "Tus mejores reseñas, listas para redes sociales.",
+    "emptyTitle": "Aún no has presumido de nada.",
+    "emptySubtitle": "Convierte tus reseñas de 5 estrellas en contenido con un solo clic.",
+    "createNew": "✨ Crear nuevo Post",
+    "variant": "🔄 Variante",
+    "openEditor": "🎨 Abrir en el Editor",
+    "customizeAdvanced": "Personalizar (Avanzado)",
+    "backToGallery": "Volver a la Galería"
+  },
+  "paywall": {
+    "title": "Sube de nivel tu reputación.",
+    "subtitle": "Elige el plan que mejor se adapte a tu negocio. Cancela cuando quieras en 1 clic.",
+    "essentialPlan": "Plan Esencial",
+    "essentialBadge": "El más popular",
+    "agencyProPlan": "Plan Agencia / Pro",
+    "f1": "Responde todas las reseñas con IA",
+    "f2": "Generación de posts en 1 clic",
+    "f3": "Analítica de impacto",
+    "f4": "Editor de diseño avanzado (Estilo Canva)",
+    "f5": "Gestión de múltiples locales",
+    "f6": "Reglas de automatización total",
+    "trust1": "Pago seguro con Stripe",
+    "trust2": "Factura automática con IVA",
+    "trust3": "Soporte prioritario",
+    "ctaTrial": "Empezar prueba de 14 días",
+    "ctaPro": "Mejorar a Pro"
+  },
+  "admin": {
+    "title": "Gestión",
+    "subtitle": "Administra equipo, negocios y plan de la organización activa.",
+    "forbidden": "No tienes permisos para acceder a esta sección.",
+    "tabs": {
+      "team": "Equipo",
+      "businesses": "Negocios",
+      "plan": "Plan"
+    },
+    "seatsCounter": "Personas: {used}/{limit}",
+    "businessesCounter": "Negocios: {used}/{limit}",
+    "team": {
+      "inviteTitle": "Invitar persona",
+      "membersTitle": "Equipo actual",
+      "pendingTitle": "Invitaciones pendientes",
+      "businessAssignments": "Negocios asignados",
+      "saveAssignments": "Guardar asignaciones",
+      "assignmentsSaved": "Asignaciones guardadas.",
+      "roleUpdated": "Rol actualizado.",
+      "memberRemoved": "Miembro eliminado."
+    },
+    "businesses": {
+      "createTitle": "Crear negocio",
+      "nameLabel": "Nombre del negocio",
+      "namePlaceholder": "Ej. Hotel Central",
+      "typeLabel": "Tipo",
+      "createCta": "Crear negocio",
+      "counter": "Negocios: {used}/{limit}",
+      "limitReached": "Límite de negocios alcanzado. Actualiza el plan para crear más.",
+      "limitTooltip": "Límite de negocios alcanzado. Actualiza el plan.",
+      "listTitle": "Negocios y prioridad",
+      "savingOrder": "Guardando orden...",
+      "orderSaved": "Orden guardado.",
+      "businessUpdated": "Negocio actualizado.",
+      "businessCreated": "Negocio creado.",
+      "nameRequired": "Introduce un nombre de negocio.",
+      "visible": "Visible",
+      "hidden": "Oculto"
+    },
+    "plan": {
+      "title": "Plan y plazas",
+      "subtitle": "Los límites de personas y negocios se calculan automáticamente según el plan.",
+      "starter": "Starter 49€",
+      "starterSeats": "Hasta 2 personas · 3 negocios",
+      "pro": "Pro 149€",
+      "proSeats": "Hasta 6 personas · 10 negocios",
+      "updateCta": "Actualizar plan",
+      "updated": "Plan actualizado.",
+      "ownerOnly": "Solo el Owner puede actualizar el plan."
+    }
+  }
+}
