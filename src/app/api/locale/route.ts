@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -12,6 +13,8 @@ import { validateBody, LocaleSchema } from '@/lib/validations';
  * Sets cookie + updates profiles.locale if authenticated.
  */
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   // ── Validate ──
   const [body, err] = await validateBody(request, LocaleSchema);
   if (err) return err;

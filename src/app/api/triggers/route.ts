@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -37,6 +38,8 @@ export const GET = withRequestContext(async function(request: Request) {
 });
 
 export const POST = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -107,6 +110,8 @@ export const PUT = withRequestContext(async function(request: Request) {
 });
 
 export const DELETE = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

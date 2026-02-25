@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -34,6 +35,8 @@ export const GET = withRequestContext(async function(request: Request) {
 
 // POST /api/kb
 export const POST = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized', message: 'Auth required' }, { status: 401 });
@@ -73,6 +76,8 @@ export const POST = withRequestContext(async function(request: Request) {
 
 // PATCH /api/kb
 export const PATCH = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized', message: 'Auth required' }, { status: 401 });
@@ -109,6 +114,8 @@ export const PATCH = withRequestContext(async function(request: Request) {
 
 // DELETE /api/kb
 export const DELETE = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized', message: 'Auth required' }, { status: 401 });

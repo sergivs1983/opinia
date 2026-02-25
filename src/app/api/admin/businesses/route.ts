@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -81,6 +82,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const [body, bodyErr] = await validateBody(request, AdminBusinessCreateSchema);
   if (bodyErr) return bodyErr;
 
@@ -168,6 +171,8 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const [body, bodyErr] = await validateBody(request, AdminBusinessOrderSchema);
   if (bodyErr) return bodyErr;
 

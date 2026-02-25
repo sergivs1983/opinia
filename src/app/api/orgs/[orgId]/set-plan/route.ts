@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -27,6 +28,8 @@ export async function POST(
   request: Request,
   { params }: { params: { orgId: string } },
 ) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const [routeParams, paramsErr] = validateParams(params, OrgSetPlanParamsSchema);
   if (paramsErr) return paramsErr;
 

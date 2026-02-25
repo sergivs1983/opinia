@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -21,6 +22,8 @@ type MembershipRoleRow = {
 };
 
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/metrics/rebuild' });
 

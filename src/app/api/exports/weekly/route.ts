@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
@@ -108,6 +109,8 @@ async function ensureBusinessAccess(
 }
 
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/exports/weekly' });
 

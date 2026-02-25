@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -18,6 +19,8 @@ import { hasAcceptedOrgMembership, isAdminViewer } from '@/lib/authz';
  * Auth: CRON_SECRET header or authenticated admin user.
  */
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const cronSecret = request.headers.get('x-cron-secret');
   const expectedSecret = process.env.CRON_SECRET;
   const hasValidCronSecret = Boolean(expectedSecret && cronSecret === expectedSecret);

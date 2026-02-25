@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -33,6 +34,8 @@ export async function GET(request: Request) {
  * Body: { biz_id, org_id, name, place_id?, public_url?, avg_rating?, review_count? }
  */
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -62,6 +65,8 @@ export async function POST(request: Request) {
  * DELETE /api/competitors?id=xxx
  */
 export async function DELETE(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -10,6 +11,8 @@ import { validateBody } from '@/lib/validations';
 import { WorkspaceActiveOrgSchema } from '@/lib/validations';
 
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const withRequestId = (response: NextResponse) => {
     response.headers.set('x-request-id', requestId);

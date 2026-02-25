@@ -14,7 +14,8 @@
     "test:e2e:headed": "playwright test --headed",
     "check:observability": "bash scripts/check-observability.sh",
     "check:ci": "npm run lint && npm run build",
-    "check:cache": "node scripts/check-dynamic.mjs"
+    "check:cache": "node scripts/check-dynamic.mjs",
+    "check:csrf": "bash scripts/security-csrf-test.sh"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

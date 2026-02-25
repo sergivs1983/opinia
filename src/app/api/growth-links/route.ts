@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -62,6 +63,8 @@ export const GET = withRequestContext(async function(request: Request) {
  * Body: { biz_id, org_id, target_url, type? }
  */
 export const POST = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -103,6 +106,8 @@ export const POST = withRequestContext(async function(request: Request) {
  * DELETE /api/growth-links?id=xxx
  */
 export const DELETE = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
@@ -15,6 +16,8 @@ export async function POST(
   request: Request,
   { params }: { params: { replyId: string } }
 ) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/replies/approve' });
   const startMs = Date.now();

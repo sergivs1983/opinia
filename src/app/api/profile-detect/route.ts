@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { buildProfileDetectPrompt } from '@/lib/prompts';
@@ -7,6 +8,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody, ProfileDetectSchema } from '@/lib/validations';
 
 export async function POST(request: NextRequest) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   // Auth check
   const supabase = createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();

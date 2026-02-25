@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -171,6 +172,8 @@ Rules:
 }
 
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   let requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   let log = createLogger({ request_id: requestId, route: '/api/content-intel/generate' });
 

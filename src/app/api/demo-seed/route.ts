@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -13,6 +14,8 @@ import { requireBizAccess, assertSingleBizId, withRequestContext } from '@/lib/a
  * Seeds demo data for a business. Only works if NEXT_PUBLIC_DEMO_MODE=true or NODE_ENV=development.
  */
 export const POST = withRequestContext(async function(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   // Feature flag
   if (process.env.NODE_ENV !== 'development' && process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
     return NextResponse.json({ error: 'forbidden', message: 'Demo mode not enabled' }, { status: 403 });

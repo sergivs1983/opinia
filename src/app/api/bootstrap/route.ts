@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -31,6 +32,8 @@ function jsonWithActiveOrg(body: Record<string, unknown>, status: number, orgId:
 }
 
 export async function POST(request: NextRequest) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const cookieOrgId = request.cookies.get(ACTIVE_ORG_COOKIE)?.value ?? getServerActiveOrgCookieValue();
   // 1. Get authenticated user from cookies/session
   const supabase = createServerSupabaseClient();

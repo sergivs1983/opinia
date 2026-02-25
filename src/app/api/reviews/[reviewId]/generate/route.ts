@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 /**
  * POST /api/reviews/[reviewId]/generate
@@ -29,6 +30,8 @@ export async function POST(
   request: Request,
   { params }: { params: { reviewId: string } }
 ) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   let requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   let log = createLogger({ request_id: requestId, route: '/api/reviews/generate' });
   const withResponseRequestId = (res: NextResponse) => {

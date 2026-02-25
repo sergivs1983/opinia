@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+import { validateCsrf } from '@/lib/security/csrf';
 
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
@@ -58,6 +59,8 @@ function payloadLanguage(payload: JsonValue | null): string | undefined {
 }
 
 export async function POST(request: Request) {
+  const blocked = validateCsrf(request); if (blocked) return blocked;
+
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/content-studio/render' });
   const includeRenderEngineHeader = process.env.NODE_ENV === 'test' || process.env.E2E === '1';
