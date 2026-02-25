@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+// next/font/google removed: it fetches Inter at build time from Google Fonts, which
+// fails in offline/local environments. --font-inter is now defined as a CSS custom
+// property in globals.css (font-family stack with Inter + system fallbacks, no fetch).
 import './globals.css';
 import { getLocale } from '@/i18n/getLocale';
 import { getMessages } from '@/i18n/getMessages';
