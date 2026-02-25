@@ -1,8 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createRequestId } from '@/lib/logger';
-import { LOCALE_COOKIE, defaultLocale, isLocale, locales } from '@/i18n/config';
-import createIntlMiddleware from 'next-intl/middleware';
+
+// ── Inlined from @/i18n/config to keep the Edge bundle self-contained ──
+// (webpack aliases are not applied to the Edge middleware bundle)
+const locales = ['ca', 'es', 'en'] as const;
+type Locale = (typeof locales)[number]; // eslint-disable-line @typescript-eslint/no-unused-vars
+const LOCALE_COOKIE = 'opinia_locale';
+function isLocale(value: string): value is Locale {
+  return (locales as readonly string[]).includes(value);
+}
 
 /**
  * OpinIA Middleware v3 — i18n via cookie, NO /[locale] routes for dashboard.
@@ -13,11 +19,6 @@ import createIntlMiddleware from 'next-intl/middleware';
  *   /dashboard/*           → Supabase session + auth guard (normal)
  *   /api/*                 → Supabase session only
  */
-
-const intlMiddleware = createIntlMiddleware({
-  locales,
-  defaultLocale,
-});
 
 function shouldSkip(pathname: string): boolean {
   if (pathname.startsWith('/api/')) return true;
@@ -30,18 +31,21 @@ function shouldSkip(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── REQUEST ID — generated once, propagated to every response ──
+  const requestId = request.headers.get('x-request-id')?.trim() || crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-request-id', requestId);
+
   // Skip static/api
   if (shouldSkip(pathname)) {
     if (pathname.startsWith('/api/')) {
-      const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-request-id', requestId);
-
       const response = await supabaseRefresh(request, requestHeaders);
       response.headers.set('x-request-id', requestId);
       return response;
     }
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set('x-request-id', requestId);
+    return res;
   }
 
   // ── STRIP LOCALE PREFIX ──
@@ -49,17 +53,17 @@ export async function middleware(request: NextRequest) {
   // /ca → cookie=ca, redirect /
   const firstSeg = pathname.split('/')[1];
   if (firstSeg && isLocale(firstSeg)) {
-    intlMiddleware(request);
     const rest = pathname.slice(firstSeg.length + 1) || '/';
     const url = request.nextUrl.clone();
     url.pathname = rest;
     const res = NextResponse.redirect(url);
     res.cookies.set(LOCALE_COOKIE, firstSeg, { path: '/', maxAge: 31536000, sameSite: 'lax' });
+    res.headers.set('x-request-id', requestId);
     return res;
   }
 
   // ── NORMAL ROUTES (no locale prefix) ──
-  let response = await supabaseRefresh(request);
+  let response = await supabaseRefresh(request, requestHeaders);
 
   // Auth guard: /dashboard, /onboarding require login
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding')) {
@@ -68,7 +72,9 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
       url.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(url);
+      const res = NextResponse.redirect(url);
+      res.headers.set('x-request-id', requestId);
+      return res;
     }
   }
 
@@ -76,10 +82,13 @@ export async function middleware(request: NextRequest) {
   if (pathname === '/login') {
     const user = await getUser(request);
     if (user) {
-      return NextResponse.redirect(new URL('/dashboard/inbox', request.url));
+      const res = NextResponse.redirect(new URL('/dashboard/inbox', request.url));
+      res.headers.set('x-request-id', requestId);
+      return res;
     }
   }
 
+  response.headers.set('x-request-id', requestId);
   return response;
 }
 

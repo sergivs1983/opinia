@@ -1,8 +1,8 @@
 const path = require('path');
 // NOTE: NEXT_FONT_GOOGLE_MOCKED_RESPONSES removed – mock CSS referenced macOS-only
-// font paths and caused "Missing mocked response" errors. next/font/google fetches
-// Inter at build time on Vercel (internet available). For fully-offline local builds
-// the font gracefully falls back to the CSS variable defined in globals.css.
+// font paths and caused "Missing mocked response" / ENOENT errors on Vercel Linux.
+// NOTE: __dirname is NOT used anywhere in this file — all paths use path.resolve()
+// which bases on process.cwd() and works in both CJS and ESM evaluation contexts.
 
 let withNextIntl = (config) => config;
 try {
@@ -17,12 +17,15 @@ const nextConfig = {
   output: 'standalone',
 
   images: {
-    // Allow Supabase storage and Google profile images
-    remotePatterns: [
-      { protocol: 'https', hostname: '*.supabase.co' },
-      { protocol: 'https', hostname: '*.supabase.in' },
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-    ],
+    // SECURITY: remotePatterns is empty because the app uses <Image> only for
+    // local static files (e.g. /brand/logo.png).  All external images
+    // (Supabase signed URLs, Google profile pictures) are displayed with plain
+    // <img> tags and do NOT go through the /_next/image optimizer.
+    // Keeping remotePatterns empty prevents the SSRF / path-traversal vectors
+    // described in GHSA-f82v-jwr5-mffw / GHSA-3h5q-q6xp-mxc4 entirely.
+    // If a future <Image src="https://…"> is added, add a *specific* entry here
+    // (e.g. { protocol:'https', hostname:'abc123.supabase.co', pathname:'/storage/v1/object/**' }).
+    remotePatterns: [],
   },
 
   // Suppress false-positive hydration warnings from ThemeProvider
@@ -33,11 +36,13 @@ const nextConfig = {
     serverComponentsExternalPackages: [],
   },
   webpack: (config) => {
+    // Use path.resolve() (process.cwd()-based) instead of path.join(__dirname, …)
+    // so this works correctly in both CJS and ESM evaluation contexts.
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
-      'next-intl': path.join(__dirname, 'src/lib/next-intl/compat/index.tsx'),
-      'next-intl/server': path.join(__dirname, 'src/lib/next-intl/compat/server.ts'),
-      'next-intl/middleware': path.join(__dirname, 'src/lib/next-intl/compat/middleware.ts'),
+      'next-intl': path.resolve('src/lib/next-intl/compat/index.tsx'),
+      'next-intl/server': path.resolve('src/lib/next-intl/compat/server.ts'),
+      'next-intl/middleware': path.resolve('src/lib/next-intl/compat/middleware.ts'),
     };
     return config;
   },
