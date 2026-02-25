@@ -1,43 +1,31 @@
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { log } from '@/lib/logger';
 
 /**
  * GET /api/health
- * PUBLIC — no auth required. Returns service health status.
+ * PUBLIC — no auth required.
+ *
+ * Response: { status: "ok"|"degraded", db: "ok"|"down", requestId: string }
+ * HTTP 200 if DB ok, 503 if DB down.
  */
-export async function GET() {
-  const start = Date.now();
-  const checks: Record<string, 'ok' | 'error'> = {};
+export async function GET(request: NextRequest) {
+  const requestId = getRequestIdFromHeaders(request.headers);
 
-  // 1. DB connectivity
+  let db: 'ok' | 'down' = 'down';
   try {
     const admin = createAdminClient();
     const { error } = await admin.from('organizations').select('id').limit(1);
-    checks.database = error ? 'error' : 'ok';
+    db = error ? 'down' : 'ok';
   } catch {
-    checks.database = 'error';
+    log.warn('health: db check failed', { requestId, action: 'db_check', resource: 'organizations' });
+    db = 'down';
   }
 
-  // 2. Auth config
-  checks.auth = (
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) ? 'ok' : 'error';
-
-  // 3. LLM config (at least one provider)
-  checks.llm = (
-    process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
-  ) ? 'ok' : 'error';
-
-  const allOk = Object.values(checks).every(v => v === 'ok');
-  const durationMs = Date.now() - start;
-
-  return NextResponse.json({
-    ok: allOk,
-    status: allOk ? 'healthy' : 'degraded',
-    checks,
-    version: process.env.NEXT_PUBLIC_APP_VERSION || '2.0.0-h',
-    ts: new Date().toISOString(),
-    duration_ms: durationMs,
-  }, { status: allOk ? 200 : 503 });
+  const ok = db === 'ok';
+  return NextResponse.json(
+    { status: ok ? 'ok' : 'degraded', db, requestId },
+    { status: ok ? 200 : 503 },
+  );
 }
