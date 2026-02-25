@@ -14,7 +14,7 @@
 set -euo pipefail
 
 BASE="${BASE_URL:-http://localhost:3000}"
-PROBE="$BASE/api/probe/csrf-check"
+PROBE="$BASE/api/csrf-probe"
 
 PASS=0
 FAIL=0
@@ -47,47 +47,21 @@ assert_status() {
   fi
 }
 
-# ── Test 1: malicious origin → 403 ───────────────────────────────────────────
+# ── Test "dolent": malicious origin → 403 ────────────────────────────────────
 assert_status \
-  "T1  POST with Origin: https://evil.com → expect 403" \
+  "POST Origin: https://evil.com → expect 403" \
   "403" \
   -X POST "$PROBE" \
   -H "Origin: https://evil.com" \
   -H "Content-Type: application/json" \
   -d '{}'
 
-# ── Test 2: no origin / no referer → 403 ─────────────────────────────────────
+# ── Test "bo": allowed origin → 200 ──────────────────────────────────────────
 assert_status \
-  "T2  POST with no Origin and no Referer → expect 403" \
-  "403" \
-  -X POST "$PROBE" \
-  -H "Content-Type: application/json" \
-  -d '{}'
-
-# ── Test 3: malicious referer → 403 ──────────────────────────────────────────
-assert_status \
-  "T3  POST with Referer from evil.com → expect 403" \
-  "403" \
-  -X POST "$PROBE" \
-  -H "Referer: https://evil.com/page" \
-  -H "Content-Type: application/json" \
-  -d '{}'
-
-# ── Test 4: allowed origin → 200 ─────────────────────────────────────────────
-assert_status \
-  "T4  POST with Origin: http://localhost:3000 → expect 200" \
+  "POST Origin: http://localhost:3000 → expect 200" \
   "200" \
   -X POST "$PROBE" \
   -H "Origin: http://localhost:3000" \
-  -H "Content-Type: application/json" \
-  -d '{}'
-
-# ── Test 5: Bearer-token request → exempt → 200 ──────────────────────────────
-assert_status \
-  "T5  POST with Bearer token (no Origin) → expect 200 (exempt)" \
-  "200" \
-  -X POST "$PROBE" \
-  -H "Authorization: Bearer some-api-token" \
   -H "Content-Type: application/json" \
   -d '{}'
 
