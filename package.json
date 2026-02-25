@@ -13,9 +13,11 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "check:observability": "bash scripts/check-observability.sh",
-    "check:ci": "npm run lint && npm run build",
+    "check:ci": "npm run lint && npm run build && npm run check:security",
     "check:cache": "node scripts/check-dynamic.mjs",
-    "check:csrf": "bash scripts/security-csrf-test.sh"
+    "check:csrf": "bash scripts/security-csrf-test.sh",
+    "check:limits": "bash scripts/security-limits-test.sh",
+    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

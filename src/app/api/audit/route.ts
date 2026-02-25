@@ -9,6 +9,7 @@ import { validateBody, AuditLogSchema } from '@/lib/validations';
 import type { JsonObject } from '@/types/json';
 import { requireBizAccess, withRequestContext } from '@/lib/api-handler';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { parseLimitParam } from '@/lib/security/query-limits';
 
 /**
  * GET /api/audit?biz_id=xxx&limit=30
@@ -21,7 +22,9 @@ export const GET = withRequestContext(async function(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const bizId = searchParams.get('biz_id');
-  const limit = Math.min(parseInt(searchParams.get('limit') || '30'), 100);
+  const limitResult = parseLimitParam(searchParams, 'limit', 30);
+  if (!limitResult.ok) return limitResult.error;
+  const { limit } = limitResult;
 
   if (!bizId) return NextResponse.json({ error: 'bad_request', code: 'BIZ_ID_REQUIRED', message: 'biz_id és requerit' }, { status: 400 });
 

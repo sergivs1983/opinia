@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody, DLQActionSchema } from '@/lib/validations';
 import { requireBizAccess, requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
+import { parseLimitParam } from '@/lib/security/query-limits';
 
 /**
  * GET /api/dlq?status=queued&biz_id=xxx&limit=50
@@ -21,7 +22,9 @@ export const GET = withRequestContext(async function(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'queued';
   const bizId = searchParams.get('biz_id');
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
+  const limitResult = parseLimitParam(searchParams, 'limit', 50);
+  if (!limitResult.ok) return limitResult.error;
+  const { limit } = limitResult;
 
   let query = supabase
     .from('failed_jobs')

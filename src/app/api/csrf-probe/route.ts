@@ -10,9 +10,10 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { NextResponse } from 'next/server';
 import { validateCsrf } from '@/lib/security/csrf';
 
 export async function POST(request: Request) {
   const blocked = validateCsrf(request); if (blocked) return blocked;
-  return Response.json({ ok: true });
+  return NextResponse.json({ ok: true });
 }

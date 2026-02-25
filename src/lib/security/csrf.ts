@@ -21,23 +21,19 @@
  * Matching is EXACT — no startsWith, no substring, no wildcards.
  */
 
-function csrf403(): Response {
-  return new Response(
-    JSON.stringify({ error: 'CSRF blocked' }),
-    {
-      status: 403,
-      headers: { 'content-type': 'application/json' },
-    },
-  );
+import { NextResponse } from 'next/server';
+
+function csrf403(): NextResponse {
+  return NextResponse.json({ error: 'CSRF blocked' }, { status: 403 });
 }
 
 /**
  * Validates the CSRF origin for a mutating request.
  *
- * @returns `null`      — request is allowed (caller should proceed)
- * @returns `Response`  — 403 blocked (caller must `return` this immediately)
+ * @returns `null`        — request is allowed (caller should proceed)
+ * @returns `NextResponse` — 403 blocked (caller must `return` this immediately)
  */
-export function validateCsrf(req: Request): Response | null {
+export function validateCsrf(req: Request): NextResponse | null {
   // ── Bearer-token requests are not browser-session calls → exempt ──────────
   const auth = req.headers.get('authorization') ?? '';
   if (auth.startsWith('Bearer ')) return null;
