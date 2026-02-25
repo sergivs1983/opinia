@@ -1,5 +1,8 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
+
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useT } from '@/components/i18n/I18nContext';
 import { useRouter } from 'next/navigation';

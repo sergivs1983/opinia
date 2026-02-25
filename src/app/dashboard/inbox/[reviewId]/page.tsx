@@ -1,5 +1,8 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
+
 import { useT } from '@/components/i18n/I18nContext';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';

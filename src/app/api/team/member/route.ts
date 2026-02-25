@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { asMembershipRoleFilter, TEAM_MANAGEMENT_ROLES } from '@/lib/roles';

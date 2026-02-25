@@ -1,5 +1,8 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
+
 import { useState, useEffect } from 'react';
 import { useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
