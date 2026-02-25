@@ -70,7 +70,10 @@ export default function SettingsPage() {
   const seatsUsed = teamSeats?.seats_used ?? teamMembers.length;
   const seatsPercentage = Math.min(100, Math.round((seatsUsed / seatsLimit) * 100));
   const seatsFull = seatsUsed >= seatsLimit;
+<<<<<<< HEAD
 
+=======
+>>>>>>> claude/angry-davinci
   const businessesLimit = Math.max(1, teamSeats?.business_limit ?? businessLimitForPlan(planCode));
   const businessesUsed = teamSeats?.businesses_used ?? businesses.length;
   const businessesPercentage = Math.min(100, Math.round((businessesUsed / businessesLimit) * 100));
@@ -78,6 +81,7 @@ export default function SettingsPage() {
 
   const canManageTeamTab = roleCanManageTeam(membership?.role);
   const canManageBusinesses = normalizeMemberRole(membership?.role) === 'owner';
+<<<<<<< HEAD
 
   const tabs = useMemo(() => {
     const baseTabs = [
@@ -88,6 +92,23 @@ export default function SettingsPage() {
     if (!canManageTeamTab) return baseTabs;
     return [...baseTabs, { key: 'team' as const, label: t('settings.humanized.tabs.team'), testId: 'settings-tab-integrations' }];
   }, [canManageTeamTab, t]);
+=======
+  const tabs = useMemo(
+    () => {
+      const baseTabs = [
+        { key: 'adn' as const, label: t('settings.humanized.tabs.adn'), testId: 'settings-tab-adn' },
+        { key: 'personality' as const, label: t('settings.humanized.tabs.personality'), testId: 'settings-tab-voice' },
+        { key: 'autopilot' as const, label: t('settings.humanized.tabs.autopilot'), testId: 'settings-tab-autopilot' },
+      ];
+      if (!canManageTeamTab) return baseTabs;
+      return [
+        ...baseTabs,
+        { key: 'team' as const, label: t('settings.humanized.tabs.team'), testId: 'settings-tab-integrations' },
+      ];
+    },
+    [canManageTeamTab, t],
+  );
+>>>>>>> claude/angry-davinci
 
   useEffect(() => {
     if (!canManageTeamTab && tab === 'team') setTab('adn');
@@ -432,8 +453,12 @@ export default function SettingsPage() {
 
       {tab === 'team' && canManageTeamTab && (
         <div className="grid gap-4 lg:grid-cols-2">
+<<<<<<< HEAD
           {/* IMPORTANT: només 1 GlassCard aquí (sense duplicats) */}
           <GlassCard variant="strong" className="space-y-4 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8">
+=======
+            <GlassCard variant="strong" className="space-y-4 rounded-2xl border border-white/5 bg-zinc-900/50 p-6 md:p-8">
+>>>>>>> claude/angry-davinci
             <header className="space-y-1">
               <h2 className={cn('text-lg font-semibold', textMain)}>{t('settings.humanized.team.title')}</h2>
               <p className={cn('text-sm', textSub)}>{t('settings.humanized.team.subtitle')}</p>
