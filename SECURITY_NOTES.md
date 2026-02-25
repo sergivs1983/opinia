@@ -75,3 +75,77 @@ and carry **no runtime risk** to end users.
 
 - [ ] Next.js 16.x migration (planned, no fixed date)
 - [ ] ESLint 10 + flat config migration (same sprint)
+
+---
+
+## service_role usage audit (2026-02-25)
+
+`createAdminClient()` (`src/lib/supabase/admin.ts`) uses
+`SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS by default.
+
+### Files that call createAdminClient / use service_role
+
+| File | Reason |
+|------|--------|
+| `src/app/(auth)/callback/route.ts` | Auth callback — sets up user profile |
+| `src/app/api/billing/route.ts` | Billing webhooks — no user session |
+| `src/app/api/bootstrap/route.ts` | Org/business provisioning |
+| `src/app/api/businesses/[id]/brand-image/route.ts` | Storage signed URLs |
+| `src/app/api/businesses/[id]/brand-image/signed-url/route.ts` | Storage ops |
+| `src/app/api/content-studio/assets/[id]/signed-url/route.ts` | Storage ops |
+| `src/app/api/content-studio/render/route.ts` | Rendering pipeline |
+| `src/app/api/demo-generate/route.ts` | Demo seed (dev only) |
+| `src/app/api/demo-seed/route.ts` | Demo seed (dev only) |
+| `src/app/api/dlq/route.ts` | Dead-letter queue processing |
+| `src/app/api/exports/[id]/signed-url/route.ts` | Export download URLs |
+| `src/app/api/exports/weekly/route.ts` | Cron-triggered exports |
+| `src/app/api/g/[slug]/route.ts` | Public growth-link lookup |
+| `src/app/api/growth-links/route.ts` | Growth link management |
+| `src/app/api/health/route.ts` | Healthcheck (read-only probe) |
+| `src/app/api/integrations/connectors/route.ts` | Connector config |
+| `src/app/api/jobs/route.ts` | Background job runner |
+| `src/app/api/metrics/summary/route.ts` | Metrics aggregation |
+| `src/app/api/orgs/[orgId]/set-plan/route.ts` | Plan upgrade (billing) |
+| `src/app/api/review-audit/route.ts` | Audit pipeline |
+| `src/app/api/seo/capabilities/route.ts` | SEO processing |
+| `src/app/api/webhooks/config/route.ts` | Webhook config management |
+| `src/app/api/workspace/active-org/route.ts` | Workspace switcher |
+| `src/lib/audit.ts` | Audit log writer |
+| `src/lib/integrations/dispatch.ts` | Integration event dispatch |
+| `src/lib/jobs/runner.ts` | Job runner (no user session) |
+| `src/lib/llm/circuitBreaker.ts` | LLM circuit breaker |
+| `src/lib/llm/client.ts` | LLM API client |
+| `src/lib/metrics.ts` | Metrics upsert |
+| `src/lib/metrics-value.ts` | Metrics helpers |
+| `src/lib/pipeline/classify.ts` | AI classification pipeline |
+| `src/lib/pipeline/context.ts` | Pipeline context builder |
+| `src/lib/pipeline/orchestrator.ts` | Pipeline orchestrator |
+| `src/lib/server/tokens.ts` | Token management |
+| `src/lib/webhooks.ts` | Webhook delivery |
+
+### Risk assessment
+
+All usages are in **server-side code** (Next.js API routes and server libs)
+where the `SUPABASE_SERVICE_ROLE_KEY` is never exposed to the client.
+The uses fall into three categories:
+
+1. **Legitimate RLS bypass** — background jobs, cron tasks, pipeline steps
+   that write on behalf of the system, not a specific user. These have no
+   user session and cannot use a JWT-scoped client.
+
+2. **Storage operations** — generating signed URLs requires service-level
+   access to storage buckets; Supabase does not support row-level scoping
+   for `storage.objects` in the same way as data tables.
+
+3. **Auth/bootstrap flows** — setting up user profiles and org provisioning
+   after Supabase Auth callback, before the user has a full session.
+
+### Action items (Bloc 7)
+
+- [ ] Audit each route: confirm it validates org/business ownership before
+      writing via admin client (i.e., does not blindly trust caller-supplied
+      IDs without checking the user's membership first).
+- [ ] Consider `FORCE ROW LEVEL SECURITY` on `integrations_secrets` to block
+      service_role reads as well (currently service_role bypasses RLS).
+- [ ] Rotate `SUPABASE_SERVICE_ROLE_KEY` in Vercel env if it has ever been
+      committed or logged.
