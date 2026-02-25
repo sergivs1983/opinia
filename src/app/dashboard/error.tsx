@@ -72,6 +72,16 @@ export default function DashboardError({
           </details>
         )}
 
+        {/* Error reference — correlate with server logs */}
+        {error?.digest && (
+          <p
+            className="text-xs mb-4 font-mono"
+            style={{ color: 'var(--color-text-tertiary)' }}
+          >
+            Ref: {error.digest.slice(0, 8).toUpperCase()}
+          </p>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3 justify-center">
           <button

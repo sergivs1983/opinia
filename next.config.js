@@ -1,6 +1,8 @@
 const path = require('path');
 // NOTE: NEXT_FONT_GOOGLE_MOCKED_RESPONSES removed – mock CSS referenced macOS-only
 // font paths and caused "Missing mocked response" / ENOENT errors on Vercel Linux.
+// NOTE: __dirname is NOT used anywhere in this file — all paths use path.resolve()
+// which bases on process.cwd() and works in both CJS and ESM evaluation contexts.
 
 let withNextIntl = (config) => config;
 try {
@@ -34,11 +36,13 @@ const nextConfig = {
     serverComponentsExternalPackages: [],
   },
   webpack: (config) => {
+    // Use path.resolve() (process.cwd()-based) instead of path.join(__dirname, …)
+    // so this works correctly in both CJS and ESM evaluation contexts.
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
-      'next-intl': path.join(__dirname, 'src/lib/next-intl/compat/index.tsx'),
-      'next-intl/server': path.join(__dirname, 'src/lib/next-intl/compat/server.ts'),
-      'next-intl/middleware': path.join(__dirname, 'src/lib/next-intl/compat/middleware.ts'),
+      'next-intl': path.resolve('src/lib/next-intl/compat/index.tsx'),
+      'next-intl/server': path.resolve('src/lib/next-intl/compat/server.ts'),
+      'next-intl/middleware': path.resolve('src/lib/next-intl/compat/middleware.ts'),
     };
     return config;
   },

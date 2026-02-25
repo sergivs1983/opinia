@@ -10,12 +10,6 @@ function isLocale(value: string): value is Locale {
   return (locales as readonly string[]).includes(value);
 }
 
-// ── Inlined from @/lib/logger (only createRequestId is needed here) ──
-let _reqCounter = 0;
-function createRequestId(): string {
-  return `req_${Date.now()}_${(++_reqCounter).toString(36)}`;
-}
-
 /**
  * OpinIA Middleware v3 — i18n via cookie, NO /[locale] routes for dashboard.
  *
@@ -37,18 +31,21 @@ function shouldSkip(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── REQUEST ID — generated once, propagated to every response ──
+  const requestId = request.headers.get('x-request-id')?.trim() || crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-request-id', requestId);
+
   // Skip static/api
   if (shouldSkip(pathname)) {
     if (pathname.startsWith('/api/')) {
-      const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-request-id', requestId);
-
       const response = await supabaseRefresh(request, requestHeaders);
       response.headers.set('x-request-id', requestId);
       return response;
     }
-    return NextResponse.next();
+    const res = NextResponse.next();
+    res.headers.set('x-request-id', requestId);
+    return res;
   }
 
   // ── STRIP LOCALE PREFIX ──
@@ -61,11 +58,12 @@ export async function middleware(request: NextRequest) {
     url.pathname = rest;
     const res = NextResponse.redirect(url);
     res.cookies.set(LOCALE_COOKIE, firstSeg, { path: '/', maxAge: 31536000, sameSite: 'lax' });
+    res.headers.set('x-request-id', requestId);
     return res;
   }
 
   // ── NORMAL ROUTES (no locale prefix) ──
-  let response = await supabaseRefresh(request);
+  let response = await supabaseRefresh(request, requestHeaders);
 
   // Auth guard: /dashboard, /onboarding require login
   if (pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding')) {
@@ -74,7 +72,9 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
       url.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(url);
+      const res = NextResponse.redirect(url);
+      res.headers.set('x-request-id', requestId);
+      return res;
     }
   }
 
@@ -82,10 +82,13 @@ export async function middleware(request: NextRequest) {
   if (pathname === '/login') {
     const user = await getUser(request);
     if (user) {
-      return NextResponse.redirect(new URL('/dashboard/inbox', request.url));
+      const res = NextResponse.redirect(new URL('/dashboard/inbox', request.url));
+      res.headers.set('x-request-id', requestId);
+      return res;
     }
   }
 
+  response.headers.set('x-request-id', requestId);
   return response;
 }
 
