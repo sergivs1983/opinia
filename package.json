@@ -17,7 +17,8 @@
     "check:cache": "node scripts/check-dynamic.mjs",
     "check:csrf": "bash scripts/security-csrf-test.sh",
     "check:limits": "bash scripts/security-limits-test.sh",
-    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits"
+    "check:secrets": "bash scripts/check-secrets.sh",
+    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits && npm run check:secrets"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
