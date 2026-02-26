@@ -8,23 +8,18 @@ type AuditPayload = {
   requestId?: string | null;
   userId?: string | null;
   details?: Record<string, unknown> | null;
-  // allow extra fields like: resource, result, etc.
   [k: string]: unknown;
 };
 
-/**
- * writeAudit — best-effort audit writer (single-arg).
- * Accepts extra metadata fields; never throws.
- */
 export async function writeAudit(payload: AuditPayload): Promise<void> {
-  const log = createLogger({ route: 'audit-log', request_id: (payload.requestId as string | undefined) });
+  const requestId = typeof payload.requestId === 'string' ? payload.requestId : undefined;
+  const log = createLogger(requestId ? { route: 'audit-log', request_id: requestId } : { route: 'audit-log' });
 
-  // Pull known fields; push the rest into meta
   const {
     action,
     bizId = null,
     orgId = null,
-    requestId = null,
+    requestId: _rid = null,
     userId = null,
     details = null,
     ...rest
@@ -41,7 +36,6 @@ export async function writeAudit(payload: AuditPayload): Promise<void> {
   try {
     const admin = createAdminClient();
 
-    // Prefer RPC if present
     const { error: rpcErr } = await admin.rpc('log_audit_event', {
       p_action: action,
       p_biz_id: bizId,
@@ -50,7 +44,6 @@ export async function writeAudit(payload: AuditPayload): Promise<void> {
 
     if (!rpcErr) return;
 
-    // Fallback insert
     await admin.from('audit_log').insert([{
       action,
       biz_id: bizId,
