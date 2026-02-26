@@ -8,6 +8,7 @@ import { createLogger, createRequestId } from '@/lib/logger';
 import { callLLMClient } from '@/lib/llm/client';
 import type { LLMProvider } from '@/lib/llm/provider';
 import { requireBizAccess } from '@/lib/api-handler';
+import { rateLimitAI, checkDailyAIQuota } from '@/lib/security/ratelimit';
 import {
   validateBody,
   ContentIntelGenerateSchema,
@@ -207,6 +208,13 @@ export async function POST(request: Request) {
     // ── Biz-level guard ──────────────────────────────────────────────────────
     const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: payload.businessId });
     if (bizGuard) return withResponseRequestId(bizGuard);
+
+    // ── Bloc 8: Rate limit + AI daily quota ──
+    const rlKey = `${payload.businessId}:${user.id}`;
+    const rl = await rateLimitAI(rlKey);
+    if (!rl.ok) return withResponseRequestId(rl.res);
+    const quota = await checkDailyAIQuota(payload.businessId, 'free');
+    if (!quota.ok) return withResponseRequestId(quota.res);
 
     const business = businessData as BusinessIntelRow;
 

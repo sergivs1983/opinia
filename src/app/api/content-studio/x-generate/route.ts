@@ -19,6 +19,7 @@ import {
 } from '@/lib/content-studio';
 import type { Business, ContentSuggestion } from '@/types/database';
 import type { JsonValue } from '@/types/json';
+import { rateLimitAI, checkDailyAIQuota } from '@/lib/security/ratelimit';
 
 interface XGenerateBody {
   suggestionId: string;
@@ -79,6 +80,13 @@ export async function POST(request: Request) {
         NextResponse.json({ error: 'forbidden', message: 'Suggestion does not belong to current workspace' }, { status: 403 }),
       );
     }
+
+    // ── Bloc 8: Rate limit + AI daily quota ──
+    const rlKey = `${suggestion.business_id}:${user.id}`;
+    const rl = await rateLimitAI(rlKey);
+    if (!rl.ok) return withResponseRequestId(rl.res);
+    const quota = await checkDailyAIQuota(suggestion.business_id, 'free');
+    if (!quota.ok) return withResponseRequestId(quota.res);
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')

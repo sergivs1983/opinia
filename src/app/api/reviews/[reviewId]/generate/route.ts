@@ -25,6 +25,7 @@ import { runPipeline } from '@/lib/pipeline';
 import type { PipelineInput } from '@/lib/pipeline';
 import type { LLMProvider } from '@/lib/llm/provider';
 import { requireBizAccess } from '@/lib/api-handler';
+import { rateLimitAI, checkDailyAIQuota } from '@/lib/security/ratelimit';
 
 export async function POST(
   request: Request,
@@ -66,6 +67,13 @@ export async function POST(
 
     const { data: biz } = await supabase.from('businesses').select('*').eq('id', review.biz_id).single();
     if (!biz) return withResponseRequestId(NextResponse.json({ error: 'Business not found' }, { status: 404 }));
+
+    // ── Bloc 8: Rate limit + AI daily quota ──
+    const rlKey = `${review.biz_id}:${user.id}`;
+    const rl = await rateLimitAI(rlKey);
+    if (!rl.ok) return withResponseRequestId(rl.res);
+    const quota = await checkDailyAIQuota(review.biz_id, 'free');
+    if (!quota.ok) return withResponseRequestId(quota.res);
 
     const mismatches = [];
     if (body.platform !== review.source) {

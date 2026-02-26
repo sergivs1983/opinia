@@ -19,12 +19,15 @@
     "check:limits": "bash scripts/security-limits-test.sh",
     "check:secrets": "bash scripts/check-secrets.sh",
     "check:service-role": "node scripts/check-service-role.mjs",
-    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits && npm run check:secrets && npm run check:service-role"
+    "check:ratelimit": "bash scripts/security-ratelimit-test.sh",
+    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits && npm run check:secrets && npm run check:service-role && npm run check:ratelimit"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.36.2",
     "@vercel/og": "^0.8.6",
     "lucide-react": "^0.460.0",
     "next": "^14.2.35",

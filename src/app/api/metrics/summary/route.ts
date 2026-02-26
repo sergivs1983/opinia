@@ -21,6 +21,7 @@ import {
   MetricsSummaryQuerySchema,
 } from '@/lib/validations';
 import type { Sentiment } from '@/types/database';
+import { rateLimitStandard } from '@/lib/security/ratelimit';
 
 type MetricsSummaryQuery = {
   range: '7' | '30' | '90';
@@ -134,6 +135,11 @@ export async function GET(request: Request) {
         ),
       );
     }
+
+    // ── Bloc 8: Standard rate limit ──
+    const rlKey = `${businessId}:${user.id}`;
+    const rl = await rateLimitStandard(rlKey);
+    if (!rl.ok) return withResponseRequestId(rl.res);
 
     const business = await loadBusinessAccess(supabase, businessId);
     if (!business) {

@@ -18,6 +18,7 @@ import type {
   ContentPlannerItemType,
   ContentPlannerStatus,
 } from '@/types/database';
+import { rateLimitStandard } from '@/lib/security/ratelimit';
 
 interface PlannerListQuery {
   weekStart: string;
@@ -156,6 +157,11 @@ export async function GET(request: Request) {
         NextResponse.json({ error: 'forbidden', message: 'businessId does not match current workspace', request_id: requestId }, { status: 403 }),
       );
     }
+
+    // ── Bloc 8: Standard rate limit ──
+    const rlKey = `${businessId}:${user.id}`;
+    const rl = await rateLimitStandard(rlKey);
+    if (!rl.ok) return withResponseRequestId(rl.res);
 
     const hasAccess = await ensureBusinessAccess(supabase, businessId);
     if (!hasAccess) {

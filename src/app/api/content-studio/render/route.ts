@@ -28,6 +28,7 @@ import {
 import { renderStudioWithEngine, type RenderEngine } from '@/lib/render';
 import type { Business, ContentAsset, ContentSuggestion } from '@/types/database';
 import type { JsonValue } from '@/types/json';
+import { rateLimitAI, checkDailyAIQuota } from '@/lib/security/ratelimit';
 
 interface RenderBody {
   suggestionId?: string;
@@ -144,6 +145,13 @@ export async function POST(request: Request) {
         NextResponse.json({ error: 'forbidden', message: 'Asset source does not belong to current workspace' }, { status: 403 }),
       );
     }
+
+    // ── Bloc 8: Rate limit + AI daily quota ──
+    const rlKey = `${businessId}:${user.id}`;
+    const rl = await rateLimitAI(rlKey);
+    if (!rl.ok) return withResponseRequestId(rl.res);
+    const quota = await checkDailyAIQuota(businessId, 'free');
+    if (!quota.ok) return withResponseRequestId(quota.res);
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
