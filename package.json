@@ -20,10 +20,12 @@
     "check:secrets": "bash scripts/check-secrets.sh",
     "check:service-role": "node scripts/check-service-role.mjs",
     "check:ratelimit": "bash scripts/security-ratelimit-test.sh",
-    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits && npm run check:secrets && npm run check:service-role && npm run check:ratelimit"
+    "check:monitoring": "bash scripts/security-monitoring-test.sh",
+    "check:security": "npm run check:cache && npm run check:csrf && npm run check:limits && npm run check:secrets && npm run check:service-role && npm run check:ratelimit && npm run check:monitoring"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
+    "@sentry/nextjs": "^10.40.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
     "@upstash/ratelimit": "^2.0.8",
