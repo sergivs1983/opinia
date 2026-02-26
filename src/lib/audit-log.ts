@@ -1,49 +1,62 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger } from '@/lib/logger';
 
-/**
- * writeAudit — best-effort audit writer.
- * Signature matches worker usage: writeAudit({ ... }).
- * Never throws. Audit must not break prod flows.
- */
-export async function writeAudit(payload: {
+type AuditPayload = {
+  action: string;
   bizId?: string | null;
   orgId?: string | null;
   requestId?: string | null;
   userId?: string | null;
-  action: string;
   details?: Record<string, unknown> | null;
-}): Promise<void> {
-  const log = createLogger({ route: 'audit-log', request_id: payload.requestId ?? undefined });
+  // allow extra fields like: resource, result, etc.
+  [k: string]: unknown;
+};
 
-  // Prefer RPC if available; fallback to insert.
+/**
+ * writeAudit — best-effort audit writer (single-arg).
+ * Accepts extra metadata fields; never throws.
+ */
+export async function writeAudit(payload: AuditPayload): Promise<void> {
+  const log = createLogger({ route: 'audit-log', request_id: (payload.requestId as string | undefined) });
+
+  // Pull known fields; push the rest into meta
+  const {
+    action,
+    bizId = null,
+    orgId = null,
+    requestId = null,
+    userId = null,
+    details = null,
+    ...rest
+  } = payload;
+
+  const meta = {
+    request_id: requestId,
+    org_id: orgId,
+    user_id: userId,
+    ...(rest ?? {}),
+    ...(details ?? {}),
+  };
+
   try {
     const admin = createAdminClient();
 
-    // RPC path (whitelisted)
+    // Prefer RPC if present
     const { error: rpcErr } = await admin.rpc('log_audit_event', {
-      p_action: payload.action,
-      p_biz_id: payload.bizId,
-      p_meta_json: {
-        request_id: payload.requestId,
-        org_id: payload.orgId,
-        user_id: payload.userId,
-        ...(payload.details ?? {}),
-      },
+      p_action: action,
+      p_biz_id: bizId,
+      p_meta_json: meta,
     });
 
     if (!rpcErr) return;
 
-    // Fallback insert (only if permitted for service_role)
+    // Fallback insert
     await admin.from('audit_log').insert([{
-      action: payload.action,
-      biz_id: payload.bizId,
-      org_id: payload.orgId,
-      user_id: payload.userId,
-      details: {
-        request_id: payload.requestId,
-        ...(payload.details ?? {}),
-      },
+      action,
+      biz_id: bizId,
+      org_id: orgId,
+      user_id: userId,
+      details: meta,
     }]);
   } catch (e) {
     log.warn('writeAudit failed; ignored', { error: String(e) });
