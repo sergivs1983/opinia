@@ -17,40 +17,34 @@ type IntegrationRow = {
   status?: string | null;
 };
 
-export async function getValidGoogleAccessToken(args: {
-  admin: SupabaseClient;
-  integrationId: string;
-  bizId: string;
-}): Promise<string> {
-  const { admin, integrationId, bizId } = args;
-
-  const { data: integ, error: integErr } = await admin
+/**
+ * getValidGoogleAccessToken(admin, bizId)
+ * Compatibility shim for the worker.
+ * Finds the active google integration for a business and returns decrypted tokens.
+ */
+export async function getValidGoogleAccessToken(
+  admin: SupabaseClient,
+  bizId: string,
+): Promise<{ accessToken: string; refreshToken: string | null; integrationId: string }> {
+  // Prefer provider name used in worker checks
+  const { data: integ, error } = await admin
     .from('integrations')
     .select('id,biz_id,provider,status')
-    .eq('id', integrationId)
+    .eq('biz_id', bizId)
+    .in('provider', ['google_business', 'google'])
+    .neq('status', 'disconnected')
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  if (integErr || !integ) throw new GoogleAuthError('Integration not found');
+  if (error || !integ) throw new GoogleAuthError('Integration not found', 'connector_auth_failed');
 
   const integration = integ as IntegrationRow;
 
-  if (integration.biz_id !== bizId) {
-    throw new GoogleAuthError('Integration ownership mismatch', 'internal_job_failed');
-  }
+  if (integration.status === 'needs_reauth') throw new GoogleAuthError('Integration needs reauth', 'connector_auth_failed');
 
-  if (integration.provider !== 'google_business' && integration.provider !== 'google') {
-    throw new GoogleAuthError('Integration provider mismatch', 'internal_job_failed');
-  }
+  const tokens = await getOAuthTokens(admin, integration.id);
+  if (!tokens?.accessToken) throw new GoogleAuthError('Missing access token', 'connector_auth_failed');
 
-  if (integration.status === 'needs_reauth') {
-    throw new GoogleAuthError('Integration needs reauth', 'connector_auth_failed');
-  }
-
-  try {
-    const { accessToken } = await getOAuthTokens(admin, integrationId);
-    if (!accessToken) throw new Error('missing');
-    return accessToken;
-  } catch {
-    throw new GoogleAuthError('Token read/decrypt failed', 'internal_job_failed');
-  }
+  return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, integrationId: integration.id };
 }
