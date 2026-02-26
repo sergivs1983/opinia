@@ -1,13 +1,13 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 
 type ValidateArgs = {
-  request: Request;
+  timestampHeader: string | null;
+  signatureHeader: string | null;
+  method: string;
+  pathname: string;
   rawBody: string;
   secret: string;
-  /** Optional: canonical pathname override. If omitted, uses new URL(request.url).pathname */
-  pathname?: string;
-  /** Optional: allow overriding max skew (ms). Default 5 minutes. */
-  maxSkewMs?: number;
+  maxSkewMs?: number; // default 5 min
 };
 
 type BuildArgs = {
@@ -43,11 +43,10 @@ export function buildHmacHeaders(args: BuildArgs): { 'x-opin-timestamp': string;
 }
 
 export function validateHmacHeader(args: ValidateArgs): boolean {
-  const { request, rawBody, secret } = args;
+  const ts = args.timestampHeader ?? '';
+  const sig = args.signatureHeader ?? '';
   const maxSkewMs = args.maxSkewMs ?? 5 * 60 * 1000;
 
-  const ts = request.headers.get('x-opin-timestamp') ?? '';
-  const sig = request.headers.get('x-opin-signature') ?? '';
   if (!isDigits(ts) || !isHex64(sig)) return false;
 
   const t = Number(ts);
@@ -56,12 +55,9 @@ export function validateHmacHeader(args: ValidateArgs): boolean {
   const skew = Math.abs(Date.now() - t);
   if (skew > maxSkewMs) return false;
 
-  const url = new URL(request.url);
-  const pathname = args.pathname ?? url.pathname;
-
-  const bodyHex = sha256Hex(rawBody);
-  const canonical = `${ts}.${request.method.toUpperCase()}.${pathname}.${bodyHex}`;
-  const expected = hmacHex(secret, canonical);
+  const bodyHex = sha256Hex(args.rawBody);
+  const canonical = `${ts}.${args.method.toUpperCase()}.${args.pathname}.${bodyHex}`;
+  const expected = hmacHex(args.secret, canonical);
 
   try {
     return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
