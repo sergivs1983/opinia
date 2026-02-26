@@ -1,66 +1,95 @@
 /**
- * csrf.ts — CSRF origin validation for authenticated API Route Handlers.
+ * src/lib/security/csrf.ts
  *
- * Usage (first line of every browser-session POST/PATCH/DELETE handler):
- *   const blocked = validateCsrf(request); if (blocked) return blocked;
+ * Origin-based CSRF validation for user-facing mutation endpoints.
  *
- * Exemptions (returns null — no blocking):
- *   • Requests with `Authorization: Bearer …` are API/server-to-server
- *     calls (not browser sessions) and are already protected by the token.
- *   • Webhooks are excluded at the call-site (never call this from webhook handlers).
+ * Strategy: compare the request's Origin header (or Referer fallback)
+ * to the app's known origin (NEXT_PUBLIC_APP_URL env var or localhost in dev).
  *
- * Origin resolution:
- *   1. `Origin` header  (present in all browser fetches for non-safe methods)
- *   2. `Referer` header (fallback; origin is extracted via new URL(referer).origin)
- *   If neither is present → 403.
+ * NO Bearer-token exemption: user endpoints are always browser-originated
+ * (session cookie auth). Any call with a Bearer token to a user endpoint
+ * is suspicious and should still pass CSRF validation.
  *
- * Allowed origins come from the `ALLOWED_ORIGINS` env variable
- * (comma-separated scheme+host strings, no trailing slashes):
- *   ALLOWED_ORIGINS="http://localhost:3000,https://opinia.cat,https://www.opinia.cat"
+ * Internal worker endpoints (/api/_internal/*) are HMAC-protected and do NOT
+ * call validateCsrf at all — they're a separate security boundary.
  *
- * Matching is EXACT — no startsWith, no substring, no wildcards.
+ * Returns:
+ *   null            → CSRF check passed, proceed
+ *   NextResponse    → 403, abort the request
+ *
+ * Usage in a route handler:
+ *   const csrfErr = validateCsrf(request);
+ *   if (csrfErr) return csrfErr;
  */
 
 import { NextResponse } from 'next/server';
 
-function csrf403(): NextResponse {
-  return NextResponse.json({ error: 'CSRF blocked' }, { status: 403 });
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Validates the CSRF origin for a mutating request.
+ * Validate CSRF for a browser-originated mutation.
+ * Returns null on success, a 403 NextResponse on failure.
  *
- * @returns `null`        — request is allowed (caller should proceed)
- * @returns `NextResponse` — 403 blocked (caller must `return` this immediately)
+ * No exemptions: every user-endpoint mutation must come from the same origin.
  */
-export function validateCsrf(req: Request): NextResponse | null {
-  // ── Bearer-token requests are not browser-session calls → exempt ──────────
-  const auth = req.headers.get('authorization') ?? '';
-  if (auth.startsWith('Bearer ')) return null;
+export function validateCsrf(request: Request): NextResponse | null {
+  const appOrigin = getAppOrigin();
 
-  // ── Resolve source header ─────────────────────────────────────────────────
-  const origin  = req.headers.get('origin');
-  const referer = req.headers.get('referer');
-  const source  = origin ?? referer;
-
-  if (!source) return csrf403();
-
-  // ── Extract origin (scheme + host) ───────────────────────────────────────
-  let requestOrigin: string;
-  try {
-    requestOrigin = new URL(source).origin;
-  } catch {
-    // malformed header → block
-    return csrf403();
+  // 1. Check Origin header (present in cross-origin requests and same-site fetches)
+  const origin = request.headers.get('origin');
+  if (origin) {
+    if (!isSameOrigin(origin, appOrigin)) {
+      return NextResponse.json(
+        { error: 'csrf_failed', message: 'Cross-origin request rejected' },
+        { status: 403 },
+      );
+    }
+    return null; // Valid origin
   }
 
-  // ── Exact match against allowlist ─────────────────────────────────────────
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // 2. Fall back to Referer (older browsers / some fetch implementations)
+  const referer = request.headers.get('referer');
+  if (referer) {
+    if (!isSameOriginFromUrl(referer, appOrigin)) {
+      return NextResponse.json(
+        { error: 'csrf_failed', message: 'Cross-origin request rejected' },
+        { status: 403 },
+      );
+    }
+    return null; // Valid referer
+  }
 
-  if (!allowedOrigins.includes(requestOrigin)) return csrf403();
+  // 3. No Origin or Referer present
+  //    - In production: reject (no legitimate browser omits both headers for a POST)
+  //    - In development: allow (curl, Postman, local scripts without origin)
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'csrf_failed', message: 'Origin header required' },
+      { status: 403 },
+    );
+  }
 
-  return null;
+  return null; // Dev: allow
+}
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+
+function getAppOrigin(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+}
+
+function isSameOrigin(origin: string, appOrigin: string): boolean {
+  try {
+    return new URL(origin).origin === new URL(appOrigin).origin;
+  } catch {
+    return false;
+  }
+}
+
+function isSameOriginFromUrl(fullUrl: string, appOrigin: string): boolean {
+  try {
+    return new URL(fullUrl).origin === new URL(appOrigin).origin;
+  } catch {
+    return false;
+  }
 }
