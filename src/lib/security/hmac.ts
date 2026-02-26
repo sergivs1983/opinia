@@ -6,8 +6,8 @@ type ObjArgs = {
   method: string;
   pathname: string;
   rawBody: string;
-  secret?: string;        // optional: default from env
-  maxSkewMs?: number;     // default 5 min
+  secret?: string;    // default from env
+  maxSkewMs?: number; // default 5 min
 };
 
 type BuildArgs = {
@@ -17,6 +17,8 @@ type BuildArgs = {
   secret: string;
   timestampMs?: string;
 };
+
+export type HmacValidationResult = { valid: true } | { valid: false; reason: string };
 
 function sha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input ?? '').digest('hex');
@@ -46,78 +48,39 @@ export function buildHmacHeaders(args: BuildArgs): { 'x-opin-timestamp': string;
   return { 'x-opin-timestamp': ts, 'x-opin-signature': sig };
 }
 
-/** Overload 1 (worker): validateHmacHeader({ ... }) */
-export function validateHmacHeader(args: ObjArgs): boolean;
-/** Overload 2 (classic): validateHmacHeader(req, rawBody, secret, pathname?, maxSkewMs?) */
-export function validateHmacHeader(
-  req: Request,
-  rawBody: string,
-  secret: string,
-  pathname?: string,
-  maxSkewMs?: number,
-): boolean;
+/**
+ * validateHmacHeader — canonical worker validator.
+ * Returns structured result: { valid, reason } for safe logging.
+ */
+export function validateHmacHeader(args: ObjArgs): HmacValidationResult {
+  const ts = args.timestampHeader ?? '';
+  const sig = args.signatureHeader ?? '';
+  const maxSkewMs = args.maxSkewMs ?? 5 * 60 * 1000;
 
-export function validateHmacHeader(
-  a: ObjArgs | Request,
-  b?: string,
-  c?: string,
-  d?: string,
-  e?: number,
-): boolean {
-  // ── Object form (worker) ────────────────────────────────────────────────
-  if (typeof (a as any).timestampHeader !== 'undefined') {
-    const args = a as ObjArgs;
-    const ts = args.timestampHeader ?? '';
-    const sig = args.signatureHeader ?? '';
-    const maxSkewMs = args.maxSkewMs ?? 5 * 60 * 1000;
+  const secret = resolveSecret(args.secret);
+  if (!secret) return { valid: false, reason: 'missing_secret' };
 
-    const secret = resolveSecret(args.secret);
-    if (!secret) return false;
-
-    if (!isDigits(ts) || !isHex64(sig)) return false;
-
-    const t = Number(ts);
-    if (!Number.isFinite(t)) return false;
-
-    if (Math.abs(Date.now() - t) > maxSkewMs) return false;
-
-    const bodyHex = sha256Hex(args.rawBody);
-    const canonical = `${ts}.${args.method.toUpperCase()}.${args.pathname}.${bodyHex}`;
-    const expected = hmacHex(secret, canonical);
-
-    try {
-      return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
-    } catch {
-      return false;
-    }
-  }
-
-  // ── Classic form ───────────────────────────────────────────────────────
-  const req = a as Request;
-  const rawBody = b ?? '';
-  const secret = c ?? '';
-  const pathname = d ?? new URL(req.url).pathname;
-  const maxSkewMs = e ?? 5 * 60 * 1000;
-
-  if (!secret) return false;
-
-  const ts = req.headers.get('x-opin-timestamp') ?? '';
-  const sig = req.headers.get('x-opin-signature') ?? '';
-
-  if (!isDigits(ts) || !isHex64(sig)) return false;
+  if (!isDigits(ts)) return { valid: false, reason: 'bad_timestamp' };
+  if (!isHex64(sig)) return { valid: false, reason: 'bad_signature_format' };
 
   const t = Number(ts);
-  if (!Number.isFinite(t)) return false;
+  if (!Number.isFinite(t)) return { valid: false, reason: 'bad_timestamp_number' };
 
-  if (Math.abs(Date.now() - t) > maxSkewMs) return false;
+  if (Math.abs(Date.now() - t) > maxSkewMs) return { valid: false, reason: 'replay_window' };
 
-  const bodyHex = sha256Hex(rawBody);
-  const canonical = `${ts}.${req.method.toUpperCase()}.${pathname}.${bodyHex}`;
+  const bodyHex = sha256Hex(args.rawBody);
+  const canonical = `${ts}.${args.method.toUpperCase()}.${args.pathname}.${bodyHex}`;
   const expected = hmacHex(secret, canonical);
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+    const ok = crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+    return ok ? { valid: true } : { valid: false, reason: 'signature_mismatch' };
   } catch {
-    return false;
+    return { valid: false, reason: 'timing_safe_equal_error' };
   }
+}
+
+/** Convenience boolean wrapper if needed elsewhere */
+export function isValidHmac(args: ObjArgs): boolean {
+  return validateHmacHeader(args).valid;
 }
