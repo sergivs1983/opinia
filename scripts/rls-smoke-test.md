@@ -146,6 +146,102 @@ order by table_name;
 
 ---
 
+## 6.1 Checks — RLS Add-ons (business_memberships + backup table)
+
+Validates that the Bloc 6.1 migration is correctly applied for the two manually-versioned tables.
+
+### 6.1-A — business_memberships: SELECT returns only own rows
+
+Authenticated as **User A** (JWT):
+
+```sql
+-- Should return only the rows where user_id = User A's UUID.
+-- Must NOT return rows belonging to User B.
+select user_id, business_id, is_active
+from public.business_memberships;
+
+-- Expected: all returned rows have user_id = '<USER_A_UUID>'
+```
+
+Verify with pg_policies (run as service_role):
+
+```sql
+select policyname, cmd, qual, with_check
+from pg_policies
+where schemaname = 'public'
+  and tablename  = 'business_memberships'
+order by policyname;
+
+-- Expected: 4 policies —
+--   business_memberships_biz_select  (SELECT)  qual: (user_id = auth.uid())
+--   business_memberships_biz_insert  (INSERT)  with_check: false
+--   business_memberships_biz_update  (UPDATE)  qual: false
+--   business_memberships_biz_delete  (DELETE)  qual: false
+```
+
+### 6.1-B — business_memberships: mutations blocked for JWT users
+
+Authenticated as **User A**, attempt mutations:
+
+```sql
+-- INSERT: must fail with RLS policy violation
+insert into public.business_memberships (org_id, business_id, user_id, is_active)
+values (
+  'aaaaaaaa-0000-0000-0000-000000000001',
+  'aaaaaaaa-0000-0000-0000-000000000002',
+  '<USER_A_UUID>', true
+);
+-- Expected: ERROR — new row violates row-level security policy
+
+-- UPDATE: must affect 0 rows (USING false blocks the match)
+update public.business_memberships
+set is_active = false
+where user_id = '<USER_A_UUID>';
+-- Expected: UPDATE 0
+
+-- DELETE: must affect 0 rows
+delete from public.business_memberships
+where user_id = '<USER_A_UUID>';
+-- Expected: DELETE 0
+```
+
+### 6.1-C — _memberships_default_backup_20260220: deny-all for JWT users
+
+Authenticated as **any JWT user**:
+
+```sql
+-- SELECT: must return 0 rows (USING false)
+select count(*) from public._memberships_default_backup_20260220;
+-- Expected: 0
+
+-- INSERT: must fail
+insert into public._memberships_default_backup_20260220
+select * from public.memberships limit 1;
+-- Expected: ERROR — new row violates row-level security policy
+```
+
+Verify RLS is enabled and policies exist (run as service_role):
+
+```sql
+-- Confirm RLS enabled
+select relname, relrowsecurity
+from pg_class
+where relnamespace = 'public'::regnamespace
+  and relname = '_memberships_default_backup_20260220';
+-- Expected: relrowsecurity = true
+
+-- Confirm 4 deny-all policies
+select policyname, cmd, qual, with_check
+from pg_policies
+where schemaname = 'public'
+  and tablename  = '_memberships_default_backup_20260220'
+order by policyname;
+-- Expected: 4 policies (deny_select, deny_insert, deny_update, deny_delete)
+--   all with qual = false or with_check = false
+```
+
+---
+
 ## Cleanup (run as service_role)
 
 ```sql
