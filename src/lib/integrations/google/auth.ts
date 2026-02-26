@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { decryptAESGCM } from '@/lib/crypto';
+import { getOAuthTokens } from '@/lib/server/tokens';
 
 export class GoogleAuthError extends Error {
   code: string;
@@ -15,8 +15,6 @@ type IntegrationRow = {
   biz_id: string;
   provider: string;
   status?: string | null;
-  access_token_encrypted?: string | null;
-  expires_at?: string | null;
 };
 
 export async function getValidGoogleAccessToken(args: {
@@ -26,34 +24,33 @@ export async function getValidGoogleAccessToken(args: {
 }): Promise<string> {
   const { admin, integrationId, bizId } = args;
 
-  const { data, error } = await admin
+  const { data: integ, error: integErr } = await admin
     .from('integrations')
-    .select('id,biz_id,provider,status,access_token_encrypted,expires_at')
+    .select('id,biz_id,provider,status')
     .eq('id', integrationId)
     .maybeSingle();
 
-  if (error || !data) throw new GoogleAuthError('Integration not found');
+  if (integErr || !integ) throw new GoogleAuthError('Integration not found');
 
-  const row = data as IntegrationRow;
+  const integration = integ as IntegrationRow;
 
-  if (row.biz_id !== bizId) throw new GoogleAuthError('Integration ownership mismatch', 'internal_job_failed');
+  if (integration.biz_id !== bizId) {
+    throw new GoogleAuthError('Integration ownership mismatch', 'internal_job_failed');
+  }
 
-  // Accept either naming; Flow B will normalize this
-  if (row.provider !== 'google_business' && row.provider !== 'google') {
+  if (integration.provider !== 'google_business' && integration.provider !== 'google') {
     throw new GoogleAuthError('Integration provider mismatch', 'internal_job_failed');
   }
 
-  if (row.status === 'needs_reauth') throw new GoogleAuthError('Integration needs reauth');
-
-  if (!row.access_token_encrypted) throw new GoogleAuthError('Missing access token');
-
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key) throw new GoogleAuthError('Missing ENCRYPTION_KEY env', 'internal_job_failed');
+  if (integration.status === 'needs_reauth') {
+    throw new GoogleAuthError('Integration needs reauth', 'connector_auth_failed');
+  }
 
   try {
-    // NOTE: Flow B will add refresh + locks. For now, just decrypt and return.
-    return decryptAESGCM(row.access_token_encrypted, key);
+    const { accessToken } = await getOAuthTokens(admin, integrationId);
+    if (!accessToken) throw new Error('missing');
+    return accessToken;
   } catch {
-    throw new GoogleAuthError('Token decrypt failed', 'internal_job_failed');
+    throw new GoogleAuthError('Token read/decrypt failed', 'internal_job_failed');
   }
 }
