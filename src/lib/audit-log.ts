@@ -12,8 +12,7 @@ type AuditPayload = {
 };
 
 export async function writeAudit(payload: AuditPayload): Promise<void> {
-  const requestId = typeof payload.requestId === 'string' ? payload.requestId : undefined;
-  const log = createLogger(requestId ? { route: 'audit-log', request_id: requestId } : { route: 'audit-log' });
+  const log = createLogger({ route: "audit-log", request_id: "audit" });
 
   const {
     action,
