@@ -5,7 +5,6 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { dispatchEvent } from '@/lib/integrations';
 import { bumpDailyMetric } from '@/lib/metrics';
@@ -121,7 +120,6 @@ export async function POST(request: Request) {
 
   try {
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -309,7 +307,7 @@ export async function POST(request: Request) {
         if (!asset) continue;
 
         const objectPath = exportStoragePathToObjectPath(asset.storage_path, asset.storage_bucket);
-        const { data: assetBlob, error: assetError } = await admin.storage
+        const { data: assetBlob, error: assetError } = await supabase.storage
           .from(asset.storage_bucket)
           .download(objectPath);
 
@@ -373,7 +371,7 @@ export async function POST(request: Request) {
       language,
     });
 
-    const { error: uploadError } = await admin.storage
+    const { error: uploadError } = await supabase.storage
       .from(storageBucket)
       .upload(objectPath, zipBundle.zipBuffer, {
         contentType: 'application/zip',
@@ -432,12 +430,13 @@ export async function POST(request: Request) {
       businessId,
       new Date().toISOString().slice(0, 10),
       { exports_created: 1 },
-      { admin, log },
+      { admin: supabase, log },
     );
 
     void dispatchEvent({
       businessId,
       event: 'export.created',
+      admin: supabase,
       data: {
         export_id: exportId,
         week_start: weekStart,
@@ -455,7 +454,7 @@ export async function POST(request: Request) {
       });
     });
 
-    const { data: signedData, error: signedError } = await admin.storage
+    const { data: signedData, error: signedError } = await supabase.storage
       .from(storageBucket)
       .createSignedUrl(objectPath, 60 * 60 * 24);
 

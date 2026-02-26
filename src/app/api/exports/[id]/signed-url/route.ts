@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateParams,
@@ -29,8 +28,6 @@ export async function GET(
 
   try {
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return withResponseRequestId(NextResponse.json({ error: 'unauthorized', message: 'Auth required', request_id: requestId }, { status: 401 }));
@@ -68,7 +65,7 @@ export async function GET(
     }
 
     const objectPath = exportStoragePathToObjectPath(exportRow.storage_path, exportRow.storage_bucket);
-    const { data: signedData, error: signedError } = await admin.storage
+    const { data: signedData, error: signedError } = await supabase.storage
       .from(exportRow.storage_bucket)
       .createSignedUrl(objectPath, 60 * 60 * 24);
 

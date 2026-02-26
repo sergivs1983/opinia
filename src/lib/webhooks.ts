@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { createAdminClient } from '@/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { storagePathToObjectPath } from '@/lib/content-studio';
 import { createLogger, createRequestId, type AppLogger } from '@/lib/logger';
 import { dispatchEvent } from '@/lib/integrations';
@@ -16,7 +16,7 @@ const DEFAULT_RETRY_COUNT = 1;
 const WEBHOOK_SIGN_FALLBACK_SECRET = process.env.WEBHOOK_SIGN_FALLBACK_SECRET || '';
 const CHANNEL_SET = new Set<ContentPlannerChannel>(['ig_story', 'ig_feed', 'ig_reel', 'x', 'threads']);
 
-type AdminClient = ReturnType<typeof createAdminClient>;
+type AdminClient = SupabaseClient;
 
 type BusinessWebhookConfig = {
   id: string;
@@ -433,7 +433,8 @@ export function toWebhookTestResponse(result: WebhookSendResult): {
 export async function sendWebhook(args: SendWebhookArgs): Promise<WebhookSendResult> {
   const requestId = args.requestId?.trim() || createRequestId();
   const log = buildLogger(args.log, requestId);
-  const admin = args.admin || createAdminClient();
+  const admin = args.admin;
+  if (!admin) throw new Error("[webhooks:sendWebhook] admin client required — call from allowlisted route only");
   const business = args.business;
   const plannerItemId = args.plannerItemId || null;
 
@@ -621,7 +622,8 @@ function hashtagsFromAssetPayload(payload: JsonValue): string[] {
 export async function sendPlannerItemWebhook(args: SendPlannerItemWebhookArgs): Promise<WebhookSendResult> {
   const requestId = args.requestId?.trim() || createRequestId();
   const log = buildLogger(args.log, requestId);
-  const admin = args.admin || createAdminClient();
+  const admin = args.admin;
+  if (!admin) throw new Error("[webhooks:sendPlannerItemWebhook] admin client required — call from allowlisted route only");
   const { business, plannerItem } = args;
 
   let suggestion = await loadSuggestion(admin, plannerItem.suggestion_id, plannerItem.business_id);

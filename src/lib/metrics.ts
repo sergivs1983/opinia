@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createAdminClient } from '@/lib/supabase/admin';
 import type { MetricsDaily } from '@/types/database';
 
 type LoggerLike = {
@@ -160,7 +159,8 @@ export async function bumpDailyMetric(
   const cleanPatch = sanitizePatch(patch);
   if (Object.keys(cleanPatch).length === 0) return true;
 
-  const admin = options.admin || createAdminClient();
+  const admin = options.admin;
+  if (!admin) throw new Error("[metrics] admin client required — pass via options.admin");
   const log = options.log;
   const nowIso = (options.now ? options.now() : new Date()).toISOString();
   const metricDay = resolveDay(day);
@@ -217,7 +217,8 @@ export async function collectAiUsageByRequestId(
 ): Promise<Required<AiUsagePatch>> {
   if (!requestId.trim()) return { tokensIn: 0, tokensOut: 0, costCents: 0 };
 
-  const admin = options.admin || createAdminClient();
+  const admin = options.admin;
+  if (!admin) throw new Error("[metrics] admin client required — pass via options.admin");
   const { data, error } = await admin
     .from('llm_usage_events')
     .select('prompt_tokens, completion_tokens, cost_usd')
@@ -284,7 +285,8 @@ export async function rebuildMetricsLastDays(
   businessId: string,
   options: RebuildMetricsOptions = {},
 ): Promise<{ days: number; startDay: string; endDay: string; upsertedRows: number }> {
-  const admin = options.admin || createAdminClient();
+  const admin = options.admin;
+  if (!admin) throw new Error("[metrics] admin client required — pass via options.admin");
   const days = Math.max(1, Math.min(90, Math.round(options.days || 30)));
   const daysList = dayList(days);
   const startDay = daysList[0];

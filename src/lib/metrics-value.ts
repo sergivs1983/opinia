@@ -1,5 +1,5 @@
-import { createAdminClient } from '@/lib/supabase/admin';
 import { getWeekStartMondayFromDate } from '@/lib/planner';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const MIN_PER_GENERATED = 2.0;
 export const MIN_PER_APPROVED = 0.5;
@@ -54,11 +54,11 @@ interface ComputeBenchmarksArgs {
   businessId: string;
   rangeDays: number;
   metricKey: BenchmarkMetricKey;
-  admin?: ReturnType<typeof createAdminClient>;
+  admin?: SupabaseClient;
   now?: () => Date;
   log?: BenchmarkLogger;
   loadAggregates?: (args: {
-    admin: ReturnType<typeof createAdminClient>;
+    admin: SupabaseClient;
     metricKey: BenchmarkMetricKey;
     startDay: string;
     endDay: string;
@@ -110,7 +110,7 @@ function resolveRange(rangeDays: number, now: Date): { startDay: string; endDay:
 }
 
 async function defaultLoadAggregates(args: {
-  admin: ReturnType<typeof createAdminClient>;
+  admin: SupabaseClient;
   metricKey: BenchmarkMetricKey;
   startDay: string;
   endDay: string;
@@ -178,7 +178,8 @@ export function computeStreakWeeks(
 }
 
 export async function computeBenchmarks(args: ComputeBenchmarksArgs): Promise<MetricsValueBenchmark> {
-  const admin = args.admin || createAdminClient();
+  const admin = args.admin;
+  if (!admin) throw new Error("[metrics-value:computeBenchmarks] admin client required");
   const now = args.now ? args.now() : new Date();
   const { startDay, endDay } = resolveRange(args.rangeDays, now);
   const loadAggregates = args.loadAggregates || defaultLoadAggregates;

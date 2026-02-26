@@ -4,7 +4,6 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createRequestId } from '@/lib/logger';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import { validateBody } from '@/lib/validations';
@@ -44,15 +43,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const adminClient = (() => {
-      try {
-        return createAdminClient();
-      } catch {
-        return null;
-      }
-    })();
-
-    const writeClient = adminClient ?? supabase;
+    const writeClient = supabase;
 
     const { error: clearError } = await writeClient
       .from('memberships')

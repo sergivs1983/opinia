@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateParams,
@@ -68,8 +67,7 @@ export async function GET(
     }
 
     const objectPath = storagePathToObjectPath(asset.storage_path, asset.storage_bucket);
-    const admin = createAdminClient();
-    const { data: signedData, error: signedError } = await admin.storage
+    const { data: signedData, error: signedError } = await supabase.storage
       .from(asset.storage_bucket)
       .createSignedUrl(objectPath, 60 * 60 * 24);
 

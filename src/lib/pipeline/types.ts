@@ -6,6 +6,7 @@
 
 import type { Business, KnowledgeBaseEntry, GuardrailWarning, ReplyTone } from '@/types/database';
 import type { LLMProvider } from '@/lib/llm/provider';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type SentimentLabel = 'positive' | 'neutral' | 'negative' | 'very_positive' | 'very_negative' | 'mixed';
 export type UrgencyLabel = 'low' | 'medium' | 'high' | 'critical';
@@ -78,6 +79,7 @@ export interface PipelineInput {
   requestId: string;
   llmProvider: LLMProvider;
   hasApiKey: boolean;
+  admin: SupabaseClient;
 }
 
 export interface PipelineOutput {

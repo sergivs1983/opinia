@@ -3,7 +3,8 @@ export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
+import { assertServiceRoleAllowed } from '@/lib/security/service-role';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { runJob } from '@/lib/jobs/runner';
 import { rebuildInsights } from '@/lib/jobs/rebuild-insights';
@@ -19,6 +20,8 @@ import { hasAcceptedOrgMembership, isAdminViewer } from '@/lib/authz';
  * Auth: CRON_SECRET header or authenticated admin user.
  */
 export async function POST(request: Request) {
+  const serviceBlocked = assertServiceRoleAllowed(request);
+  if (serviceBlocked) return serviceBlocked;
   const blocked = validateCsrf(request); if (blocked) return blocked;
 
   const cronSecret = request.headers.get('x-cron-secret');
@@ -72,15 +75,16 @@ export async function POST(request: Request) {
   switch (job) {
     case 'rebuild_insights': {
       const { biz_id, org_id } = body;
+      const adminClient = getAdminClient();
       const result = await runJob('rebuild_insights', { biz_id, org_id }, async (admin, log) => {
         return rebuildInsights(admin, log, biz_id, org_id, 90);
-      });
+      }, adminClient);
       return NextResponse.json(result);
     }
 
     case 'rebuild_all_insights': {
       // Rebuild for all active businesses
-      const admin = createAdminClient();
+      const admin = getAdminClient();
       const { data: businesses } = await admin
         .from('businesses')
         .select('id, org_id')
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
       for (const biz of (businesses || [])) {
         const result = await runJob('rebuild_insights', { biz_id: biz.id, org_id: biz.org_id }, async (a, log) => {
           return rebuildInsights(a, log, biz.id, biz.org_id, 90);
-        });
+        }, admin);
         results.push({ biz_id: biz.id, ...result });
       }
       return NextResponse.json({ results });
@@ -99,10 +103,11 @@ export async function POST(request: Request) {
     case 'sync_reviews': {
       const { biz_id, org_id } = body;
       // Placeholder — will be implemented when Google OAuth is added
+      const syncAdmin = getAdminClient();
       const result = await runJob('sync_reviews', { biz_id, org_id }, async (admin, log) => {
         log.info('sync_reviews is a placeholder — Google OAuth not yet configured');
         return { synced: 0, message: 'No OAuth configured yet' };
-      });
+      }, syncAdmin);
       return NextResponse.json(result);
     }
 

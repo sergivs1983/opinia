@@ -4,7 +4,6 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import { requireBizAccess } from '@/lib/api-handler';
@@ -84,7 +83,6 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return withRequestId(
@@ -127,7 +125,7 @@ export async function GET(request: Request) {
     let connectors = await loadWebhookConnectorRows(supabase, businessId);
     if (connectors.length === 0) {
       const created = await ensureLegacyWebhookConnector({
-        admin,
+        admin: supabase,
         businessId,
         legacy: {
           webhook_enabled: business.webhook_enabled,

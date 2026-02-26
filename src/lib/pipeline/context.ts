@@ -3,16 +3,16 @@
  * Matches KB entries against review, loads recent replies.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KnowledgeBaseEntry } from '@/types/database';
 import type { RAGContext, MatchedKB, Classification } from './types';
 
 export async function buildRAGContext(
   bizId: string,
   reviewText: string,
-  classification: Classification
+  classification: Classification,
+  admin: SupabaseClient,
 ): Promise<RAGContext> {
-  const admin = createAdminClient();
 
   // Load all KB entries
   const { data: kbEntries } = await admin

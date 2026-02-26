@@ -10,7 +10,7 @@
  * 6) If both providers OPEN → throw CircuitOpenError → caller returns 503
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LLMProvider, LLMRequest, LLMResponse } from '@/lib/llm/provider';
 import { getDefaultModel } from '@/lib/llm/provider';
 import { callOpenAI } from '@/lib/llm/providers/openai';
@@ -60,6 +60,9 @@ export interface LLMCallOptions {
   requestId: string;
   feature: string;  // 'classify' | 'generate_reply' | 'guardrail' | 'insights'
   userId?: string;
+  // Admin client (service_role) for circuit breaker + usage tracking
+  // Optional — if not provided, circuit breaker and usage tracking are skipped
+  admin?: SupabaseClient;
   // DLQ
   critical?: boolean;
   dlqPayload?: JsonObject;
@@ -95,20 +98,20 @@ export async function callLLMClient(opts: LLMCallOptions): Promise<LLMResponse> 
   const fallbackModel = getDefaultModel(fallback, 'main');
 
   // 1) Check primary circuit
-  const pCircuit = await getCircuitState(primary, primaryModel).catch(() =>
+  const pCircuit = await (opts.admin ? getCircuitState(primary, primaryModel, undefined, opts.admin) : Promise.resolve({ state: 'closed' as const, failureCount: 0, openUntil: null })).catch(() =>
     ({ state: 'closed' as const, failureCount: 0, openUntil: null })
   );
 
   if (pCircuit.state === 'open') {
     // Primary OPEN — try fallback
-    const fCircuit = await getCircuitState(fallback, fallbackModel).catch(() =>
+    const fCircuit = await (opts.admin ? getCircuitState(fallback, fallbackModel, undefined, opts.admin) : Promise.resolve({ state: 'closed' as const, failureCount: 0, openUntil: null })).catch(() =>
       ({ state: 'closed' as const, failureCount: 0, openUntil: null })
     );
 
     if (fCircuit.state === 'open') {
       // Both OPEN
       if (opts.critical) {
-        await enqueueDLQ(opts, 'provider_down', `Both ${primary} and ${fallback} circuits open`);
+        await enqueueDLQ(opts.admin, opts, 'provider_down', `Both ${primary} and ${fallback} circuits open`);
       }
       throw new CircuitOpenError(
         `Both providers unavailable (${primary}/${primaryModel} + ${fallback}/${fallbackModel})`
@@ -129,13 +132,13 @@ export async function callLLMClient(opts: LLMCallOptions): Promise<LLMResponse> 
     }
 
     // Primary failed with circuit-worthy error — try fallback
-    const fCircuit = await getCircuitState(fallback, fallbackModel).catch(() =>
+    const fCircuit = await (opts.admin ? getCircuitState(fallback, fallbackModel, undefined, opts.admin) : Promise.resolve({ state: 'closed' as const, failureCount: 0, openUntil: null })).catch(() =>
       ({ state: 'closed' as const, failureCount: 0, openUntil: null })
     );
 
     if (fCircuit.state === 'open') {
       if (opts.critical) {
-        await enqueueDLQ(opts, classifyError(primaryErr), getErrorMessage(primaryErr));
+        await enqueueDLQ(opts.admin, opts, classifyError(primaryErr), getErrorMessage(primaryErr));
       }
       throw primaryErr;
     }
@@ -146,7 +149,7 @@ export async function callLLMClient(opts: LLMCallOptions): Promise<LLMResponse> 
       return await executeWithTracking(opts, fallback, fallbackModel);
     } catch (fallbackErr: unknown) {
       if (opts.critical) {
-        await enqueueDLQ(opts, classifyError(fallbackErr), getErrorMessage(fallbackErr));
+        await enqueueDLQ(opts.admin, opts, classifyError(fallbackErr), getErrorMessage(fallbackErr));
       }
       throw fallbackErr;
     }
@@ -176,8 +179,8 @@ async function executeWithTracking(
     const result = await callFn(req);
     const durationMs = Date.now() - startMs;
 
-    await recordSuccess(provider, model).catch(() => {});
-    await trackUsage(opts, provider, model, result, durationMs, 'success');
+    opts.admin && await recordSuccess(provider, model, undefined, opts.admin).catch(() => {});
+    await trackUsage(opts.admin, opts, provider, model, result, durationMs, 'success');
     logInfo(opts, `LLM success`, { provider, model, durationMs, tokens: result.usage });
 
     return result;
@@ -191,8 +194,8 @@ async function executeWithTracking(
       const result = await callFn(req);
       const durationMs = Date.now() - startMs;
 
-      await recordSuccess(provider, model).catch(() => {});
-      await trackUsage(opts, provider, model, result, durationMs, 'success');
+      opts.admin && await recordSuccess(provider, model, undefined, opts.admin).catch(() => {});
+      await trackUsage(opts.admin, opts, provider, model, result, durationMs, 'success');
       logInfo(opts, `LLM retry success`, { provider, model, durationMs, tokens: result.usage });
 
       return result;
@@ -201,10 +204,10 @@ async function executeWithTracking(
       const errorCode = classifyError(retryErr);
 
       if (isCircuitBreakerError(retryErr)) {
-        await recordFailure(provider, model).catch(() => {});
+        opts.admin && await recordFailure(provider, model, undefined, undefined, opts.admin).catch(() => {});
       }
 
-      await trackUsage(opts, provider, model, null, durationMs, 'error', errorCode);
+      await trackUsage(opts.admin, opts, provider, model, null, durationMs, 'error', errorCode);
       logError(opts, `LLM failed after retry`, {
         provider,
         model,
@@ -222,6 +225,7 @@ async function executeWithTracking(
 // COST TRACKING — writes to llm_usage_events
 // ============================================================
 async function trackUsage(
+  admin: SupabaseClient | undefined,
   opts: LLMCallOptions,
   provider: LLMProvider,
   model: string,
@@ -230,8 +234,8 @@ async function trackUsage(
   status: 'success' | 'error',
   errorCode?: string,
 ): Promise<void> {
+  if (!admin) return;
   try {
-    const admin = createAdminClient();
     const inTok = result?.usage?.input_tokens || 0;
     const outTok = result?.usage?.output_tokens || 0;
 
@@ -264,15 +268,15 @@ async function trackUsage(
 // DLQ — enqueue failed critical jobs
 // ============================================================
 async function enqueueDLQ(
+  admin: SupabaseClient | undefined,
   opts: LLMCallOptions,
   errorCode: string,
   errorMessage?: string,
 ): Promise<void> {
   const requestId = opts.requestId?.trim() || createRequestId();
 
+  if (!admin) return;
   try {
-    const admin = createAdminClient();
-
     await admin.from('failed_jobs').insert({
       org_id: opts.orgId,
       biz_id: opts.bizId,

@@ -4,7 +4,6 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   buildBusinessImageStoragePaths,
@@ -41,8 +40,6 @@ export async function POST(
 
   try {
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return withResponseRequestId(
@@ -130,7 +127,7 @@ export async function POST(
     });
 
     const fileBuffer = Buffer.from(await fileValue.arrayBuffer());
-    const { error: uploadError } = await admin.storage
+    const { error: uploadError } = await supabase.storage
       .from(storageBucket)
       .upload(objectPath, fileBuffer, {
         contentType: fileValue.type,
@@ -186,7 +183,7 @@ export async function POST(
         : oldStoragePath;
 
       // Cleanup is best-effort; upload/update already succeeded.
-      void admin.storage
+      void supabase.storage
         .from(oldStorageBucket)
         .remove([oldObjectPath])
         .catch(() => {});

@@ -3,7 +3,6 @@ export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { validateBody, GrowthLinkCreateSchema } from '@/lib/validations';
 import { requireBizAccess, requireBizAccessPatternB, assertSingleBizId, withRequestContext } from '@/lib/api-handler';
@@ -33,13 +32,12 @@ export const GET = withRequestContext(async function(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Attach click counts for the last 7 days
-  const admin = createAdminClient();
   const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
   const linkIds = (data || []).map(l => l.id);
 
   let eventCounts: Record<string, number> = {};
   if (linkIds.length > 0) {
-    const { data: events } = await admin
+    const { data: events } = await supabase
       .from('growth_events')
       .select('link_id')
       .in('link_id', linkIds)

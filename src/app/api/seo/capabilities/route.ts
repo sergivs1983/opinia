@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 
 type ColumnProbeResult = {
@@ -12,7 +11,7 @@ type ColumnProbeResult = {
 };
 
 async function probeBusinessColumn(args: {
-  admin: ReturnType<typeof createAdminClient>;
+  admin: ReturnType<typeof import('@/lib/supabase/server').createServerSupabaseClient> | import('@supabase/supabase-js').SupabaseClient;
   businessId: string;
   column: string;
 }): Promise<ColumnProbeResult> {
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -73,10 +72,10 @@ export async function GET(request: Request) {
     }
 
     const [seoEnabled, seoKeywords, seoAggressivity, seoAggressiveness] = await Promise.all([
-      probeBusinessColumn({ admin, businessId, column: 'seo_enabled' }),
-      probeBusinessColumn({ admin, businessId, column: 'seo_keywords' }),
-      probeBusinessColumn({ admin, businessId, column: 'seo_aggressivity' }),
-      probeBusinessColumn({ admin, businessId, column: 'seo_aggressiveness' }),
+      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_enabled' }),
+      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_keywords' }),
+      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_aggressivity' }),
+      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_aggressiveness' }),
     ]);
 
     if (seoEnabled.error || seoKeywords.error || seoAggressivity.error || seoAggressiveness.error) {

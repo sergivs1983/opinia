@@ -3,7 +3,6 @@ export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { getUsageSummary, PLANS } from '@/lib/billing/plans';
 import { validateBody, BillingUpdateSchema } from '@/lib/validations';
@@ -34,8 +33,7 @@ export async function GET(request: Request) {
   });
   if (!hasMembership) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  const admin = createAdminClient();
-  const summary = await getUsageSummary(admin, orgId);
+  const summary = await getUsageSummary(supabase, orgId);
 
   return NextResponse.json({
     plan: summary.plan,
@@ -86,8 +84,6 @@ export async function POST(request: Request) {
   });
   if (!hasMembership) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
-  const admin = createAdminClient();
-
   // Check if Stripe is configured for paid plans
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (plan.price_monthly > 0 && stripeKey && plan.stripe_price_id) {
@@ -115,13 +111,13 @@ export async function POST(request: Request) {
     billing_status: 'active',
   };
 
-  let { error: updateError } = await admin
+  let { error: updateError } = await supabase
     .from('organizations')
     .update(updateWithSeats)
     .eq('id', body.org_id);
 
   if (updateError && isMissingSeatColumnsError(updateError)) {
-    const retry = await admin
+    const retry = await supabase
       .from('organizations')
       .update(baseUpdate)
       .eq('id', body.org_id);
@@ -133,7 +129,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await normalizeOrgRolesForPlan(admin, {
+    await normalizeOrgRolesForPlan(supabase, {
       orgId: body.org_id,
       planCode: seatPlan.plan_code,
     });

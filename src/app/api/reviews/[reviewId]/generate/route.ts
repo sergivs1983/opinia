@@ -118,6 +118,7 @@ export async function POST(
       requestId,
       llmProvider,
       hasApiKey,
+      admin: supabase,
     };
 
     // ── Run pipeline ──

@@ -4,10 +4,10 @@
  * Uses the fast/cheap model. Falls back gracefully.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { callLLMClient } from '@/lib/llm/client';
 import { getDefaultModel } from '@/lib/llm/provider';
 import { sanitizeForPrompt } from '@/lib/api-handler';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { z } from 'zod';
 import type {
   Classification,
@@ -65,6 +65,7 @@ export async function classifyReview(
       userId: input.userId,
       requestId: input.requestId,
       feature: 'classify',
+      admin: input.admin,
       messages: [
         {
           role: 'system',
@@ -123,12 +124,12 @@ export async function saveTopics(
   reviewId: string,
   bizId: string,
   orgId: string,
-  classification: Classification
+  classification: Classification,
+  admin: SupabaseClient,
 ): Promise<void> {
   if (!classification.topic_details?.length) return;
 
   try {
-    const admin = createAdminClient();
     await admin.from('review_topics').delete().eq('review_id', reviewId);
     await admin.from('review_topics').insert(
       classification.topic_details.map((t) => ({

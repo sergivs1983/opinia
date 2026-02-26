@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateParams,
@@ -58,8 +57,6 @@ export async function GET(
 
     const businessId = routeParams.id;
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.error('[brand-image-signed-url] unauthenticated', {
@@ -71,7 +68,7 @@ export async function GET(
       );
     }
 
-    const { data: businessData, error: businessError } = await admin
+    const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, org_id, brand_image_bucket, brand_image_path, brand_image_kind')
       .eq('id', businessId)
@@ -108,7 +105,7 @@ export async function GET(
 
     const business = businessData as BusinessBrandImageSignedRow;
 
-    const { data: membershipData, error: membershipError } = await admin
+    const { data: membershipData, error: membershipError } = await supabase
       .from('memberships')
       .select('id')
       .eq('org_id', business.org_id)
@@ -160,7 +157,7 @@ export async function GET(
 
     const bucket = business.brand_image_bucket || 'business-images';
     const objectKey = businessImageStoragePathToObjectPath(business.brand_image_path, bucket);
-    const { data: signedData, error: signedError } = await admin.storage
+    const { data: signedData, error: signedError } = await supabase.storage
       .from(bucket)
       .createSignedUrl(objectKey, 60 * 60 * 24);
 

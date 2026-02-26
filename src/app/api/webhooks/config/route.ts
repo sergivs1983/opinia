@@ -4,7 +4,8 @@ export const revalidate = 0;
 import { randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminClient } from '@/lib/supabase/admin';
+import { assertServiceRoleAllowed } from '@/lib/security/service-role';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import {
@@ -83,6 +84,8 @@ async function loadConnector(
 }
 
 export async function GET(request: Request) {
+  const serviceBlocked = assertServiceRoleAllowed(request);
+  if (serviceBlocked) return serviceBlocked;
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/webhooks/config' });
 
@@ -93,7 +96,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createServerSupabaseClient();
-    const admin = createAdminClient();
+    const admin = getAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return withRequestId(
@@ -170,6 +173,8 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const serviceBlocked = assertServiceRoleAllowed(request);
+  if (serviceBlocked) return serviceBlocked;
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/webhooks/config' });
 

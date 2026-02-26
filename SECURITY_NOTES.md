@@ -140,12 +140,33 @@ The uses fall into three categories:
 3. **Auth/bootstrap flows** — setting up user profiles and org provisioning
    after Supabase Auth callback, before the user has a full session.
 
-### Action items (Bloc 7)
+### Action items (Bloc 7) — completed / deferred
 
-- [ ] Audit each route: confirm it validates org/business ownership before
-      writing via admin client (i.e., does not blindly trust caller-supplied
-      IDs without checking the user's membership first).
-- [ ] Consider `FORCE ROW LEVEL SECURITY` on `integrations_secrets` to block
-      service_role reads as well (currently service_role bypasses RLS).
+**Bloc 7 implemented:**
+- [x] `src/lib/supabase/admin.ts`: exports `getAdminClient()` (renamed from
+      `createAdminClient`); single source of truth for service_role client.
+- [x] `src/lib/security/service-role.ts`: `assertServiceRoleAllowed(req)`
+      runtime guard — returns 403 if called from non-allowlisted path.
+- [x] `scripts/check-service-role.mjs`: static deny-by-default check; exits 1
+      if any non-allowlisted file imports `admin.ts`; exits 0 with warnings for
+      DEFERRED items.
+- [x] 11 lib files converted to dependency injection (no direct admin import).
+- [x] 11 user-facing routes switched from admin to user Supabase client.
+- [x] Allowlisted routes (`webhooks/config`, `jobs`) use `getAdminClient()` +
+      `assertServiceRoleAllowed` guard.
+- [x] `bootstrap` moved to `src/app/api/_internal/bootstrap/route.ts`; old
+      path forwards for backward compat.
+
+**DEFERRED (Bloc 8) — audited, documented, no new violations allowed:**
+
+| File | Reason admin is needed | Bloc 8 action |
+|------|------------------------|---------------|
+| `src/app/(auth)/callback/route.ts` | Supabase Auth redirect URL constraint; user has no membership yet (chicken-and-egg) | Add special RLS policy allowing auth callback writes, OR move to _internal after updating Supabase dashboard config |
+| `src/app/api/g/[slug]/route.ts` | Public short link — no user JWT, can't use user client with current RLS | Add anon SELECT policy to `growth_links` for active links (separate migration) |
+| `src/app/api/dlq/route.ts` | DLQ retry (POST) writes to `failed_jobs`; admin bypasses RLS for system writes | Move POST handler to `_internal/dlq-retry/` |
+| `src/app/api/orgs/[orgId]/set-plan/route.ts` | Billing plan update modifies org-level data bypassing RLS | Move to `_internal/orgs/set-plan/` |
+| `src/app/api/content-studio/render/route.ts` | Render pipeline reads cross-tenant data for rendering | Refactor to accept user supabase + proper RLS |
+| `src/lib/server/tokens.ts` | `integrations_secrets` is deny-all RLS by design; service_role required | Called only from allowlisted integration routes after Bloc 8 refactor |
+
 - [ ] Rotate `SUPABASE_SERVICE_ROLE_KEY` in Vercel env if it has ever been
       committed or logged.

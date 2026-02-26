@@ -202,6 +202,7 @@ export async function generateDrafts(
       feature: 'generate_reply',
       critical: true,
       dlqPayload: { reviewId: input.reviewId, modifier: input.modifier },
+      admin: input.admin,
       messages: [
         {
           role: 'system',

@@ -1,4 +1,3 @@
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId, type AppLogger } from '@/lib/logger';
 import { signPayload } from '@/lib/integrations/crypto';
 import type { IntegrationEvent, IntegrationEventPayload } from '@/lib/integrations/events';
@@ -16,7 +15,8 @@ const DELIVERY_RETRY_COUNT = 1;
 const DELIVERY_COOLDOWN_MS = 60_000;
 const SIGN_FALLBACK_SECRET = process.env.WEBHOOK_SIGN_FALLBACK_SECRET || '';
 
-type AdminClient = ReturnType<typeof createAdminClient>;
+import type { SupabaseClient } from '@supabase/supabase-js';
+type AdminClient = SupabaseClient;
 
 type BusinessContextRow = {
   id: string;
@@ -458,7 +458,8 @@ function toSummary(result: DeliveryRecord[], requestId: string): DispatchResult 
 export async function dispatchEvent(args: DispatchEventArgs): Promise<DispatchResult> {
   const requestId = asText(args.requestId) || createRequestId();
   const log = buildLogger(args.log, requestId);
-  const admin = args.admin || createAdminClient();
+  const admin = args.admin;
+  if (!admin) throw new Error("[dispatch] admin client required — call from allowlisted route only");
   const fetchImpl = args.dependencies?.fetchImpl || fetch;
   const now = args.dependencies?.now || (() => new Date());
 

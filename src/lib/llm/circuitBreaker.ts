@@ -9,8 +9,8 @@
  * - admin client (service_role) to bypass RLS.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
 import type { LLMProvider } from '@/lib/llm/provider';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================
 // TYPES
@@ -47,8 +47,9 @@ export async function getCircuitState(
   provider: LLMProvider,
   model: string,
   orgId?: string | null,
+  admin?: SupabaseClient,
 ): Promise<CircuitStatus> {
-  const admin = createAdminClient();
+  if (!admin) return { state: 'closed', failureCount: 0, openUntil: null };
   const now = new Date();
 
   // Build query for nullable org_id
@@ -101,8 +102,9 @@ export async function recordSuccess(
   provider: LLMProvider,
   model: string,
   orgId?: string | null,
+  admin?: SupabaseClient,
 ): Promise<void> {
-  const admin = createAdminClient();
+  if (!admin) return;
   await admin.rpc('cb_upsert', {
     p_org_id: orgId || null,
     p_provider: provider,
@@ -126,8 +128,9 @@ export async function recordFailure(
   model: string,
   orgId?: string | null,
   config: CircuitConfig = DEFAULT_CONFIG,
+  admin?: SupabaseClient,
 ): Promise<CircuitState> {
-  const admin = createAdminClient();
+  if (!admin) return 'closed';
   const now = new Date();
 
   // Read current state (to compute new failure_count)

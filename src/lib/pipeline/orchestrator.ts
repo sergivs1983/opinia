@@ -11,7 +11,6 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { checkUsageLimit, incrementUsage } from '@/lib/billing/plans';
 import { sanitizeForPrompt } from '@/lib/api-handler';
 import { audit } from '@/lib/audit';
@@ -48,7 +47,7 @@ export async function runPipeline(
 ): Promise<OrchestratorResult> {
   const { biz, reviewId, modifier } = input;
   const supabase = createServerSupabaseClient();
-  const admin = createAdminClient();
+  const admin = input.admin;
 
   // ── PRE-CHECKS ──
 
@@ -90,10 +89,10 @@ export async function runPipeline(
   const classification = await classifyReview(input, safeText, log);
 
   // Save topics (non-blocking)
-  saveTopics(reviewId, input.review.biz_id, input.review.org_id, classification);
+  saveTopics(reviewId, input.review.biz_id, input.review.org_id, classification, admin);
 
   // ── STEP 2: RAG + Anti-repetition ──
-  const rag = await buildRAGContext(input.review.biz_id, input.reviewText, classification);
+  const rag = await buildRAGContext(input.review.biz_id, input.reviewText, classification, admin);
 
   // ── STEP 3: Generate drafts ──
   const prompt = buildPrompt(input, classification, rag, safeText);

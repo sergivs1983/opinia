@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { log } from '@/lib/logger';
 
@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
 
   let db: 'ok' | 'down' = 'down';
   try {
-    const admin = createAdminClient();
-    const { error } = await admin.from('organizations').select('id').limit(1);
+    const supabase = createServerSupabaseClient();
+    const { error } = await supabase.from('organizations').select('id').limit(1);
     db = error ? 'down' : 'ok';
   } catch {
     log.warn('health: db check failed', { requestId, action: 'db_check', resource: 'organizations' });

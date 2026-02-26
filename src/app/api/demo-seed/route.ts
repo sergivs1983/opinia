@@ -3,7 +3,6 @@ export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { audit } from '@/lib/audit';
 import { validateBody, DemoSeedSchema } from '@/lib/validations';
@@ -40,7 +39,7 @@ export const POST = withRequestContext(async function(request: Request) {
   const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: resolvedBizId });
   if (bizGuard) return bizGuard;
 
-  const admin = createAdminClient();
+
   const now = new Date();
 
   // ============================================================
@@ -60,7 +59,7 @@ export const POST = withRequestContext(async function(request: Request) {
   ];
 
   const kbInsert = kbEntries.map(e => ({ biz_id, org_id, ...e, sentiment_context: null }));
-  await admin.from('knowledge_base_entries').insert(kbInsert);
+  await supabase.from('knowledge_base_entries').insert(kbInsert);
 
   // ============================================================
   // REVIEWS (6 reviews spanning 14 days)
@@ -91,7 +90,7 @@ export const POST = withRequestContext(async function(request: Request) {
     };
   });
 
-  const { data: insertedReviews } = await admin.from('reviews').insert(reviewInserts).select('id, rating');
+  const { data: insertedReviews } = await supabase.from('reviews').insert(reviewInserts).select('id, rating');
 
   // ============================================================
   // TOPIC EXTRACTION (for insights)
@@ -122,7 +121,7 @@ export const POST = withRequestContext(async function(request: Request) {
     });
 
     if (topicInserts.length > 0) {
-      await admin.from('review_topics').insert(topicInserts);
+      await supabase.from('review_topics').insert(topicInserts);
     }
   }
 

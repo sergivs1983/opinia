@@ -4,7 +4,7 @@
  * Each job logs to job_runs table for observability.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createLogger, createRequestId } from '@/lib/logger';
 
 export type JobType = 'analyze_review' | 'rebuild_insights' | 'sync_reviews';
@@ -17,13 +17,14 @@ export interface JobResult {
 
 /**
  * Wrap a job function with logging, timing, and persistence.
+ * admin must be provided by the allowlisted caller (jobs/route.ts or _internal/).
  */
 export async function runJob(
   jobType: JobType,
   input: Record<string, any>,
-  fn: (admin: any, log: ReturnType<typeof createLogger>) => Promise<any>
+  fn: (admin: any, log: ReturnType<typeof createLogger>) => Promise<any>,
+  admin: SupabaseClient,
 ): Promise<JobResult> {
-  const admin = createAdminClient();
   const requestId = createRequestId();
   const log = createLogger({
     request_id: requestId,

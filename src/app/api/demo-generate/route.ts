@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { callLLMClient, CircuitOpenError } from '@/lib/llm/client';
 import { createRequestId, createLogger } from '@/lib/logger';
 import { sanitizeForPrompt } from '@/lib/api-handler';
@@ -38,11 +38,11 @@ export async function POST(request: Request) {
     const ipHash = createHash('sha256').update(ip + '_opinia_salt').digest('hex').slice(0, 16);
     const userAgent = request.headers.get('user-agent')?.slice(0, 200) || '';
 
-    const admin = createAdminClient();
+    const supabase = createServerSupabaseClient();
 
     // Rate limit check
     const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
-    const { count } = await admin
+    const { count } = await supabase
       .from('audit_runs')
       .select('id', { count: 'exact', head: true })
       .eq('ip_hash', ipHash)
@@ -129,7 +129,7 @@ ONLY valid JSON:
     }
 
     // Track the run
-    const { error: auditInsertError } = await admin.from('audit_runs').insert({
+    const { error: auditInsertError } = await supabase.from('audit_runs').insert({
       input_type: 'manual',
       review_count: 1,
       result: {

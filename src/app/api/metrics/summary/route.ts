@@ -3,7 +3,6 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { isAdminViewer } from '@/lib/authz';
 import {
@@ -113,7 +112,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = createServerSupabaseClient();
-    const adminSupabase = createAdminClient();
+
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -298,7 +297,7 @@ export async function GET(request: Request) {
       businessId,
       rangeDays,
       metricKey: 'planner_items_published',
-      admin: adminSupabase,
+      admin: supabase,
       log,
     });
 

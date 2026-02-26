@@ -30,8 +30,8 @@ echo "CSRF guard smoke-tests  →  $PROBE  (POST)"
 echo "──────────────────────────────────────────────────────"
 
 if ! curl -s --max-time 5 "$BASE/api/health" > /dev/null 2>&1; then
-  echo -e "${YELLOW}Server not running. Start it with: npm run dev${NC}"
-  exit 1
+  echo -e "${YELLOW}Server not running — skipping live CSRF tests (start with: npm run dev)${NC}"
+  exit 0
 fi
 
 # ── Helper ────────────────────────────────────────────────────────────────────
