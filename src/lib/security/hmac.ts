@@ -6,8 +6,8 @@ type ObjArgs = {
   method: string;
   pathname: string;
   rawBody: string;
-  secret: string;
-  maxSkewMs?: number; // default 5 min
+  secret?: string;        // optional: default from env
+  maxSkewMs?: number;     // default 5 min
 };
 
 type BuildArgs = {
@@ -32,6 +32,10 @@ function isHex64(s: string): boolean {
 
 function isDigits(s: string): boolean {
   return /^\d+$/.test(s);
+}
+
+function resolveSecret(explicit?: string): string | null {
+  return explicit ?? process.env.INTERNAL_HMAC_SECRET ?? null;
 }
 
 export function buildHmacHeaders(args: BuildArgs): { 'x-opin-timestamp': string; 'x-opin-signature': string } {
@@ -67,6 +71,9 @@ export function validateHmacHeader(
     const sig = args.signatureHeader ?? '';
     const maxSkewMs = args.maxSkewMs ?? 5 * 60 * 1000;
 
+    const secret = resolveSecret(args.secret);
+    if (!secret) return false;
+
     if (!isDigits(ts) || !isHex64(sig)) return false;
 
     const t = Number(ts);
@@ -76,7 +83,7 @@ export function validateHmacHeader(
 
     const bodyHex = sha256Hex(args.rawBody);
     const canonical = `${ts}.${args.method.toUpperCase()}.${args.pathname}.${bodyHex}`;
-    const expected = hmacHex(args.secret, canonical);
+    const expected = hmacHex(secret, canonical);
 
     try {
       return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
@@ -91,6 +98,8 @@ export function validateHmacHeader(
   const secret = c ?? '';
   const pathname = d ?? new URL(req.url).pathname;
   const maxSkewMs = e ?? 5 * 60 * 1000;
+
+  if (!secret) return false;
 
   const ts = req.headers.get('x-opin-timestamp') ?? '';
   const sig = req.headers.get('x-opin-signature') ?? '';
