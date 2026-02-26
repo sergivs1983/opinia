@@ -12,20 +12,22 @@ type AuditPayload = {
 };
 
 export async function writeAudit(payload: AuditPayload): Promise<void> {
-  const log = createLogger({ route: "audit-log", request_id: "audit" });
+  // Keep logger context minimal to satisfy strict typings
+  const log = createLogger({ route: 'audit-log', request_id: 'audit' });
 
   const {
     action,
     bizId = null,
     orgId = null,
-    requestId: _rid = null,
     userId = null,
     details = null,
     ...rest
   } = payload;
 
+  const request_id = typeof payload.requestId === 'string' ? payload.requestId : null;
+
   const meta = {
-    request_id: requestId,
+    request_id,
     org_id: orgId,
     user_id: userId,
     ...(rest ?? {}),
