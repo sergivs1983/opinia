@@ -13,10 +13,7 @@ import { getOAuthTokens } from '@/lib/server/tokens';
 import { listGoogleBusinessLocations } from '@/lib/integrations/google/locations';
 
 const LocationsQuerySchema = z.object({
-  seed_integration_id: z.string().uuid().optional(),
-  biz_id: z.string().uuid().optional(),
-}).refine((value) => !!value.seed_integration_id || !!value.biz_id, {
-  message: 'Missing seed_integration_id or biz_id',
+  seed_biz_id: z.string().uuid(),
 });
 
 type SeedIntegration = {
@@ -25,7 +22,6 @@ type SeedIntegration = {
   org_id: string;
   provider: string;
   is_active: boolean | null;
-  refresh_token?: string | null;
   updated_at?: string | null;
 };
 
@@ -34,7 +30,6 @@ function isAuthFailure(httpStatus: number, errorCode: string | null): boolean {
     httpStatus === 401
     || httpStatus === 403
     || errorCode === 'UNAUTHENTICATED'
-    || errorCode === 'PERMISSION_DENIED'
     || errorCode === 'invalid_grant'
   );
 }
@@ -42,38 +37,25 @@ function isAuthFailure(httpStatus: number, errorCode: string | null): boolean {
 async function resolveSeedIntegration(args: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   userId: string;
-  seedIntegrationId?: string;
-  businessId?: string;
+  seedBusinessId: string;
 }): Promise<SeedIntegration | null> {
-  const { supabase, userId, seedIntegrationId, businessId } = args;
-
-  let row: SeedIntegration | null = null;
-  if (seedIntegrationId) {
-    const { data } = await supabase
-      .from('integrations')
-      .select('id, biz_id, org_id, provider, is_active, refresh_token, updated_at')
-      .eq('id', seedIntegrationId)
-      .eq('provider', 'google_business')
-      .maybeSingle();
-    row = (data || null) as SeedIntegration | null;
-  } else if (businessId) {
-    const { data } = await supabase
-      .from('integrations')
-      .select('id, biz_id, org_id, provider, is_active, refresh_token, updated_at')
-      .eq('biz_id', businessId)
-      .eq('provider', 'google_business')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    row = (data || null) as SeedIntegration | null;
-  }
+  const { supabase, userId, seedBusinessId } = args;
+  const { data } = await supabase
+    .from('integrations')
+    .select('id, biz_id, org_id, provider, is_active, updated_at')
+    .eq('biz_id', seedBusinessId)
+    .eq('provider', 'google_business')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = (data || null) as SeedIntegration | null;
 
   if (!row) return null;
 
   const access = await hasAcceptedBusinessMembership({
     supabase,
     userId,
-    businessId: row.biz_id,
+    businessId: seedBusinessId,
     allowedRoles: ['owner', 'admin'],
   });
   if (!access.allowed) return null;
@@ -112,8 +94,7 @@ export async function GET(request: Request) {
     const seed = await resolveSeedIntegration({
       supabase,
       userId: user.id,
-      seedIntegrationId: payload.seed_integration_id,
-      businessId: payload.biz_id,
+      seedBusinessId: payload.seed_biz_id,
     });
 
     if (!seed) {
@@ -146,6 +127,20 @@ export async function GET(request: Request) {
     }
 
     const listed = await listGoogleBusinessLocations(accessToken);
+    if (listed.httpStatus === 403 && listed.errorCode === 'PERMISSION_DENIED') {
+      // TODO(flow-c): add explicit scope upgrade UX when product supports progressive scope upgrades.
+      return withHeaders(
+        NextResponse.json(
+          {
+            error: 'missing_scope_business_manage',
+            message: 'Cal reconnectar amb permisos de Google Business.',
+            request_id: requestId,
+          },
+          { status: 409 },
+        ),
+      );
+    }
+
     if (isAuthFailure(listed.httpStatus, listed.errorCode)) {
       return withHeaders(
         NextResponse.json({
@@ -178,16 +173,13 @@ export async function GET(request: Request) {
         state: 'connected',
         provider: 'google_business',
         locations: listed.locations.map((item) => ({
-          location_id: item.location_id,
-          name: item.title,
-          storeCode: null,
+          account_id: item.account_name,
+          location_name: `locations/${item.location_id}`,
+          title: item.title,
           address: item.address,
           city: item.city,
           country: item.country,
-          primaryCategory: null,
-          primary_phone: item.primary_phone,
-          website_uri: item.website_uri,
-          profilePhotoUrl: item.profile_photo_url,
+          profile_photo_url: item.profile_photo_url,
         })),
         request_id: requestId,
       }),

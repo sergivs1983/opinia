@@ -23,6 +23,7 @@ type BusinessRow = {
   name: string;
   slug: string | null;
   city: string | null;
+  google_location_name?: string | null;
 };
 
 type IntegrationRow = {
@@ -128,23 +129,37 @@ export async function GET(request: Request) {
     const normalizedRole = normalizeMemberRole(activeMembership.role);
     let businesses = [] as BusinessRow[];
 
-    const allBizQuery = await supabase
+    const withGoogleLocation = await supabase
       .from('businesses')
-      .select('id, org_id, name, slug, city')
+      .select('id, org_id, name, slug, city, google_location_name')
       .eq('org_id', activeMembership.org_id)
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
-    if (allBizQuery.error) {
+    if (withGoogleLocation.error && isMissingDependencyError(withGoogleLocation.error)) {
+      const fallbackBusinesses = await supabase
+        .from('businesses')
+        .select('id, org_id, name, slug, city')
+        .eq('org_id', activeMembership.org_id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true });
+      if (!fallbackBusinesses.error) {
+        businesses = ((fallbackBusinesses.data || []) as BusinessRow[]).map((row) => ({
+          ...row,
+          google_location_name: null,
+        }));
+      }
+    } else if (withGoogleLocation.error) {
       log.warn('google list businesses query failed', {
         user_id: user.id,
         org_id: activeMembership.org_id,
-        error_code: allBizQuery.error.code || null,
-        error: allBizQuery.error.message || null,
+        error_code: withGoogleLocation.error.code || null,
+        error: withGoogleLocation.error.message || null,
       });
     } else {
-      businesses = (allBizQuery.data || []) as BusinessRow[];
+      businesses = (withGoogleLocation.data || []) as BusinessRow[];
     }
 
     if (normalizedRole !== 'owner' && normalizedRole !== 'admin') {
@@ -212,6 +227,7 @@ export async function GET(request: Request) {
         biz_name: row.name,
         slug: row.slug,
         city: row.city,
+        google_location_name: row.google_location_name || null,
         integration_id: integration?.id || null,
         is_active: integration?.is_active ?? false,
         updated_at: integration?.updated_at || null,

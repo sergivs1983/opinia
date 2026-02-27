@@ -8,25 +8,31 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody } from '@/lib/validations';
 import { validateCsrf } from '@/lib/security/csrf';
-import { normalizeMemberRole } from '@/lib/roles';
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import { getGoogleLocalsLimit, normalizeGoogleLocationId, toSlugBase } from '@/lib/integrations/google/multilocal';
-import { findGoogleLocationById, listGoogleBusinessLocations } from '@/lib/integrations/google/locations';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { getOAuthTokens, saveOAuthTokens } from '@/lib/server/tokens';
 
 const ImportLocationsSchema = z.object({
-  seed_integration_id: z.string().uuid(),
-  location_ids: z.array(z.string().min(1)).min(1).max(50),
+  seed_biz_id: z.string().uuid(),
+  locations: z.array(
+    z.object({
+      account_id: z.string().min(1).optional().nullable(),
+      location_name: z.string().min(1),
+      title: z.string().min(1),
+      address: z.string().optional().nullable(),
+      city: z.string().optional().nullable(),
+      country: z.string().optional().nullable(),
+      profile_photo_url: z.string().url().optional().nullable(),
+    }),
+  ).min(1).max(100),
+  mode: z.enum(['auto', 'select']).optional(),
 });
 
 type SeedIntegrationRow = {
   id: string;
   biz_id: string;
   org_id: string;
-  provider: string;
-  is_active: boolean | null;
-  refresh_token?: string | null;
   account_id?: string | null;
   scopes?: unknown;
   token_expires_at?: string | null;
@@ -38,9 +44,15 @@ type OrgRow = {
   plan_code?: string | null;
 };
 
-type BusinessRow = {
+type SeedBusinessRow = {
   id: string;
   org_id: string;
+  default_language: string | null;
+};
+
+type ExistingBusinessRow = {
+  id: string;
+  google_location_name: string | null;
   name: string;
   slug: string | null;
 };
@@ -52,11 +64,9 @@ type SupabaseErrorLike = {
   hint?: string | null;
 };
 
-type ImportItem = {
-  biz_id?: string;
-  integration_id?: string;
-  status: 'imported' | 'skipped';
-  reason?: string;
+type ImportErrorItem = {
+  location_name: string;
+  reason: string;
 };
 
 const REAUTH_MESSAGE = 'La connexió principal ha caducat; reconnecta un local per recuperar-los tots.';
@@ -80,18 +90,10 @@ function isMissingDependencyError(error: unknown): boolean {
   return message.length > 0 && hasMissingDependencyPattern(message);
 }
 
-function hasToken(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.trim().length > 0;
-}
-
-function isAuthFailure(httpStatus: number, errorCode: string | null): boolean {
-  return (
-    httpStatus === 401
-    || httpStatus === 403
-    || errorCode === 'UNAUTHENTICATED'
-    || errorCode === 'PERMISSION_DENIED'
-    || errorCode === 'invalid_grant'
-  );
+function normalizeGoogleLocationName(value: string): string {
+  const normalizedId = normalizeGoogleLocationId(value);
+  if (!normalizedId) return '';
+  return `locations/${normalizedId}`;
 }
 
 async function pickUniqueSlug(args: {
@@ -114,7 +116,7 @@ async function pickUniqueSlug(args: {
   return `${normalizedBase}-${Date.now().toString(36)}`;
 }
 
-async function ensureIntegrationClone(args: {
+async function ensureIntegration(args: {
   admin: ReturnType<typeof getAdminClient>;
   log: ReturnType<typeof createLogger>;
   orgId: string;
@@ -124,7 +126,7 @@ async function ensureIntegrationClone(args: {
   tokenExpiresAt: string | null;
   accessToken: string;
   refreshToken: string | null;
-}): Promise<{ integrationId: string | null; error: string | null }> {
+}): Promise<{ ok: boolean; integrationId?: string; reason?: string }> {
   const {
     admin,
     log,
@@ -152,11 +154,10 @@ async function ensureIntegrationClone(args: {
       error_code: existing.error.code || null,
       error: existing.error.message || null,
     });
-    return { integrationId: null, error: 'integration_lookup_failed' };
+    return { ok: false, reason: 'integration_lookup_failed' };
   }
 
-  let integrationId = (existing.data?.id as string | undefined) || null;
-  const basePayload: Record<string, unknown> = {
+  const payload: Record<string, unknown> = {
     org_id: orgId,
     biz_id: bizId,
     provider: 'google_business',
@@ -166,50 +167,51 @@ async function ensureIntegrationClone(args: {
     token_expires_at: tokenExpiresAt,
   };
 
+  let integrationId = (existing.data?.id as string | undefined) || null;
   if (integrationId) {
-    const updateResult = await admin
+    const updated = await admin
       .from('integrations')
-      .update(basePayload)
+      .update(payload)
       .eq('id', integrationId)
       .select('id')
       .single();
-    if (updateResult.error) {
+    if (updated.error || !updated.data?.id) {
       log.error('google import integration update failed', {
         integration_id: integrationId,
-        error_code: updateResult.error.code || null,
-        error: updateResult.error.message || null,
+        error_code: updated.error?.code || null,
+        error: updated.error?.message || null,
       });
-      return { integrationId: null, error: 'integration_update_failed' };
+      return { ok: false, reason: 'integration_update_failed' };
     }
-    integrationId = updateResult.data?.id as string;
+    integrationId = updated.data.id as string;
   } else {
-    const insertResult = await admin
+    const inserted = await admin
       .from('integrations')
-      .insert(basePayload)
+      .insert(payload)
       .select('id')
       .single();
-    if (insertResult.error || !insertResult.data?.id) {
+    if (inserted.error || !inserted.data?.id) {
       log.error('google import integration create failed', {
         biz_id: bizId,
-        error_code: insertResult.error?.code || null,
-        error: insertResult.error?.message || null,
+        error_code: inserted.error?.code || null,
+        error: inserted.error?.message || null,
       });
-      return { integrationId: null, error: 'integration_create_failed' };
+      return { ok: false, reason: 'integration_create_failed' };
     }
-    integrationId = insertResult.data.id as string;
+    integrationId = inserted.data.id as string;
   }
 
   try {
     await saveOAuthTokens(admin, integrationId, accessToken, refreshToken);
-  } catch (saveError: unknown) {
-    log.error('google import integration token clone failed', {
+  } catch (error) {
+    log.error('google import integration token save failed', {
       integration_id: integrationId,
-      error: saveError instanceof Error ? saveError.message : String(saveError),
+      error: error instanceof Error ? error.message : String(error),
     });
-    return { integrationId: null, error: 'token_clone_failed' };
+    return { ok: false, reason: 'token_copy_failed' };
   }
 
-  return { integrationId, error: null };
+  return { ok: true, integrationId };
 }
 
 export async function POST(request: Request) {
@@ -244,30 +246,12 @@ export async function POST(request: Request) {
     if (bodyErr) return withHeaders(bodyErr);
     const payload = body as z.infer<typeof ImportLocationsSchema>;
 
-    const { data: seedData, error: seedError } = await supabase
-      .from('integrations')
-      .select('id, biz_id, org_id, provider, is_active, refresh_token, account_id, scopes, token_expires_at')
-      .eq('id', payload.seed_integration_id)
-      .eq('provider', 'google_business')
-      .maybeSingle();
-
-    const seed = (seedData || null) as SeedIntegrationRow | null;
-    if (seedError || !seed) {
-      return withHeaders(
-        NextResponse.json(
-          { error: 'not_found', message: 'No disponible', request_id: requestId },
-          { status: 404 },
-        ),
-      );
-    }
-
     const access = await hasAcceptedBusinessMembership({
       supabase,
       userId: user.id,
-      businessId: seed.biz_id,
+      businessId: payload.seed_biz_id,
       allowedRoles: ['owner', 'admin'],
     });
-
     if (!access.allowed) {
       return withHeaders(
         NextResponse.json(
@@ -277,31 +261,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: orgRaw, error: orgError } = await supabase
-      .from('organizations')
-      .select('id, plan, plan_code')
-      .eq('id', seed.org_id)
-      .maybeSingle();
+    const [seedIntegrationResult, seedBusinessResult] = await Promise.all([
+      supabase
+        .from('integrations')
+        .select('id, biz_id, org_id, account_id, scopes, token_expires_at')
+        .eq('biz_id', payload.seed_biz_id)
+        .eq('provider', 'google_business')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('businesses')
+        .select('id, org_id, default_language')
+        .eq('id', payload.seed_biz_id)
+        .single(),
+    ]);
 
-    if (orgError || !orgRaw) {
-      return withHeaders(
-        NextResponse.json(
-          { error: 'internal', message: 'No hem pogut carregar el pla actual.', request_id: requestId },
-          { status: 500 },
-        ),
-      );
-    }
-
-    const roleCheck = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('org_id', seed.org_id)
-      .not('accepted_at', 'is', null)
-      .limit(1)
-      .maybeSingle();
-    const role = normalizeMemberRole((roleCheck.data as { role?: string } | null)?.role);
-    if (role !== 'owner' && role !== 'admin') {
+    if (seedBusinessResult.error || !seedBusinessResult.data) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -310,218 +286,226 @@ export async function POST(request: Request) {
       );
     }
 
-    const org = orgRaw as OrgRow;
-    const localsLimit = getGoogleLocalsLimit({ plan: org.plan, planCode: org.plan_code });
-    const { count: businessesCount } = await supabase
-      .from('businesses')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', seed.org_id)
-      .eq('is_active', true);
-    let businessesUsed = businessesCount || 0;
-
-    const admin = getAdminClient();
-    let seedAccessToken = '';
-    let seedRefreshToken: string | null = null;
-    try {
-      const tokens = await getOAuthTokens(admin, seed.id);
-      seedAccessToken = tokens.accessToken;
-      seedRefreshToken = tokens.refreshToken;
-    } catch (tokenError: unknown) {
-      log.warn('google import-locations seed token unavailable', {
-        integration_id: seed.id,
-        error: tokenError instanceof Error ? tokenError.message : String(tokenError),
-      });
+    if (seedIntegrationResult.error || !seedIntegrationResult.data) {
       return withHeaders(
         NextResponse.json(
-          { error: 'needs_reauth', message: REAUTH_MESSAGE, request_id: requestId },
+          { error: 'needs_seed_connection', message: 'Connecta primer el local llavor amb Google Business.', request_id: requestId },
           { status: 409 },
         ),
       );
     }
 
-    const listed = await listGoogleBusinessLocations(seedAccessToken);
-    if (isAuthFailure(listed.httpStatus, listed.errorCode)) {
+    const seedIntegration = seedIntegrationResult.data as SeedIntegrationRow;
+    const seedBusiness = seedBusinessResult.data as SeedBusinessRow;
+
+    if (seedIntegration.org_id !== seedBusiness.org_id) {
       return withHeaders(
         NextResponse.json(
-          { error: 'needs_reauth', message: REAUTH_MESSAGE, request_id: requestId },
-          { status: 409 },
+          { error: 'not_found', message: 'No disponible', request_id: requestId },
+          { status: 404 },
         ),
       );
     }
 
-    if (listed.httpStatus >= 400) {
-      log.warn('google import-locations upstream failure', {
-        integration_id: seed.id,
-        http_status: listed.httpStatus,
-        error_code: listed.errorCode,
-      });
+    const { data: orgData, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, plan, plan_code')
+      .eq('id', seedIntegration.org_id)
+      .maybeSingle();
+
+    if (orgError || !orgData) {
       return withHeaders(
         NextResponse.json(
-          {
-            error: 'upstream_error',
-            message: 'No hem pogut carregar els locals de Google Business.',
-            request_id: requestId,
-          },
-          { status: 502 },
+          { error: 'internal', message: 'No hem pogut carregar el pla actual.', request_id: requestId },
+          { status: 500 },
         ),
       );
     }
+    const org = orgData as OrgRow;
 
-    const normalizedIds = Array.from(
-      new Set(payload.location_ids.map((entry) => normalizeGoogleLocationId(entry)).filter(Boolean)),
-    );
+    const normalizedInput = payload.locations
+      .map((entry) => ({
+        ...entry,
+        location_name: normalizeGoogleLocationName(entry.location_name),
+        location_id: normalizeGoogleLocationId(entry.location_name),
+      }))
+      .filter((entry) => entry.location_name && entry.location_id);
 
-    const items: ImportItem[] = [];
-    let imported = 0;
-
-    if (normalizedIds.length === 0) {
+    const dedupedByLocation = new Map<string, (typeof normalizedInput)[number]>();
+    for (const entry of normalizedInput) {
+      if (!dedupedByLocation.has(entry.location_name)) {
+        dedupedByLocation.set(entry.location_name, entry);
+      }
+    }
+    const deduped = Array.from(dedupedByLocation.values());
+    if (deduped.length === 0) {
       return withHeaders(
         NextResponse.json(
-          { error: 'validation_error', message: 'location_ids invàlids', request_id: requestId },
+          { error: 'validation_error', message: 'No hi ha cap location vàlida per importar.', request_id: requestId },
           { status: 400 },
         ),
       );
     }
 
-    if (businessesUsed >= localsLimit) {
+    const [countResult, existingResult] = await Promise.all([
+      supabase
+        .from('businesses')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', seedIntegration.org_id)
+        .eq('is_active', true),
+      supabase
+        .from('businesses')
+        .select('id, google_location_name, name, slug')
+        .eq('org_id', seedIntegration.org_id)
+        .in('google_location_name', deduped.map((entry) => entry.location_name)),
+    ]);
+
+    if (existingResult.error && isMissingDependencyError(existingResult.error)) {
       return withHeaders(
         NextResponse.json(
           {
-            error: 'plan_limit',
-            message: "Has arribat al límit d'establiments del teu pla.",
-            limit: localsLimit,
-            current: businessesUsed,
+            error: 'missing_dependency',
+            message: "Falta la migració de google_location_name. Aplica-la i executa NOTIFY pgrst, 'reload schema'.",
             request_id: requestId,
           },
-          { status: 402 },
+          { status: 500 },
         ),
       );
     }
 
-    for (const locationId of normalizedIds) {
-      const googleLocation = findGoogleLocationById(listed.locations, locationId);
-      if (!googleLocation) {
-        items.push({ status: 'skipped', reason: 'location_not_found' });
-        continue;
-      }
+    if (countResult.error || existingResult.error) {
+      log.error('google import preflight failed', {
+        count_error: countResult.error?.message || null,
+        existing_error: existingResult.error?.message || null,
+      });
+      return withHeaders(
+        NextResponse.json(
+          { error: 'internal', message: 'No hem pogut validar els locals existents.', request_id: requestId },
+          { status: 500 },
+        ),
+      );
+    }
 
-      const existingQuery = await supabase
-        .from('businesses')
-        .select('id, org_id, name, slug')
-        .eq('org_id', seed.org_id)
-        .eq('google_location_id', googleLocation.location_id)
-        .maybeSingle();
+    const businessesUsed = countResult.count || 0;
+    const maxLocals = getGoogleLocalsLimit({ plan: org.plan, planCode: org.plan_code });
+    const existingByName = new Map<string, ExistingBusinessRow>();
+    for (const row of (existingResult.data || []) as ExistingBusinessRow[]) {
+      if (row.google_location_name) existingByName.set(row.google_location_name, row);
+    }
 
-      if (existingQuery.error && !isMissingDependencyError(existingQuery.error)) {
-        log.error('google import-locations existing business lookup failed', {
-          org_id: seed.org_id,
-          location_id: googleLocation.location_id,
-          error_code: existingQuery.error.code || null,
-          error: existingQuery.error.message || null,
-        });
-        items.push({ status: 'skipped', reason: 'business_lookup_failed' });
-        continue;
-      }
+    const wouldCreate = deduped.filter((entry) => !existingByName.has(entry.location_name)).length;
+    if (businessesUsed + wouldCreate > maxLocals) {
+      return withHeaders(
+        NextResponse.json(
+          {
+            error: 'plan_limit',
+            message: "Has arribat al límit de locals del teu pla. Actualitza el pla per afegir-ne més.",
+            limit: maxLocals,
+            current: businessesUsed,
+            request_id: requestId,
+          },
+          { status: 403 },
+        ),
+      );
+    }
 
-      if (existingQuery.error && isMissingDependencyError(existingQuery.error)) {
-        return withHeaders(
-          NextResponse.json(
-            {
-              error: 'missing_dependency',
-              message: "Falten migracions per importar locals (google_location_id).",
-              request_id: requestId,
-            },
-            { status: 500 },
-          ),
-        );
-      }
+    const admin = getAdminClient();
+    let seedAccessToken = '';
+    let seedRefreshToken: string | null = null;
+    try {
+      const seedTokens = await getOAuthTokens(admin, seedIntegration.id);
+      seedAccessToken = seedTokens.accessToken;
+      seedRefreshToken = seedTokens.refreshToken;
+    } catch (error) {
+      log.warn('google import seed tokens unavailable', {
+        integration_id: seedIntegration.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return withHeaders(
+        NextResponse.json(
+          { error: 'needs_reauth', message: REAUTH_MESSAGE, request_id: requestId },
+          { status: 409 },
+        ),
+      );
+    }
 
-      let business = (existingQuery.data || null) as BusinessRow | null;
-      const alreadyExists = Boolean(business);
+    let created = 0;
+    let skippedExisting = 0;
+    const errors: ImportErrorItem[] = [];
+
+    for (const entry of deduped) {
+      let business = existingByName.get(entry.location_name) || null;
 
       if (!business) {
-        if (businessesUsed >= localsLimit) {
-          items.push({ status: 'skipped', reason: 'plan_limit' });
-          continue;
-        }
+        const slugBase = toSlugBase(entry.title, entry.city) || `local-${entry.location_id}`;
+        const slug = await pickUniqueSlug({
+          supabase,
+          orgId: seedIntegration.org_id,
+          baseSlug: slugBase,
+        });
 
-        const slugBase = toSlugBase(googleLocation.title, googleLocation.city) || `local-${googleLocation.location_id}`;
-        const slug = await pickUniqueSlug({ supabase, orgId: seed.org_id, baseSlug: slugBase });
-
-        const { data: maxSortData } = await supabase
+        const inserted = await supabase
           .from('businesses')
-          .select('sort_order')
-          .eq('org_id', seed.org_id)
-          .order('sort_order', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const nextSortOrder = ((maxSortData as { sort_order?: number } | null)?.sort_order ?? -1) + 1;
-
-        const insertPayload: Record<string, unknown> = {
-          org_id: seed.org_id,
-          name: googleLocation.title,
-          slug,
-          type: 'other',
-          url: googleLocation.website_uri,
-          address: googleLocation.address,
-          city: googleLocation.city,
-          country: googleLocation.country || 'ES',
-          default_language: 'ca',
-          formality: 'tu',
-          is_active: true,
-          sort_order: nextSortOrder,
-          google_location_id: googleLocation.location_id,
-          google_account_id: googleLocation.account_name,
-        };
-
-        const insertResult = await supabase
-          .from('businesses')
-          .insert(insertPayload)
-          .select('id, org_id, name, slug')
+          .insert({
+            org_id: seedIntegration.org_id,
+            name: entry.title,
+            slug,
+            type: 'restaurant',
+            address: entry.address || null,
+            url: null,
+            city: entry.city || null,
+            country: entry.country || 'ES',
+            default_language: seedBusiness.default_language || 'ca',
+            formality: 'tu',
+            is_active: true,
+            google_location_name: entry.location_name,
+            google_location_id: entry.location_id,
+            google_account_id: entry.account_id || seedIntegration.account_id || null,
+          })
+          .select('id, google_location_name, name, slug')
           .single();
 
-        if (insertResult.error) {
-          if (insertResult.error.code === '23505') {
+        if (inserted.error) {
+          if (inserted.error.code === '23505') {
             const race = await supabase
               .from('businesses')
-              .select('id, org_id, name, slug')
-              .eq('org_id', seed.org_id)
-              .eq('google_location_id', googleLocation.location_id)
+              .select('id, google_location_name, name, slug')
+              .eq('org_id', seedIntegration.org_id)
+              .eq('google_location_name', entry.location_name)
               .maybeSingle();
-            business = (race.data || null) as BusinessRow | null;
+            business = (race.data as ExistingBusinessRow | null) || null;
           } else {
-            log.error('google import-locations business create failed', {
-              org_id: seed.org_id,
-              location_id: googleLocation.location_id,
-              error_code: insertResult.error.code || null,
-              error: insertResult.error.message || null,
-            });
+            errors.push({ location_name: entry.location_name, reason: 'business_create_failed' });
+            continue;
           }
         } else {
-          business = insertResult.data as BusinessRow;
-          businessesUsed += 1;
+          business = inserted.data as ExistingBusinessRow;
+          created += 1;
+          existingByName.set(entry.location_name, business);
         }
+      } else {
+        skippedExisting += 1;
       }
 
       if (!business?.id) {
-        items.push({ status: 'skipped', reason: 'business_create_failed' });
+        errors.push({ location_name: entry.location_name, reason: 'business_create_failed' });
         continue;
       }
 
-      const cloned = await ensureIntegrationClone({
+      const ensured = await ensureIntegration({
         admin,
         log,
-        orgId: seed.org_id,
+        orgId: seedIntegration.org_id,
         bizId: business.id,
-        accountId: googleLocation.account_name || seed.account_id || null,
-        scopes: seed.scopes ?? null,
-        tokenExpiresAt: seed.token_expires_at ?? null,
+        accountId: entry.account_id || seedIntegration.account_id || null,
+        scopes: seedIntegration.scopes,
+        tokenExpiresAt: seedIntegration.token_expires_at || null,
         accessToken: seedAccessToken,
         refreshToken: seedRefreshToken,
       });
 
-      if (!cloned.integrationId) {
-        items.push({ biz_id: business.id, status: 'skipped', reason: cloned.error || 'integration_error' });
+      if (!ensured.ok) {
+        errors.push({ location_name: entry.location_name, reason: ensured.reason || 'integration_failed' });
         continue;
       }
 
@@ -530,7 +514,7 @@ export async function POST(request: Request) {
         .upsert(
           {
             user_id: user.id,
-            org_id: seed.org_id,
+            org_id: seedIntegration.org_id,
             business_id: business.id,
             role_override: null,
             is_active: true,
@@ -539,37 +523,20 @@ export async function POST(request: Request) {
         );
 
       if (assignment.error && !isMissingDependencyError(assignment.error)) {
-        log.warn('google import-locations assignment upsert failed', {
+        log.warn('google import assignment upsert failed', {
           user_id: user.id,
           biz_id: business.id,
           error_code: assignment.error.code || null,
           error: assignment.error.message || null,
         });
       }
-
-      if (alreadyExists) {
-        items.push({
-          biz_id: business.id,
-          integration_id: cloned.integrationId,
-          status: 'skipped',
-          reason: 'already_exists',
-        });
-      } else {
-        imported += 1;
-        items.push({
-          biz_id: business.id,
-          integration_id: cloned.integrationId,
-          status: 'imported',
-        });
-      }
     }
-    const skipped = items.filter((item) => item.status === 'skipped').length;
 
     return withHeaders(
       NextResponse.json({
-        imported,
-        skipped,
-        items,
+        created,
+        skipped_existing: skippedExisting,
+        errors,
         request_id: requestId,
       }),
     );
