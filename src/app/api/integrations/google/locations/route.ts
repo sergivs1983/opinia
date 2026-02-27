@@ -12,47 +12,72 @@ import { getAdminClient } from '@/lib/supabase/admin';
 import { getOAuthTokens } from '@/lib/server/tokens';
 import { listGoogleBusinessLocations } from '@/lib/integrations/google/locations';
 
-const GoogleLocationsQuerySchema = z.object({
-  biz_id: z.string().uuid(),
+const LocationsQuerySchema = z.object({
+  seed_integration_id: z.string().uuid().optional(),
+  biz_id: z.string().uuid().optional(),
+}).refine((value) => !!value.seed_integration_id || !!value.biz_id, {
+  message: 'Missing seed_integration_id or biz_id',
 });
 
-type IntegrationSeedRow = {
+type SeedIntegration = {
   id: string;
   biz_id: string;
+  org_id: string;
+  provider: string;
   is_active: boolean | null;
   refresh_token?: string | null;
   updated_at?: string | null;
 };
 
-type SupabaseErrorLike = {
-  code?: string;
-  message?: string;
-  details?: string | null;
-  hint?: string | null;
-};
-
-const missingDependencyCodes = new Set(['PGRST204', 'PGRST205', '42P01', '42703', '42883']);
-
-function hasMissingDependencyPattern(value: string): boolean {
+function isAuthFailure(httpStatus: number, errorCode: string | null): boolean {
   return (
-    /schema cache/i.test(value)
-    || /column .* does not exist/i.test(value)
-    || /relation .* does not exist/i.test(value)
-    || /table .* does not exist/i.test(value)
-    || /function .* does not exist/i.test(value)
+    httpStatus === 401
+    || httpStatus === 403
+    || errorCode === 'UNAUTHENTICATED'
+    || errorCode === 'PERMISSION_DENIED'
+    || errorCode === 'invalid_grant'
   );
 }
 
-function isMissingDependencyError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const err = error as SupabaseErrorLike;
-  if (err.code && missingDependencyCodes.has(err.code)) return true;
-  const message = `${err.message || ''} ${err.details || ''} ${err.hint || ''}`.trim();
-  return message.length > 0 && hasMissingDependencyPattern(message);
-}
+async function resolveSeedIntegration(args: {
+  supabase: ReturnType<typeof createServerSupabaseClient>;
+  userId: string;
+  seedIntegrationId?: string;
+  businessId?: string;
+}): Promise<SeedIntegration | null> {
+  const { supabase, userId, seedIntegrationId, businessId } = args;
 
-function hasToken(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.trim().length > 0;
+  let row: SeedIntegration | null = null;
+  if (seedIntegrationId) {
+    const { data } = await supabase
+      .from('integrations')
+      .select('id, biz_id, org_id, provider, is_active, refresh_token, updated_at')
+      .eq('id', seedIntegrationId)
+      .eq('provider', 'google_business')
+      .maybeSingle();
+    row = (data || null) as SeedIntegration | null;
+  } else if (businessId) {
+    const { data } = await supabase
+      .from('integrations')
+      .select('id, biz_id, org_id, provider, is_active, refresh_token, updated_at')
+      .eq('biz_id', businessId)
+      .eq('provider', 'google_business')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    row = (data || null) as SeedIntegration | null;
+  }
+
+  if (!row) return null;
+
+  const access = await hasAcceptedBusinessMembership({
+    supabase,
+    userId,
+    businessId: row.biz_id,
+    allowedRoles: ['owner', 'admin'],
+  });
+  if (!access.allowed) return null;
+  return row;
 }
 
 export async function GET(request: Request) {
@@ -80,18 +105,18 @@ export async function GET(request: Request) {
       );
     }
 
-    const [query, queryErr] = validateQuery(request, GoogleLocationsQuerySchema);
+    const [query, queryErr] = validateQuery(request, LocationsQuerySchema);
     if (queryErr) return withHeaders(queryErr);
-    const payload = query as z.infer<typeof GoogleLocationsQuerySchema>;
+    const payload = query as z.infer<typeof LocationsQuerySchema>;
 
-    const access = await hasAcceptedBusinessMembership({
+    const seed = await resolveSeedIntegration({
       supabase,
       userId: user.id,
+      seedIntegrationId: payload.seed_integration_id,
       businessId: payload.biz_id,
-      allowedRoles: ['owner', 'admin'],
     });
 
-    if (!access.allowed || !access.orgId) {
+    if (!seed) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -100,126 +125,48 @@ export async function GET(request: Request) {
       );
     }
 
-    const { data: integrations, error: integrationsError } = await supabase
-      .from('integrations')
-      .select('id, biz_id, is_active, refresh_token, updated_at')
-      .eq('org_id', access.orgId)
-      .eq('provider', 'google_business')
-      .order('updated_at', { ascending: false });
-
-    if (integrationsError && !isMissingDependencyError(integrationsError)) {
-      log.warn('google locations integration lookup failed', {
-        user_id: user.id,
-        org_id: access.orgId,
-        error_code: integrationsError.code || null,
-        error: integrationsError.message || null,
-      });
-    }
-
-    const rows = (integrations || []) as IntegrationSeedRow[];
-    const preferredSeed =
-      rows.find((row) => row.biz_id === payload.biz_id && row.is_active)
-      || rows.find((row) => row.biz_id === payload.biz_id)
-      || rows.find((row) => row.is_active)
-      || rows[0]
-      || null;
-
-    if (!preferredSeed) {
-      return withHeaders(
-        NextResponse.json({
-          provider: 'google_business',
-          state: 'not_connected',
-          locations: [],
-          request_id: requestId,
-        }),
-      );
-    }
-
-    let hasSecret = false;
-    const { data: secretRow, error: secretsError } = await supabase
-      .from('integrations_secrets')
-      .select('integration_id')
-      .eq('integration_id', preferredSeed.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (secretsError) {
-      if (!isMissingDependencyError(secretsError)) {
-        log.warn('google locations secrets lookup failed', {
-          integration_id: preferredSeed.id,
-          error_code: secretsError.code || null,
-          error: secretsError.message || null,
-        });
-      }
-    } else {
-      hasSecret = !!(secretRow as { integration_id?: string } | null)?.integration_id;
-    }
-
-    if (!preferredSeed.is_active || (!hasToken(preferredSeed.refresh_token) && !hasSecret)) {
-      return withHeaders(
-        NextResponse.json({
-          provider: 'google_business',
-          state: 'needs_reauth',
-          locations: [],
-          request_id: requestId,
-        }),
-      );
-    }
-
-    let accessToken: string | null = null;
+    let accessToken = '';
     try {
       const admin = getAdminClient();
-      const tokens = await getOAuthTokens(admin, preferredSeed.id);
+      const tokens = await getOAuthTokens(admin, seed.id);
       accessToken = tokens.accessToken;
     } catch (tokenError: unknown) {
-      log.warn('google locations seed token unavailable', {
-        integration_id: preferredSeed.id,
+      log.warn('seed token unavailable for locations listing', {
+        integration_id: seed.id,
         error: tokenError instanceof Error ? tokenError.message : String(tokenError),
       });
       return withHeaders(
         NextResponse.json({
-          provider: 'google_business',
           state: 'needs_reauth',
+          provider: 'google_business',
           locations: [],
           request_id: requestId,
         }),
       );
     }
 
-    const locationsResult = await listGoogleBusinessLocations(accessToken);
-    const authFailure =
-      locationsResult.httpStatus === 401
-      || locationsResult.httpStatus === 403
-      || locationsResult.errorCode === 'UNAUTHENTICATED'
-      || locationsResult.errorCode === 'PERMISSION_DENIED'
-      || locationsResult.errorCode === 'invalid_grant';
-
-    if (authFailure) {
-      log.warn('google locations auth failure', {
-        integration_id: preferredSeed.id,
-        http_status: locationsResult.httpStatus,
-        error_code: locationsResult.errorCode,
-      });
+    const listed = await listGoogleBusinessLocations(accessToken);
+    if (isAuthFailure(listed.httpStatus, listed.errorCode)) {
       return withHeaders(
         NextResponse.json({
-          provider: 'google_business',
           state: 'needs_reauth',
+          provider: 'google_business',
           locations: [],
           request_id: requestId,
         }),
       );
     }
 
-    if (locationsResult.httpStatus >= 400) {
+    if (listed.httpStatus >= 400) {
       log.warn('google locations upstream error', {
-        integration_id: preferredSeed.id,
-        http_status: locationsResult.httpStatus,
-        error_code: locationsResult.errorCode,
+        integration_id: seed.id,
+        http_status: listed.httpStatus,
+        error_code: listed.errorCode,
       });
       return withHeaders(
         NextResponse.json({
-          provider: 'google_business',
           state: 'not_connected',
+          provider: 'google_business',
           locations: [],
           request_id: requestId,
         }),
@@ -228,17 +175,19 @@ export async function GET(request: Request) {
 
     return withHeaders(
       NextResponse.json({
-        provider: 'google_business',
         state: 'connected',
-        locations: locationsResult.locations.map((item) => ({
+        provider: 'google_business',
+        locations: listed.locations.map((item) => ({
           location_id: item.location_id,
-          title: item.title,
+          name: item.title,
+          storeCode: null,
           address: item.address,
           city: item.city,
           country: item.country,
+          primaryCategory: null,
           primary_phone: item.primary_phone,
           website_uri: item.website_uri,
-          profile_photo_url: item.profile_photo_url,
+          profilePhotoUrl: item.profile_photo_url,
         })),
         request_id: requestId,
       }),
