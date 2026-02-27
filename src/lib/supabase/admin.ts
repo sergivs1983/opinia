@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { runStartupEnvCheck } from '@/lib/startup/env-check';
 
 /**
  * getAdminClient() — service_role Supabase client.
@@ -12,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
  * Use createServerSupabaseClient() for user-scoped access instead.
  */
 export function getAdminClient() {
+  runStartupEnvCheck();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

@@ -1,7 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { runStartupEnvCheck } from '@/lib/startup/env-check';
 
 export function createServerSupabaseClient() {
+  runStartupEnvCheck();
   const cookieStore = cookies();
 
   return createServerClient(

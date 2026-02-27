@@ -1170,6 +1170,10 @@
     "integrations": {
       "title": "Integracions",
       "comingSoon": "Pròximament: Google Business, TripAdvisor, Booking.",
+      "publishSectionTitle": "Integracions de publicació (Webhook)",
+      "reputationSectionTitle": "Integracions de reputació (Google Business Profile)",
+      "reputationSectionDesc": "Connecta Google Business Profile per publicar respostes i sincronitzar reputació.",
+      "businessSelector": "Negoci",
       "webhookDesc": "Connecta Make/Zapier per publicar automàticament des del Planner.",
       "webhookEnable": "Activar connector webhook",
       "webhookEnableHint": "Quan cliquis “Enviar a publicar”, enviarem un POST al teu webhook.",
@@ -1180,7 +1184,19 @@
       "secretMissing": "Secret no configurat",
       "regenerateSecret": "Regenerar secret",
       "secretRegenerated": "Secret regenerat",
-      "copyId": "Copiar ID"
+      "copyId": "Copiar ID",
+      "googleStatusLabel": "Estat Google Business Profile",
+      "googleStatusConnected": "Connectat",
+      "googleStatusNeedsReauth": "Cal reconnectar",
+      "googleStatusNotConnected": "No connectat",
+      "googleStatusUnavailable": "No disponible",
+      "googleStatusLoadError": "No s'ha pogut carregar l'estat de Google Business.",
+      "googleConnect": "Connectar Google Business",
+      "googleReconnect": "Reconnectar Google Business",
+      "googleRefreshStatus": "Refrescar estat",
+      "googleConnectError": "No s'ha pogut iniciar la connexió amb Google Business.",
+      "googleCallbackConnected": "Google Business connectat correctament.",
+      "googleCallbackError": "Error connectant Google Business."
     },
     "triggers": {
       "title": "Action Triggers",

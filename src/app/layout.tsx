@@ -8,6 +8,7 @@ import { getMessages } from '@/i18n/getMessages';
 import { I18nProvider } from '@/components/i18n/I18nContext';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
+import { runStartupEnvCheck } from '@/lib/startup/env-check';
 
 export const metadata: Metadata = {
   title: 'OpinIA – Respostes professionals amb IA per al teu negoci',
@@ -32,6 +33,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  runStartupEnvCheck();
   const locale = await getLocale();
   const messages = await getMessages(locale);
 
