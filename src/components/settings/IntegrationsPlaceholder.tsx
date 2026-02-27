@@ -62,6 +62,7 @@ type GoogleBusinessItem = {
   biz_name: string;
   slug: string | null;
   city: string | null;
+  google_location_name?: string | null;
   integration_id: string | null;
   is_active: boolean;
   updated_at: string | null;
@@ -69,16 +70,13 @@ type GoogleBusinessItem = {
 };
 
 type GoogleLocationItem = {
-  location_id: string;
-  name: string;
-  storeCode?: string | null;
+  account_id: string | null;
+  location_name: string;
+  title: string;
   address: string | null;
   city: string | null;
   country: string | null;
-  primaryCategory?: string | null;
-  primary_phone: string | null;
-  website_uri: string | null;
-  profilePhotoUrl?: string | null;
+  profile_photo_url?: string | null;
 };
 
 type GoogleLocationsResponse = {
@@ -91,13 +89,11 @@ type GoogleLocationsResponse = {
 };
 
 type ImportLocationResponse = {
-  imported?: number;
-  skipped?: number;
-  items?: Array<{
-    biz_id?: string;
-    integration_id?: string;
-    status: 'imported' | 'skipped';
-    reason?: string;
+  created?: number;
+  skipped_existing?: number;
+  errors?: Array<{
+    location_name: string;
+    reason: string;
   }>;
   limit?: number;
   current?: number;
@@ -140,8 +136,8 @@ export default function IntegrationsPlaceholder() {
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [locationsState, setLocationsState] = useState<'connected' | 'needs_reauth' | 'not_connected'>('not_connected');
   const [googleLocations, setGoogleLocations] = useState<GoogleLocationItem[]>([]);
-  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
-  const [selectedSeedIntegrationId, setSelectedSeedIntegrationId] = useState<string>('');
+  const [selectedLocationNames, setSelectedLocationNames] = useState<string[]>([]);
+  const [selectedSeedBizId, setSelectedSeedBizId] = useState<string>('');
   const [importingLocation, setImportingLocation] = useState(false);
   const [locationsFeedback, setLocationsFeedback] = useState<string | null>(null);
 
@@ -154,15 +150,15 @@ export default function IntegrationsPlaceholder() {
     [googleBusinesses, selectedBizId],
   );
   const selectedSeedBusiness = useMemo(
-    () => (googleBusinesses || []).find((item) => item.integration_id === selectedSeedIntegrationId) || null,
-    [googleBusinesses, selectedSeedIntegrationId],
+    () => (googleBusinesses || []).find((item) => item.biz_id === selectedSeedBizId) || null,
+    [googleBusinesses, selectedSeedBizId],
   );
   const seedOptions = useMemo(
     () =>
       (googleBusinesses || [])
         .filter((item) => item.integration_id)
         .map((item) => ({
-          value: item.integration_id as string,
+          value: item.biz_id,
           label: `${item.biz_name}${item.city ? ` · ${item.city}` : ''}`,
         })),
     [googleBusinesses],
@@ -259,36 +255,36 @@ export default function IntegrationsPlaceholder() {
       const payload = (await response.json().catch(() => ({}))) as GoogleBusinessesResponse;
       if (!response.ok || payload.error) {
         setGoogleBusinesses([]);
-        setSelectedSeedIntegrationId('');
+        setSelectedSeedBizId('');
         setGoogleFeedback(payload.message || t('settings.integrations.googleBusinessesLoadError'));
         setGoogleBusinessesLoading(false);
         return;
       }
       const locals = Array.isArray(payload.locals) ? payload.locals : [];
       setGoogleBusinesses(locals);
-      if (!selectedSeedIntegrationId) {
-        const firstSeed = locals.find((item) => item.integration_id)?.integration_id || '';
-        setSelectedSeedIntegrationId(firstSeed);
-      } else if (!locals.some((item) => item.integration_id === selectedSeedIntegrationId)) {
-        const firstSeed = locals.find((item) => item.integration_id)?.integration_id || '';
-        setSelectedSeedIntegrationId(firstSeed);
+      if (!selectedSeedBizId) {
+        const firstSeed = locals.find((item) => item.integration_id)?.biz_id || '';
+        setSelectedSeedBizId(firstSeed);
+      } else if (!locals.some((item) => item.biz_id === selectedSeedBizId && item.integration_id)) {
+        const firstSeed = locals.find((item) => item.integration_id)?.biz_id || '';
+        setSelectedSeedBizId(firstSeed);
       }
       setGoogleBusinessesLoading(false);
     } catch {
       setGoogleBusinesses([]);
-      setSelectedSeedIntegrationId('');
+      setSelectedSeedBizId('');
       setGoogleFeedback(t('settings.integrations.googleBusinessesLoadError'));
       setGoogleBusinessesLoading(false);
     }
   }
 
-  async function loadGoogleLocations(seedIntegrationId: string) {
+  async function loadGoogleLocations(seedBizId: string) {
     setLocationsLoading(true);
     setLocationsFeedback(null);
     setGoogleLocations([]);
-    setSelectedLocationIds([]);
+    setSelectedLocationNames([]);
     try {
-      const response = await fetch(`/api/integrations/google/locations?seed_integration_id=${encodeURIComponent(seedIntegrationId)}`);
+      const response = await fetch(`/api/integrations/google/locations?seed_biz_id=${encodeURIComponent(seedBizId)}`);
       if (response.status === 404) {
         setLocationsState('not_connected');
         setLocationsFeedback(t('settings.integrations.googleLocationsUnavailable'));
@@ -312,7 +308,7 @@ export default function IntegrationsPlaceholder() {
 
       const list = Array.isArray(payload.locations) ? payload.locations : [];
       setGoogleLocations(list);
-      setSelectedLocationIds(list.length > 0 ? [list[0].location_id] : []);
+      setSelectedLocationNames(list.length > 0 ? [list[0].location_name] : []);
       setLocationsLoading(false);
     } catch {
       setLocationsState('not_connected');
@@ -322,29 +318,29 @@ export default function IntegrationsPlaceholder() {
   }
 
   function openLocationsModal() {
-    const seedIntegrationId =
-      selectedBusinessIntegration?.integration_id
-      || selectedSeedIntegrationId
+    const seedBizId =
+      (selectedBusinessIntegration?.integration_id ? selectedBusinessIntegration.biz_id : '')
+      || selectedSeedBizId
       || seedOptions[0]?.value
       || '';
-    if (!seedIntegrationId) return;
-    setSelectedSeedIntegrationId(seedIntegrationId);
+    if (!seedBizId) return;
+    setSelectedSeedBizId(seedBizId);
     setLocationsModalOpen(true);
-    void loadGoogleLocations(seedIntegrationId);
+    void loadGoogleLocations(seedBizId);
   }
 
   function closeLocationsModal() {
     setLocationsModalOpen(false);
     setLocationsFeedback(null);
     setGoogleLocations([]);
-    setSelectedLocationIds([]);
+    setSelectedLocationNames([]);
   }
 
-  function toggleLocation(locationId: string) {
-    setSelectedLocationIds((current) =>
-      current.includes(locationId)
-        ? current.filter((id) => id !== locationId)
-        : [...current, locationId],
+  function toggleLocation(locationName: string) {
+    setSelectedLocationNames((current) =>
+      current.includes(locationName)
+        ? current.filter((id) => id !== locationName)
+        : [...current, locationName],
     );
   }
 
@@ -520,16 +516,18 @@ export default function IntegrationsPlaceholder() {
   }
 
   async function handleImportLocation() {
-    if (selectedLocationIds.length === 0 || !selectedSeedIntegrationId) return;
+    if (selectedLocationNames.length === 0 || !selectedSeedBizId) return;
     setImportingLocation(true);
     setLocationsFeedback(null);
     try {
+      const selectedLocations = googleLocations.filter((location) => selectedLocationNames.includes(location.location_name));
       const response = await fetch('/api/integrations/google/import-locations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          seed_integration_id: selectedSeedIntegrationId,
-          location_ids: selectedLocationIds,
+          seed_biz_id: selectedSeedBizId,
+          mode: 'select',
+          locations: selectedLocations,
         }),
       });
 
@@ -549,7 +547,7 @@ export default function IntegrationsPlaceholder() {
         return;
       }
 
-      const importedCount = Number(payload.imported || 0);
+      const importedCount = Number(payload.created || 0);
       if (importedCount > 0) {
         setLocationsFeedback(
           t('settings.integrations.googleImportSuccessCount', { count: String(importedCount) }),
@@ -832,11 +830,11 @@ export default function IntegrationsPlaceholder() {
             <Select
               label={t('settings.integrations.googleSeedSelector')}
               options={seedOptions}
-              value={selectedSeedIntegrationId}
+              value={selectedSeedBizId}
               onChange={(event) => {
-                const nextSeedId = event.target.value;
-                setSelectedSeedIntegrationId(nextSeedId);
-                if (nextSeedId) void loadGoogleLocations(nextSeedId);
+                const nextSeedBizId = event.target.value;
+                setSelectedSeedBizId(nextSeedBizId);
+                if (nextSeedBizId) void loadGoogleLocations(nextSeedBizId);
               }}
             />
 
@@ -873,10 +871,10 @@ export default function IntegrationsPlaceholder() {
                   <div className="space-y-2">
                     {googleLocations.map((location) => (
                       <label
-                        key={location.location_id}
+                        key={location.location_name}
                         className={cn(
                           'block rounded-lg border px-3 py-2 cursor-pointer transition-all duration-[220ms] ease-premium',
-                          selectedLocationIds.includes(location.location_id)
+                          selectedLocationNames.includes(location.location_name)
                             ? 'border-brand-accent/40 bg-white/10'
                             : 'border-white/10 bg-white/5 hover:bg-white/8',
                         )}
@@ -884,12 +882,12 @@ export default function IntegrationsPlaceholder() {
                         <input
                           type="checkbox"
                           className="sr-only"
-                          checked={selectedLocationIds.includes(location.location_id)}
-                          onChange={() => toggleLocation(location.location_id)}
+                          checked={selectedLocationNames.includes(location.location_name)}
+                          onChange={() => toggleLocation(location.location_name)}
                         />
-                        <p className="text-sm text-white/90">{location.name}</p>
+                        <p className="text-sm text-white/90">{location.title}</p>
                         <p className="text-xs text-white/65">
-                          {location.city || '—'} · {location.country || '—'} · {location.location_id}
+                          {location.city || '—'} · {location.country || '—'} · {location.location_name}
                         </p>
                       </label>
                     ))}
@@ -902,7 +900,7 @@ export default function IntegrationsPlaceholder() {
                   <Button
                     onClick={() => void handleImportLocation()}
                     loading={importingLocation}
-                    disabled={selectedLocationIds.length === 0 || !selectedSeedIntegrationId}
+                    disabled={selectedLocationNames.length === 0 || !selectedSeedBizId}
                     data-testid="google-business-import-location"
                   >
                     {t('settings.integrations.googleImportLocation')}
