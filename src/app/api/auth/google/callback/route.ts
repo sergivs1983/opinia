@@ -66,6 +66,23 @@ function isMissingMembershipBizColumns(error: unknown): boolean {
     || message.includes('does not exist');
 }
 
+function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as SupabaseErrorLike;
+  const message = (e.message || '').toLowerCase();
+  return e.code === '42703'
+    || (message.includes('column') && message.includes('does not exist'));
+}
+
+function parseScopes(scopeValue?: string): string[] | null {
+  if (!scopeValue) return null;
+  const scopes = scopeValue
+    .split(' ')
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  return scopes.length > 0 ? scopes : null;
+}
+
 function redirectWithError(message: string, requestId: string) {
   const target = new URL('/dashboard/settings', getAppOrigin());
   target.searchParams.set('tab', 'integrations');
@@ -242,6 +259,7 @@ export async function GET(request: Request) {
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
+      scope?: string;
       error?: string;
       error_description?: string;
     };
@@ -255,7 +273,10 @@ export async function GET(request: Request) {
     }
 
     const provider = 'google_business';
-    const nowIso = new Date().toISOString();
+    const tokenExpiresAt = typeof tokenJson.expires_in === 'number'
+      ? new Date(Date.now() + tokenJson.expires_in * 1000).toISOString()
+      : null;
+    const scopes = parseScopes(tokenJson.scope);
 
     const { data: existing, error: existingError } = await admin
       .from('integrations')
@@ -273,32 +294,74 @@ export async function GET(request: Request) {
     let integrationId: string | null = existing?.id ?? null;
 
     if (integrationId) {
-      const { error: updateError } = await admin
+      const fullUpdatePayload: Record<string, unknown> = {
+        is_active: true,
+        access_token: tokenJson.access_token,
+        refresh_token: tokenJson.refresh_token ?? null,
+        token_expires_at: tokenExpiresAt,
+        scopes,
+      };
+
+      let { error: updateError } = await admin
         .from('integrations')
-        .update({
-          is_active: true,
-          status: 'active',
-          updated_at: nowIso,
-        })
+        .update(fullUpdatePayload)
         .eq('id', integrationId);
+
+      if (updateError && isMissingColumnError(updateError)) {
+        log.warn('Missing integration columns during update, retrying with essential fields only', {
+          business_id: businessId,
+          integration_id: integrationId,
+          error_code: updateError.code || null,
+          error: updateError.message || null,
+        });
+        const retry = await admin
+          .from('integrations')
+          .update({ is_active: true })
+          .eq('id', integrationId);
+        updateError = retry.error;
+      }
 
       if (updateError) {
         log.warn('Failed updating integration', { error: updateError.message });
         return redirectWithError('integration_update_failed', requestId);
       }
     } else {
-      const { data: inserted, error: insertError } = await admin
+      const fullInsertPayload: Record<string, unknown> = {
+        biz_id: businessId,
+        org_id: bizRow.org_id,
+        provider,
+        is_active: true,
+        access_token: tokenJson.access_token,
+        refresh_token: tokenJson.refresh_token ?? null,
+        token_expires_at: tokenExpiresAt,
+        scopes,
+      };
+
+      let { data: inserted, error: insertError } = await admin
         .from('integrations')
-        .insert({
-          biz_id: businessId,
-          org_id: bizRow.org_id,
-          provider,
-          is_active: true,
-          status: 'active',
-          updated_at: nowIso,
-        })
+        .insert(fullInsertPayload)
         .select('id')
         .single();
+
+      if (insertError && isMissingColumnError(insertError)) {
+        log.warn('Missing integration columns during insert, retrying with essential fields only', {
+          business_id: businessId,
+          error_code: insertError.code || null,
+          error: insertError.message || null,
+        });
+        const retry = await admin
+          .from('integrations')
+          .insert({
+            biz_id: businessId,
+            org_id: bizRow.org_id,
+            provider,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+        inserted = retry.data;
+        insertError = retry.error;
+      }
 
       if (insertError || !inserted?.id) {
         log.warn('Failed creating integration', { error: insertError?.message || 'unknown' });
