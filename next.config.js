@@ -35,6 +35,13 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [],
   },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: '/api/_internal/:path*', destination: '/api/cron/worker/:path*' },
+      ],
+    };
+  },
   webpack: (config) => {
     // Use path.resolve() (process.cwd()-based) instead of path.join(__dirname, …)
     // so this works correctly in both CJS and ESM evaluation contexts.

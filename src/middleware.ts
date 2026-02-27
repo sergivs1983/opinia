@@ -36,6 +36,17 @@ export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-request-id', requestId);
 
+  if (pathname.startsWith('/api/cron/worker/')) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'x-request-id': requestId,
+      },
+    });
+  }
+
   // Skip static/api
   if (shouldSkip(pathname)) {
     if (pathname.startsWith('/api/')) {
@@ -129,5 +140,8 @@ async function getUser(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  matcher: [
+    '/api/cron/worker/:path*',
+    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 };
