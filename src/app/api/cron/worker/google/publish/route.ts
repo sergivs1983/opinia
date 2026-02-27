@@ -330,7 +330,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     timestampHeader: request.headers.get('x-opin-timestamp'),
     signatureHeader:  request.headers.get('x-opin-signature'),
     method:          'POST',
-    pathname:        url.pathname,
+    pathname: '/api/_internal/google/publish',
     rawBody,
   });
 
