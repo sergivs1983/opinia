@@ -14,9 +14,27 @@ import {
   AdminBusinessAssignmentsUpdateSchema,
 } from '@/lib/validations';
 
-function isMissingTableError(error: unknown): boolean {
-  const message = ((error as { message?: string })?.message || '').toLowerCase();
-  return message.includes('business_memberships') && message.includes('does not exist');
+type BusinessMembershipsErrorKind = 'missing_table' | 'schema_cache' | 'other';
+
+function classifyBusinessMembershipsError(error: unknown): BusinessMembershipsErrorKind {
+  const err = error as { message?: string; code?: string } | null;
+  const message = (err?.message || '').toLowerCase();
+  const code = (err?.code || '').toUpperCase();
+
+  if (code === 'PGRST205' || code === 'PGRST204' || message.includes('schema cache')) {
+    return 'schema_cache';
+  }
+
+  if (code === '42P01') return 'missing_table';
+  if (
+    message.includes('relation')
+    && message.includes('business_memberships')
+    && message.includes('does not exist')
+  ) {
+    return 'missing_table';
+  }
+
+  return 'other';
 }
 
 export async function GET(request: Request) {
@@ -44,7 +62,15 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true });
 
   if (error) {
-    if (isMissingTableError(error)) {
+    const errorKind = classifyBusinessMembershipsError(error);
+    if (errorKind === 'schema_cache') {
+      return NextResponse.json({
+        assignments: [],
+        warning: 'schema_cache_stale',
+        message: "No hem pogut validar l'esquema ara mateix. Refresca i, si cal, executa NOTIFY pgrst, 'reload schema'.",
+      });
+    }
+    if (errorKind === 'missing_table') {
       return NextResponse.json({
         error: 'schema_missing',
         message: "Falta la taula business_memberships. Executa la migració 'phase-s-team-rbac-business-scope.sql'.",
@@ -135,7 +161,14 @@ export async function PATCH(request: Request) {
     .eq('user_id', targetMembership.user_id);
 
   if (deactivateError) {
-    if (isMissingTableError(deactivateError)) {
+    const errorKind = classifyBusinessMembershipsError(deactivateError);
+    if (errorKind === 'schema_cache') {
+      return NextResponse.json({
+        error: 'schema_cache_stale',
+        message: "No hem pogut validar l'esquema ara mateix. Refresca i torna-ho a provar.",
+      }, { status: 503 });
+    }
+    if (errorKind === 'missing_table') {
       return NextResponse.json({
         error: 'schema_missing',
         message: "Falta la taula business_memberships. Executa la migració 'phase-s-team-rbac-business-scope.sql'.",
@@ -158,7 +191,14 @@ export async function PATCH(request: Request) {
       .upsert(rows, { onConflict: 'user_id,business_id' });
 
     if (upsertError) {
-      if (isMissingTableError(upsertError)) {
+      const errorKind = classifyBusinessMembershipsError(upsertError);
+      if (errorKind === 'schema_cache') {
+        return NextResponse.json({
+          error: 'schema_cache_stale',
+          message: "No hem pogut validar l'esquema ara mateix. Refresca i torna-ho a provar.",
+        }, { status: 503 });
+      }
+      if (errorKind === 'missing_table') {
         return NextResponse.json({
           error: 'schema_missing',
           message: "Falta la taula business_memberships. Executa la migració 'phase-s-team-rbac-business-scope.sql'.",

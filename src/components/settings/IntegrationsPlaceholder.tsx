@@ -167,6 +167,14 @@ export default function IntegrationsPlaceholder() {
     () => businesses.map((item) => ({ value: item.id, label: item.name })),
     [businesses],
   );
+  const hasSelectedBiz = Boolean(selectedBizId);
+  const hasSeedOptions = seedOptions.length > 0;
+  const addLocationDisabled = !hasSelectedBiz;
+  const addLocationDisabledReason = useMemo(() => {
+    if (!hasSelectedBiz) return 'missing_selected_biz';
+    if (!hasSeedOptions) return 'fallback_selected_biz_without_seed';
+    return 'enabled';
+  }, [hasSeedOptions, hasSelectedBiz]);
   const selectedChannels = useMemo(() => new Set(channels), [channels]);
   const googleStatus = selectedBusinessIntegration?.state || 'not_connected';
   const googleStatusLabel = useMemo(() => {
@@ -201,6 +209,27 @@ export default function IntegrationsPlaceholder() {
   useEffect(() => {
     void loadGoogleBusinesses();
   }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    console.info('[settings.integrations.google] add-location availability', {
+      selectedBizId,
+      hasSelectedBiz,
+      seedOptionsCount: seedOptions.length,
+      hasSeedOptions,
+      googleBusinessesLoading,
+      disabled: addLocationDisabled,
+      reason: addLocationDisabledReason,
+    });
+  }, [
+    addLocationDisabled,
+    addLocationDisabledReason,
+    googleBusinessesLoading,
+    hasSeedOptions,
+    hasSelectedBiz,
+    seedOptions.length,
+    selectedBizId,
+  ]);
 
   async function loadConfig(businessId: string) {
     setLoading(true);
@@ -321,6 +350,7 @@ export default function IntegrationsPlaceholder() {
     const seedBizId =
       (selectedBusinessIntegration?.integration_id ? selectedBusinessIntegration.biz_id : '')
       || selectedSeedBizId
+      || selectedBizId
       || seedOptions[0]?.value
       || '';
     if (!seedBizId) return;
@@ -732,7 +762,7 @@ export default function IntegrationsPlaceholder() {
             <Button
               variant="secondary"
               onClick={openLocationsModal}
-              disabled={!selectedBizId || !seedOptions.length}
+              disabled={addLocationDisabled}
               data-testid="google-business-add-location"
             >
               {t('settings.integrations.googleAddLocation')}
@@ -827,16 +857,22 @@ export default function IntegrationsPlaceholder() {
               </Button>
             </div>
 
-            <Select
-              label={t('settings.integrations.googleSeedSelector')}
-              options={seedOptions}
-              value={selectedSeedBizId}
-              onChange={(event) => {
-                const nextSeedBizId = event.target.value;
-                setSelectedSeedBizId(nextSeedBizId);
-                if (nextSeedBizId) void loadGoogleLocations(nextSeedBizId);
-              }}
-            />
+            {seedOptions.length > 0 ? (
+              <Select
+                label={t('settings.integrations.googleSeedSelector')}
+                options={seedOptions}
+                value={selectedSeedBizId}
+                onChange={(event) => {
+                  const nextSeedBizId = event.target.value;
+                  setSelectedSeedBizId(nextSeedBizId);
+                  if (nextSeedBizId) void loadGoogleLocations(nextSeedBizId);
+                }}
+              />
+            ) : (
+              <div className={cn(glass, 'px-3 py-2 text-xs text-white/72')}>
+                {t('settings.integrations.googleNeedConnection')}
+              </div>
+            )}
 
             {locationsLoading && (
               <div className={cn(glass, 'px-3 py-2 text-sm text-white/70')}>
