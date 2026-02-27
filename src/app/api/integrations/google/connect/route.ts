@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
+import { createHash, randomBytes } from 'crypto';
 import { z } from 'zod';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -20,10 +21,6 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/business.manage',
 ] as const;
 
-function base64UrlEncode(raw: string): string {
-  return Buffer.from(raw).toString('base64url');
-}
-
 function getAppOrigin(): string {
   return (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 }
@@ -37,6 +34,12 @@ function buildRedirectUri(): string {
 function clientIdTail(clientId: string | null): string {
   if (!clientId) return 'missing';
   return clientId.slice(-6);
+}
+
+function generatePkceVerifierAndChallenge(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
 }
 
 function isSameOrigin(value: string, appOrigin: string): boolean {
@@ -155,14 +158,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const state = base64UrlEncode(
-      JSON.stringify({
+    const { verifier, challenge } = generatePkceVerifierAndChallenge();
+
+    const { data: stateRow, error: stateError } = await supabase
+      .from('oauth_states')
+      .insert({
         biz_id: payload.biz_id,
-        uid: user.id,
-        request_id: requestId,
-        ts: Date.now(),
-      }),
-    );
+        user_id: user.id,
+        code_verifier: verifier,
+      })
+      .select('id')
+      .single();
+
+    if (stateError || !stateRow?.id) {
+      log.error('Failed creating oauth state', {
+        error_code: stateError?.code || null,
+        error: stateError?.message || null,
+      });
+      return withRequestId(
+        NextResponse.json(
+          {
+            error: 'internal_error',
+            message: 'Error intern del servidor',
+            request_id: requestId,
+          },
+          { status: 500 },
+        ),
+      );
+    }
+
+    const stateId = stateRow.id as string;
 
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.set('client_id', clientId);
@@ -172,7 +197,18 @@ export async function POST(request: Request) {
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent');
     authUrl.searchParams.set('include_granted_scopes', 'true');
-    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('state', stateId);
+    authUrl.searchParams.set('code_challenge', challenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+
+    if (process.env.NODE_ENV === 'development') {
+      console.info('[google-oauth-connect] state-created', {
+        request_id: requestId,
+        biz_id: payload.biz_id,
+        state: stateId,
+        redirect_uri: redirectUri,
+      });
+    }
 
     return withRequestId(
       NextResponse.json({

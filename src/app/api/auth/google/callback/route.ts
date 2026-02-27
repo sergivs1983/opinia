@@ -10,16 +10,14 @@ import { saveOAuthTokens } from '@/lib/server/tokens';
 
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 
-type OAuthState = {
-  biz_id?: string;
-  uid?: string;
-  request_id?: string;
-  ts?: number;
-};
-
 type SupabaseErrorLike = {
   code?: string;
   message?: string;
+};
+
+type ConsumedOAuthStateRow = {
+  biz_id: string;
+  code_verifier: string;
 };
 
 type BusinessLookupRow = {
@@ -38,14 +36,11 @@ function buildRedirectUri(): string {
   return `${getAppOrigin()}/api/auth/google/callback`;
 }
 
-function decodeState(rawState: string | null): OAuthState | null {
-  if (!rawState) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(rawState, 'base64url').toString('utf8')) as OAuthState;
-    return parsed;
-  } catch {
-    return null;
-  }
+const UUID_V4_LIKE_REGEX
+  = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null): value is string {
+  return typeof value === 'string' && UUID_V4_LIKE_REGEX.test(value);
 }
 
 function classifyBusinessLookup(error: unknown, found: boolean): 'ok' | 'rls_denied' | 'not_found' | 'query_error' {
@@ -116,7 +111,16 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const oauthError = url.searchParams.get('error');
     const code = url.searchParams.get('code');
-    const rawState = url.searchParams.get('state');
+    const receivedState = url.searchParams.get('state');
+    const stateIsUuid = isUuid(receivedState);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.info('[google-oauth-callback] state-received', {
+        request_id: requestId,
+        state: receivedState,
+        is_uuid: stateIsUuid,
+      });
+    }
 
     if (oauthError) {
       return redirectWithError(`oauth_error:${oauthError}`, requestId);
@@ -126,11 +130,8 @@ export async function GET(request: Request) {
       return redirectWithError('missing_code', requestId);
     }
 
-    const state = decodeState(rawState);
-    const businessId = state?.biz_id;
-    const stateUserId = state?.uid;
-    if (!businessId || !stateUserId) {
-      return redirectWithError('invalid_state', requestId);
+    if (!stateIsUuid || !receivedState) {
+      return redirectWithError('bad_state_format', requestId);
     }
 
     const supabase = createServerSupabaseClient();
@@ -142,9 +143,24 @@ export async function GET(request: Request) {
       return redirectWithError('unauthenticated', requestId);
     }
 
-    if (stateUserId !== user.id) {
-      return redirectWithError('state_user_mismatch', requestId);
+    const { data: consumedStateRows, error: consumeStateError } = await supabase
+      .rpc('consume_oauth_state', { p_state: receivedState });
+
+    const consumedState = Array.isArray(consumedStateRows) && consumedStateRows.length > 0
+      ? consumedStateRows[0] as ConsumedOAuthStateRow
+      : null;
+
+    if (consumeStateError || !consumedState?.biz_id || !consumedState?.code_verifier) {
+      log.warn('Failed consuming oauth state', {
+        state: receivedState,
+        error_code: consumeStateError?.code || null,
+        error: consumeStateError?.message || null,
+      });
+      return redirectWithError('invalid_state', requestId);
     }
+
+    const businessId = consumedState.biz_id;
+    const codeVerifier = consumedState.code_verifier;
 
     const admin = getAdminClient();
 
@@ -251,6 +267,7 @@ export async function GET(request: Request) {
         client_secret: clientSecret,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
+        code_verifier: codeVerifier,
       }),
       cache: 'no-store',
     });
