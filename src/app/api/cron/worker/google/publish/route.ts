@@ -54,6 +54,12 @@ const CONCURRENCY = 5;
 /** Max chars for last_error_detail before truncation */
 const MAX_DETAIL  = 200;
 
+function jsonNoStore(body: Record<string, unknown>, status = 200): NextResponse {
+  const response = NextResponse.json(body, { status });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
+
 // ─── Backoff ──────────────────────────────────────────────────────────────────
 
 /**
@@ -324,7 +330,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── HMAC guard ─────────────────────────────────────────────────────────────
   const rawBody = await request.text();
-  const url     = new URL(request.url);
 
   const hmac = validateHmacHeader({
     timestampHeader: request.headers.get('x-opin-timestamp'),
@@ -336,7 +341,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!hmac.valid) {
     log.warn('HMAC validation failed', { reason: hmac.reason });
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return jsonNoStore({ error: 'Unauthorized' }, 401);
   }
 
   // ── Admin client (service_role — ONLY here) ────────────────────────────────
@@ -357,14 +362,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (popErr) {
     log.error('pop_publish_jobs RPC failed', { error: String(popErr) });
-    return NextResponse.json({ error: 'rpc_error' }, { status: 500 });
+    return jsonNoStore({ error: 'rpc_error' }, 500);
   }
 
   const jobList = jobs ?? [];
   log.info('Jobs claimed', { count: jobList.length });
 
   if (jobList.length === 0) {
-    return NextResponse.json({ processed: 0, succeeded: 0, failed: 0, requeued_stuck: requeuedStuck });
+    return jsonNoStore({ processed: 0, succeeded: 0, failed: 0, requeued_stuck: requeuedStuck }, 200);
   }
 
   // ── Process concurrently (p-limit) ─────────────────────────────────────────
@@ -389,5 +394,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   log.info('Batch complete', { processed: jobList.length, succeeded, failed, requeued_stuck: requeuedStuck });
 
-  return NextResponse.json({ processed: jobList.length, succeeded, failed, requeued_stuck: requeuedStuck });
+  return jsonNoStore({ processed: jobList.length, succeeded, failed, requeued_stuck: requeuedStuck }, 200);
 }
