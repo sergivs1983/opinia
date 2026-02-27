@@ -87,6 +87,8 @@ export interface Business {
   city: string | null;
   country: string;
   google_place_id: string | null;
+  google_location_id?: string | null;
+  google_account_id?: string | null;
   tags: string[];
   default_signature: string;
   formality: Formality;
