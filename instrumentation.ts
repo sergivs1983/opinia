@@ -14,7 +14,10 @@ export async function register() {
     await import('./sentry.server.config');
   }
 
+  // Hotfix: avoid loading Edge Sentry bundle from instrumentation because
+  // it pulls Node-oriented code paths that crash middleware on Vercel Edge
+  // with "__dirname is not defined". Keep middleware runtime stable.
   if (process.env.NEXT_RUNTIME === 'edge') {
-    await import('./sentry.edge.config');
+    return;
   }
 }
