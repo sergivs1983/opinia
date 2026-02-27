@@ -1170,6 +1170,10 @@
     "integrations": {
       "title": "Integrations",
       "comingSoon": "Coming soon: Google Business, TripAdvisor, Booking.",
+      "publishSectionTitle": "Publishing integrations (Webhook)",
+      "reputationSectionTitle": "Reputation integrations (Google Business Profile)",
+      "reputationSectionDesc": "Connect Google Business Profile to publish replies and sync reputation.",
+      "businessSelector": "Business",
       "webhookDesc": "Connect Make/Zapier to publish automatically from Planner.",
       "webhookEnable": "Enable webhook connector",
       "webhookEnableHint": "When you click “Send to publish”, we will POST to your webhook.",
@@ -1180,7 +1184,19 @@
       "secretMissing": "Secret not configured",
       "regenerateSecret": "Regenerate secret",
       "secretRegenerated": "Secret regenerated",
-      "copyId": "Copy ID"
+      "copyId": "Copy ID",
+      "googleStatusLabel": "Google Business Profile status",
+      "googleStatusConnected": "Connected",
+      "googleStatusNeedsReauth": "Reconnect required",
+      "googleStatusNotConnected": "Not connected",
+      "googleStatusUnavailable": "Not available",
+      "googleStatusLoadError": "Could not load Google Business status.",
+      "googleConnect": "Connect Google Business",
+      "googleReconnect": "Reconnect Google Business",
+      "googleRefreshStatus": "Refresh status",
+      "googleConnectError": "Could not start Google Business connection.",
+      "googleCallbackConnected": "Google Business connected successfully.",
+      "googleCallbackError": "Error connecting Google Business."
     },
     "triggers": {
       "title": "Action Triggers",
