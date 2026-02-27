@@ -57,6 +57,11 @@ check_no_store() {
 echo "Flow B multi-local smoke tests — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
+if ! curl -sS --max-time 5 "${BASE}/" >/dev/null 2>&1; then
+  echo "ERROR: no es pot contactar amb ${BASE}. Arrenca el dev server abans d'executar aquest smoke."
+  exit 1
+fi
+
 check_unauthorized "GET /api/integrations/google/list (no session)" \
   "${BASE}/api/integrations/google/list"
 check_no_store "GET /api/integrations/google/list"
