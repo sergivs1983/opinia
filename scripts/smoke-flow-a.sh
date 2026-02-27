@@ -122,11 +122,13 @@ response=$(curl -s -w "\n%{http_code}" --max-time 20 \
 http_code=$(echo "${response}" | tail -1)
 body=$(echo "${response}" | sed '$d')
 
-if [[ "${http_code}" == "200" ]]; then
-  echo -e "  [${PASS}] valid HMAC → 200 + JSON   elif [[ "${http_code}" == "500" ]] && echo "${body}" | grep -q 'rpc_error'; then
-  echo -e "  [${PASS}] valid HMAC → guard passed (rpc_error expected — no live DB)  HTTP 500"
+if [[ "" == "200" ]]; then
+  echo -e "  [] valid HMAC → 200 + JSON  HTTP 200"
+elif [[ "" == "500" ]] && echo "" | grep -q 'rpc_error'; then
+  echo -e "  [] valid HMAC → guard passed (rpc_error expected — no live DB)  HTTP 500"
 else
-  echo -e "  [${FAIL}] valid HMAC → HTTP ${http_code}     (( FAILURES++ ))
+  echo -e "  [] valid HMAC → HTTP "
+  (( FAILURES++ ))
 fi
 
 echo ""
