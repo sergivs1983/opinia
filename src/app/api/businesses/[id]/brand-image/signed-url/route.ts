@@ -34,6 +34,10 @@ function getSupabaseErrorMessage(error: unknown): string {
   return typeof message === 'string' ? message : '';
 }
 
+function isMissingBrandImageSchema(error: unknown): boolean {
+  return getSupabaseErrorCode(error) === '42703';
+}
+
 function isStorageObjectNotFound(error: unknown): boolean {
   const message = getSupabaseErrorMessage(error).toLowerCase();
   return message.includes('not found') || message.includes('object does not exist');
@@ -48,6 +52,7 @@ export async function GET(
 
   const withResponseRequestId = (response: NextResponse) => {
     response.headers.set('x-request-id', requestId);
+    response.headers.set('Cache-Control', 'no-store');
     return response;
   };
 
@@ -76,6 +81,29 @@ export async function GET(
 
     if (businessError) {
       const code = getSupabaseErrorCode(businessError);
+      if (isMissingBrandImageSchema(businessError)) {
+        console.warn('[brand-image-signed-url] brand image schema missing', {
+          request_id: requestId,
+          business_id: businessId,
+          user_id: user.id,
+          error_code: code,
+        });
+        log.warn('brand_image_schema_missing', {
+          request_id: requestId,
+          business_id: businessId,
+          user_id: user.id,
+          error_code: code,
+          error: businessError.message,
+        });
+        return withResponseRequestId(
+          NextResponse.json({
+            ok: true,
+            signedUrl: null,
+            reason: 'brand_image_schema_missing',
+            request_id: requestId,
+          }),
+        );
+      }
       console.error('[brand-image-signed-url] business query failed', {
         businessId,
         hasUserId: true,
@@ -88,7 +116,7 @@ export async function GET(
         error: businessError.message,
       });
       return withResponseRequestId(
-        NextResponse.json({ error: 'server_error', request_id: requestId }, { status: 500 }),
+        NextResponse.json({ error: 'internal', request_id: requestId }, { status: 500 }),
       );
     }
 
@@ -128,7 +156,7 @@ export async function GET(
         error: membershipError.message,
       });
       return withResponseRequestId(
-        NextResponse.json({ error: 'server_error', request_id: requestId }, { status: 500 }),
+        NextResponse.json({ error: 'internal', request_id: requestId }, { status: 500 }),
       );
     }
 
@@ -186,7 +214,7 @@ export async function GET(
       }
 
       return withResponseRequestId(
-        NextResponse.json({ error: 'server_error', request_id: requestId }, { status: 500 }),
+        NextResponse.json({ error: 'internal', request_id: requestId }, { status: 500 }),
       );
     }
 
@@ -209,7 +237,7 @@ export async function GET(
     log.error('Unhandled business image signed-url error', { error: message });
     return withResponseRequestId(
       NextResponse.json(
-        { error: 'server_error', request_id: requestId },
+        { error: 'internal', request_id: requestId },
         { status: 500 },
       ),
     );
