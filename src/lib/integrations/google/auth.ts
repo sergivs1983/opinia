@@ -31,7 +31,7 @@ export async function getValidGoogleAccessToken(
     .from('integrations')
     .select('id,biz_id,provider,status')
     .eq('biz_id', bizId)
-    .in('provider', ['google_business', 'google'])
+    .eq('provider', 'google_business')
     .neq('status', 'disconnected')
     .order('updated_at', { ascending: false })
     .limit(1)
