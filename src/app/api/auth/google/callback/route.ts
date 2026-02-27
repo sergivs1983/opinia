@@ -5,7 +5,6 @@ import { NextResponse } from 'next/server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { saveOAuthTokens } from '@/lib/server/tokens';
 
@@ -16,6 +15,17 @@ type OAuthState = {
   uid?: string;
   request_id?: string;
   ts?: number;
+};
+
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+};
+
+type BusinessLookupRow = {
+  id: string;
+  org_id: string;
+  is_active?: boolean | null;
 };
 
 function getAppOrigin(): string {
@@ -36,6 +46,24 @@ function decodeState(rawState: string | null): OAuthState | null {
   } catch {
     return null;
   }
+}
+
+function classifyBusinessLookup(error: unknown, found: boolean): 'ok' | 'rls_denied' | 'not_found' | 'query_error' {
+  if (found) return 'ok';
+  if (!error || typeof error !== 'object') return 'not_found';
+  const code = (error as SupabaseErrorLike).code;
+  if (code === '42501') return 'rls_denied';
+  if (code === 'PGRST116') return 'not_found';
+  return 'query_error';
+}
+
+function isMissingMembershipBizColumns(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as SupabaseErrorLike;
+  const message = (e.message || '').toLowerCase();
+  return e.code === '42703'
+    || message.includes('column')
+    || message.includes('does not exist');
 }
 
 function redirectWithError(message: string, requestId: string) {
@@ -101,14 +129,85 @@ export async function GET(request: Request) {
       return redirectWithError('state_user_mismatch', requestId);
     }
 
-    const access = await hasAcceptedBusinessMembership({
-      supabase,
-      userId: user.id,
-      businessId,
-      allowedRoles: ['owner', 'admin'],
-    });
-    if (!access.allowed) {
-      return redirectWithError('forbidden', requestId);
+    const admin = getAdminClient();
+
+    const { data: bizRowRaw, error: bizError } = await admin
+      .from('businesses')
+      .select('id, org_id, is_active')
+      .eq('id', businessId)
+      .maybeSingle();
+    const bizLookup = classifyBusinessLookup(bizError, !!bizRowRaw);
+    if (bizLookup !== 'ok' || !bizRowRaw) {
+      log.warn('OAuth callback business lookup failed', {
+        business_id: businessId,
+        user_id: user.id,
+        lookup_result: bizLookup,
+        error_code: (bizError as SupabaseErrorLike | null)?.code || null,
+        error: (bizError as SupabaseErrorLike | null)?.message || null,
+      });
+      return redirectWithError('business_not_found', requestId);
+    }
+    const bizRow = bizRowRaw as BusinessLookupRow;
+
+    let membershipOk = false;
+
+    const { data: membershipData, error: membershipError } = await admin
+      .from('memberships')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('biz_id', businessId)
+      .eq('is_active', true)
+      .not('accepted_at', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (membershipError) {
+      if (isMissingMembershipBizColumns(membershipError)) {
+        const { data: fallbackMembershipData, error: fallbackMembershipError } = await admin
+          .from('memberships')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('org_id', bizRow.org_id)
+          .not('accepted_at', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        if (fallbackMembershipError) {
+          log.warn('OAuth callback membership fallback check failed', {
+            business_id: businessId,
+            user_id: user.id,
+            org_id: bizRow.org_id,
+            error_code: fallbackMembershipError.code || null,
+            error: fallbackMembershipError.message || null,
+          });
+        } else {
+          membershipOk = !!fallbackMembershipData;
+        }
+      } else {
+        log.warn('OAuth callback membership check failed', {
+          business_id: businessId,
+          user_id: user.id,
+          error_code: membershipError.code || null,
+          error: membershipError.message || null,
+        });
+      }
+    } else {
+      membershipOk = !!membershipData;
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.info('[google-oauth-callback] access-check', {
+        request_id: requestId,
+        business_found: true,
+        membership_ok: membershipOk,
+      });
+    }
+
+    if (!membershipOk) {
+      log.warn('OAuth callback denied by membership', {
+        business_id: businessId,
+        user_id: user.id,
+      });
+      return redirectWithError('not_allowed', requestId);
     }
 
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
@@ -153,19 +252,6 @@ export async function GET(request: Request) {
         error: tokenJson.error || 'unknown',
       });
       return redirectWithError('token_exchange_failed', requestId);
-    }
-
-    const admin = getAdminClient();
-
-    const { data: bizRow, error: bizError } = await admin
-      .from('businesses')
-      .select('id, org_id')
-      .eq('id', businessId)
-      .single();
-
-    if (bizError || !bizRow) {
-      log.warn('Business not found during oauth callback', { business_id: businessId });
-      return redirectWithError('business_not_found', requestId);
     }
 
     const provider = 'google_business';
