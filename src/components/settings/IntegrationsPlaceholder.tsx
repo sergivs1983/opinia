@@ -51,7 +51,7 @@ type GoogleConnectResponse = {
 };
 
 type GoogleBusinessesResponse = {
-  businesses?: GoogleBusinessItem[];
+  locals?: GoogleBusinessItem[];
   request_id?: string;
   error?: string;
   message?: string;
@@ -59,22 +59,26 @@ type GoogleBusinessesResponse = {
 
 type GoogleBusinessItem = {
   biz_id: string;
-  name: string;
+  biz_name: string;
   slug: string | null;
   city: string | null;
-  google_location_id: string | null;
-  gbp_state: GoogleIntegrationUiStatus;
+  integration_id: string | null;
+  is_active: boolean;
+  updated_at: string | null;
+  state: GoogleIntegrationUiStatus;
 };
 
 type GoogleLocationItem = {
   location_id: string;
-  title: string;
+  name: string;
+  storeCode?: string | null;
   address: string | null;
   city: string | null;
   country: string | null;
+  primaryCategory?: string | null;
   primary_phone: string | null;
   website_uri: string | null;
-  profile_photo_url?: string | null;
+  profilePhotoUrl?: string | null;
 };
 
 type GoogleLocationsResponse = {
@@ -87,10 +91,14 @@ type GoogleLocationsResponse = {
 };
 
 type ImportLocationResponse = {
-  created?: boolean;
-  biz_id?: string;
-  name?: string;
-  slug?: string | null;
+  imported?: number;
+  skipped?: number;
+  items?: Array<{
+    biz_id?: string;
+    integration_id?: string;
+    status: 'imported' | 'skipped';
+    reason?: string;
+  }>;
   limit?: number;
   current?: number;
   request_id?: string;
@@ -132,7 +140,8 @@ export default function IntegrationsPlaceholder() {
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [locationsState, setLocationsState] = useState<'connected' | 'needs_reauth' | 'not_connected'>('not_connected');
   const [googleLocations, setGoogleLocations] = useState<GoogleLocationItem[]>([]);
-  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
+  const [selectedSeedIntegrationId, setSelectedSeedIntegrationId] = useState<string>('');
   const [importingLocation, setImportingLocation] = useState(false);
   const [locationsFeedback, setLocationsFeedback] = useState<string | null>(null);
 
@@ -144,12 +153,26 @@ export default function IntegrationsPlaceholder() {
     () => (googleBusinesses || []).find((item) => item.biz_id === selectedBizId) || null,
     [googleBusinesses, selectedBizId],
   );
+  const selectedSeedBusiness = useMemo(
+    () => (googleBusinesses || []).find((item) => item.integration_id === selectedSeedIntegrationId) || null,
+    [googleBusinesses, selectedSeedIntegrationId],
+  );
+  const seedOptions = useMemo(
+    () =>
+      (googleBusinesses || [])
+        .filter((item) => item.integration_id)
+        .map((item) => ({
+          value: item.integration_id as string,
+          label: `${item.biz_name}${item.city ? ` · ${item.city}` : ''}`,
+        })),
+    [googleBusinesses],
+  );
   const businessOptions = useMemo(
     () => businesses.map((item) => ({ value: item.id, label: item.name })),
     [businesses],
   );
   const selectedChannels = useMemo(() => new Set(channels), [channels]);
-  const googleStatus = selectedBusinessIntegration?.gbp_state || 'not_connected';
+  const googleStatus = selectedBusinessIntegration?.state || 'not_connected';
   const googleStatusLabel = useMemo(() => {
     if (googleStatus === 'connected') return t('settings.integrations.googleStatusConnected');
     if (googleStatus === 'needs_reauth') return t('settings.integrations.googleStatusNeedsReauth');
@@ -232,30 +255,40 @@ export default function IntegrationsPlaceholder() {
     setGoogleBusinessesLoading(true);
     setGoogleFeedback(null);
     try {
-      const response = await fetch('/api/integrations/google/businesses');
+      const response = await fetch('/api/integrations/google/list');
       const payload = (await response.json().catch(() => ({}))) as GoogleBusinessesResponse;
       if (!response.ok || payload.error) {
         setGoogleBusinesses([]);
+        setSelectedSeedIntegrationId('');
         setGoogleFeedback(payload.message || t('settings.integrations.googleBusinessesLoadError'));
         setGoogleBusinessesLoading(false);
         return;
       }
-      setGoogleBusinesses(Array.isArray(payload.businesses) ? payload.businesses : []);
+      const locals = Array.isArray(payload.locals) ? payload.locals : [];
+      setGoogleBusinesses(locals);
+      if (!selectedSeedIntegrationId) {
+        const firstSeed = locals.find((item) => item.integration_id)?.integration_id || '';
+        setSelectedSeedIntegrationId(firstSeed);
+      } else if (!locals.some((item) => item.integration_id === selectedSeedIntegrationId)) {
+        const firstSeed = locals.find((item) => item.integration_id)?.integration_id || '';
+        setSelectedSeedIntegrationId(firstSeed);
+      }
       setGoogleBusinessesLoading(false);
     } catch {
       setGoogleBusinesses([]);
+      setSelectedSeedIntegrationId('');
       setGoogleFeedback(t('settings.integrations.googleBusinessesLoadError'));
       setGoogleBusinessesLoading(false);
     }
   }
 
-  async function loadGoogleLocations(businessId: string) {
+  async function loadGoogleLocations(seedIntegrationId: string) {
     setLocationsLoading(true);
     setLocationsFeedback(null);
     setGoogleLocations([]);
-    setSelectedLocationId('');
+    setSelectedLocationIds([]);
     try {
-      const response = await fetch(`/api/integrations/google/locations?biz_id=${encodeURIComponent(businessId)}`);
+      const response = await fetch(`/api/integrations/google/locations?seed_integration_id=${encodeURIComponent(seedIntegrationId)}`);
       if (response.status === 404) {
         setLocationsState('not_connected');
         setLocationsFeedback(t('settings.integrations.googleLocationsUnavailable'));
@@ -279,9 +312,7 @@ export default function IntegrationsPlaceholder() {
 
       const list = Array.isArray(payload.locations) ? payload.locations : [];
       setGoogleLocations(list);
-      if (list.length > 0) {
-        setSelectedLocationId(list[0].location_id);
-      }
+      setSelectedLocationIds(list.length > 0 ? [list[0].location_id] : []);
       setLocationsLoading(false);
     } catch {
       setLocationsState('not_connected');
@@ -291,16 +322,30 @@ export default function IntegrationsPlaceholder() {
   }
 
   function openLocationsModal() {
-    if (!selectedBizId) return;
+    const seedIntegrationId =
+      selectedBusinessIntegration?.integration_id
+      || selectedSeedIntegrationId
+      || seedOptions[0]?.value
+      || '';
+    if (!seedIntegrationId) return;
+    setSelectedSeedIntegrationId(seedIntegrationId);
     setLocationsModalOpen(true);
-    void loadGoogleLocations(selectedBizId);
+    void loadGoogleLocations(seedIntegrationId);
   }
 
   function closeLocationsModal() {
     setLocationsModalOpen(false);
     setLocationsFeedback(null);
     setGoogleLocations([]);
-    setSelectedLocationId('');
+    setSelectedLocationIds([]);
+  }
+
+  function toggleLocation(locationId: string) {
+    setSelectedLocationIds((current) =>
+      current.includes(locationId)
+        ? current.filter((id) => id !== locationId)
+        : [...current, locationId],
+    );
   }
 
   function toggleChannel(channel: 'ig_feed' | 'ig_story' | 'ig_reel') {
@@ -475,16 +520,16 @@ export default function IntegrationsPlaceholder() {
   }
 
   async function handleImportLocation() {
-    if (!selectedLocationId || !selectedBizId) return;
+    if (selectedLocationIds.length === 0 || !selectedSeedIntegrationId) return;
     setImportingLocation(true);
     setLocationsFeedback(null);
     try {
-      const response = await fetch('/api/integrations/google/import-location', {
+      const response = await fetch('/api/integrations/google/import-locations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          location_id: selectedLocationId,
-          biz_id: selectedBizId,
+          seed_integration_id: selectedSeedIntegrationId,
+          location_ids: selectedLocationIds,
         }),
       });
 
@@ -504,11 +549,14 @@ export default function IntegrationsPlaceholder() {
         return;
       }
 
-      setLocationsFeedback(
-        payload.created
-          ? t('settings.integrations.googleImportSuccess')
-          : t('settings.integrations.googleImportExists'),
-      );
+      const importedCount = Number(payload.imported || 0);
+      if (importedCount > 0) {
+        setLocationsFeedback(
+          t('settings.integrations.googleImportSuccessCount', { count: String(importedCount) }),
+        );
+      } else {
+        setLocationsFeedback(t('settings.integrations.googleImportExists'));
+      }
       await reload();
       await loadGoogleBusinesses();
       closeLocationsModal();
@@ -686,7 +734,7 @@ export default function IntegrationsPlaceholder() {
             <Button
               variant="secondary"
               onClick={openLocationsModal}
-              disabled={!selectedBizId}
+              disabled={!selectedBizId || !seedOptions.length}
               data-testid="google-business-add-location"
             >
               {t('settings.integrations.googleAddLocation')}
@@ -704,25 +752,25 @@ export default function IntegrationsPlaceholder() {
                   className="rounded-lg border border-white/10 bg-white/6 px-3 py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
                 >
                   <div>
-                    <p className="text-sm text-white/90">{item.name}</p>
+                    <p className="text-sm text-white/90">{item.biz_name}</p>
                     <p className="text-xs text-white/60">
-                      {item.city || '—'} · {item.google_location_id || t('settings.integrations.googleLocationIdMissing')}
+                      {item.city || item.slug || '—'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span
                       className={cn(
                         'inline-flex rounded-full border px-2 py-0.5 text-xs',
-                        item.gbp_state === 'connected'
+                        item.state === 'connected'
                           ? 'border-emerald-400/35 bg-emerald-400/12 text-emerald-100'
-                          : item.gbp_state === 'needs_reauth'
+                          : item.state === 'needs_reauth'
                             ? 'border-amber-300/40 bg-amber-300/12 text-amber-100'
                             : 'border-white/20 bg-white/8 text-white/82',
                       )}
                     >
-                      {item.gbp_state === 'connected'
+                      {item.state === 'connected'
                         ? t('settings.integrations.googleStatusConnected')
-                        : item.gbp_state === 'needs_reauth'
+                        : item.state === 'needs_reauth'
                           ? t('settings.integrations.googleStatusNeedsReauth')
                           : t('settings.integrations.googleStatusNotConnected')}
                     </span>
@@ -735,7 +783,7 @@ export default function IntegrationsPlaceholder() {
                       }}
                       loading={googleConnectingBizId === item.biz_id}
                     >
-                      {item.gbp_state === 'needs_reauth'
+                      {item.state === 'needs_reauth'
                         ? t('settings.integrations.googleReconnect')
                         : t('settings.integrations.googleConnect')}
                     </Button>
@@ -748,7 +796,7 @@ export default function IntegrationsPlaceholder() {
             </div>
           </div>
 
-          {googleBusinesses.some((item) => item.gbp_state === 'needs_reauth') && (
+          {googleBusinesses.some((item) => item.state === 'needs_reauth') && (
             <div className={cn(glass, glassNoise, 'text-xs text-amber-100 border border-amber-300/35 bg-amber-300/10 px-2.5 py-2')}>
               {t('settings.integrations.googleReauthWarning')}
             </div>
@@ -781,6 +829,17 @@ export default function IntegrationsPlaceholder() {
               </Button>
             </div>
 
+            <Select
+              label={t('settings.integrations.googleSeedSelector')}
+              options={seedOptions}
+              value={selectedSeedIntegrationId}
+              onChange={(event) => {
+                const nextSeedId = event.target.value;
+                setSelectedSeedIntegrationId(nextSeedId);
+                if (nextSeedId) void loadGoogleLocations(nextSeedId);
+              }}
+            />
+
             {locationsLoading && (
               <div className={cn(glass, 'px-3 py-2 text-sm text-white/70')}>
                 {t('common.loading')}
@@ -796,8 +855,8 @@ export default function IntegrationsPlaceholder() {
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => void handleConnectGoogle()}
-                    loading={googleConnectingBizId === selectedBizId}
+                    onClick={() => void handleConnectGoogle(selectedSeedBusiness?.biz_id)}
+                    loading={googleConnectingBizId === selectedSeedBusiness?.biz_id}
                   >
                     {t('settings.integrations.googleConnect')}
                   </Button>
@@ -817,18 +876,18 @@ export default function IntegrationsPlaceholder() {
                         key={location.location_id}
                         className={cn(
                           'block rounded-lg border px-3 py-2 cursor-pointer transition-all duration-[220ms] ease-premium',
-                          selectedLocationId === location.location_id
+                          selectedLocationIds.includes(location.location_id)
                             ? 'border-brand-accent/40 bg-white/10'
                             : 'border-white/10 bg-white/5 hover:bg-white/8',
                         )}
                       >
                         <input
-                          type="radio"
+                          type="checkbox"
                           className="sr-only"
-                          checked={selectedLocationId === location.location_id}
-                          onChange={() => setSelectedLocationId(location.location_id)}
+                          checked={selectedLocationIds.includes(location.location_id)}
+                          onChange={() => toggleLocation(location.location_id)}
                         />
-                        <p className="text-sm text-white/90">{location.title}</p>
+                        <p className="text-sm text-white/90">{location.name}</p>
                         <p className="text-xs text-white/65">
                           {location.city || '—'} · {location.country || '—'} · {location.location_id}
                         </p>
@@ -843,7 +902,7 @@ export default function IntegrationsPlaceholder() {
                   <Button
                     onClick={() => void handleImportLocation()}
                     loading={importingLocation}
-                    disabled={!selectedLocationId}
+                    disabled={selectedLocationIds.length === 0 || !selectedSeedIntegrationId}
                     data-testid="google-business-import-location"
                   >
                     {t('settings.integrations.googleImportLocation')}
