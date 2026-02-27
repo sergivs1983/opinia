@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT } from '@/components/i18n/I18nContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import Select from '@/components/ui/Select';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { cn } from '@/lib/utils';
 import { glass, glassNoise, glassStrong, glassSweep, ringAccent } from '@/components/ui/glass';
@@ -42,15 +43,34 @@ type WebhookTestResponse = {
   message?: string;
 };
 
+type GoogleStatusResponse = {
+  state?: 'connected' | 'needs_reauth' | 'not_connected';
+  provider?: 'google_business';
+  request_id?: string;
+  error?: string;
+  message?: string;
+};
+
+type GoogleConnectResponse = {
+  url?: string;
+  request_id?: string;
+  error?: string;
+  message?: string;
+};
+
 const CHANNEL_OPTIONS: Array<{ value: 'ig_feed' | 'ig_story' | 'ig_reel'; label: string }> = [
   { value: 'ig_feed', label: 'IG Feed' },
   { value: 'ig_story', label: 'IG Story' },
   { value: 'ig_reel', label: 'IG Reel' },
 ];
 
+type GoogleIntegrationUiStatus = 'connected' | 'needs_reauth' | 'not_connected' | 'unavailable';
+
 export default function IntegrationsPlaceholder() {
   const t = useT();
-  const { biz, reload } = useWorkspace();
+  const { biz, businesses, reload } = useWorkspace();
+  const [selectedBizId, setSelectedBizId] = useState<string | null>(biz?.id || null);
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -59,26 +79,64 @@ export default function IntegrationsPlaceholder() {
   const [channels, setChannels] = useState<Array<'ig_feed' | 'ig_story' | 'ig_reel'>>([]);
   const [connectorId, setConnectorId] = useState<string | null>(null);
   const [secretPresent, setSecretPresent] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [statusRequestId, setStatusRequestId] = useState<string | null>(null);
+  const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
+  const [webhookStatusRequestId, setWebhookStatusRequestId] = useState<string | null>(null);
   const [copiedRequestId, setCopiedRequestId] = useState(false);
 
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleConnecting, setGoogleConnecting] = useState(false);
+  const [googleStatus, setGoogleStatus] = useState<GoogleIntegrationUiStatus>('not_connected');
+  const [googleFeedback, setGoogleFeedback] = useState<string | null>(null);
+
+  const selectedBusiness = useMemo(
+    () => businesses.find((item) => item.id === selectedBizId) || null,
+    [businesses, selectedBizId],
+  );
+  const businessOptions = useMemo(
+    () => businesses.map((item) => ({ value: item.id, label: item.name })),
+    [businesses],
+  );
   const selectedChannels = useMemo(() => new Set(channels), [channels]);
+  const googleStatusLabel = useMemo(() => {
+    if (googleStatus === 'connected') return t('settings.integrations.googleStatusConnected');
+    if (googleStatus === 'needs_reauth') return t('settings.integrations.googleStatusNeedsReauth');
+    if (googleStatus === 'unavailable') return t('settings.integrations.googleStatusUnavailable');
+    return t('settings.integrations.googleStatusNotConnected');
+  }, [googleStatus, t]);
+  const googleStatusClass = useMemo(() => {
+    if (googleStatus === 'connected') return 'border-emerald-400/35 bg-emerald-400/12 text-emerald-100';
+    if (googleStatus === 'needs_reauth') return 'border-amber-300/40 bg-amber-300/12 text-amber-100';
+    if (googleStatus === 'unavailable') return 'border-white/20 bg-white/8 text-white/72';
+    return 'border-white/20 bg-white/8 text-white/82';
+  }, [googleStatus]);
 
   useEffect(() => {
     if (!biz?.id) return;
-    void loadConfig();
+    setSelectedBizId((current) => current || biz.id);
   }, [biz?.id]);
 
-  async function loadConfig() {
-    if (!biz?.id) return;
+  useEffect(() => {
+    if (!selectedBizId) return;
+    if (!businesses.some((item) => item.id === selectedBizId)) {
+      const fallbackBizId = biz?.id || businesses[0]?.id || null;
+      setSelectedBizId(fallbackBizId);
+    }
+  }, [selectedBizId, businesses, biz?.id]);
+
+  useEffect(() => {
+    if (!selectedBizId) return;
+    void loadConfig(selectedBizId);
+    void loadGoogleStatus(selectedBizId);
+  }, [selectedBizId]);
+
+  async function loadConfig(businessId: string) {
     setLoading(true);
-    setStatus(null);
-    setStatusRequestId(null);
+    setWebhookStatus(null);
+    setWebhookStatusRequestId(null);
 
     try {
       const response = await fetch('/api/integrations/connectors', {
-        headers: { 'x-biz-id': biz.id },
+        headers: { 'x-biz-id': businessId },
       });
       const payload = (await response.json().catch(() => ({}))) as ConnectorsListResponse;
       if (!response.ok || payload.error) {
@@ -116,6 +174,41 @@ export default function IntegrationsPlaceholder() {
     }
   }
 
+  async function loadGoogleStatus(businessId: string) {
+    setGoogleLoading(true);
+    setGoogleFeedback(null);
+    try {
+      const response = await fetch(`/api/integrations/google/status?biz_id=${encodeURIComponent(businessId)}`);
+      const fromSafeList = businesses.some((item) => item.id === businessId);
+
+      if (response.status === 404) {
+        setGoogleStatus(fromSafeList ? 'unavailable' : 'not_connected');
+        if (fromSafeList) setGoogleFeedback(t('settings.integrations.googleStatusUnavailable'));
+        setGoogleLoading(false);
+        return;
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as GoogleStatusResponse;
+      if (!response.ok || payload.error) {
+        setGoogleStatus('not_connected');
+        setGoogleFeedback(payload.message || t('settings.integrations.googleStatusLoadError'));
+        setGoogleLoading(false);
+        return;
+      }
+
+      if (payload.state === 'connected' || payload.state === 'needs_reauth' || payload.state === 'not_connected') {
+        setGoogleStatus(payload.state);
+      } else {
+        setGoogleStatus('not_connected');
+      }
+      setGoogleLoading(false);
+    } catch {
+      setGoogleStatus('not_connected');
+      setGoogleFeedback(t('settings.integrations.googleStatusLoadError'));
+      setGoogleLoading(false);
+    }
+  }
+
   function toggleChannel(channel: 'ig_feed' | 'ig_story' | 'ig_reel') {
     setChannels((prev) => {
       if (prev.includes(channel)) return prev.filter((entry) => entry !== channel);
@@ -124,10 +217,10 @@ export default function IntegrationsPlaceholder() {
   }
 
   async function handleSave() {
-    if (!biz?.id) return;
+    if (!selectedBizId) return;
     setSaving(true);
-    setStatus(null);
-    setStatusRequestId(null);
+    setWebhookStatus(null);
+    setWebhookStatusRequestId(null);
     setCopiedRequestId(false);
 
     try {
@@ -135,7 +228,7 @@ export default function IntegrationsPlaceholder() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-biz-id': biz.id,
+          'x-biz-id': selectedBizId,
         },
         body: JSON.stringify({
           type: 'webhook',
@@ -147,11 +240,11 @@ export default function IntegrationsPlaceholder() {
 
       const payload = (await response.json().catch(() => ({}))) as ConnectorUpsertResponse;
       const requestId = payload.request_id || response.headers.get('x-request-id');
-      setStatusRequestId(requestId || null);
+      setWebhookStatusRequestId(requestId || null);
 
       if (!response.ok || payload.error || !payload.connector) {
         const message = payload.message || 'Failed to save webhook config';
-        setStatus(message);
+        setWebhookStatus(message);
         setSaving(false);
         return;
       }
@@ -162,19 +255,19 @@ export default function IntegrationsPlaceholder() {
       setChannels(Array.isArray(payload.connector.allowed_channels) ? payload.connector.allowed_channels : []);
       setSecretPresent(!!payload.connector.secret_present);
       await reload();
-      setStatus(t('common.saved'));
+      setWebhookStatus(t('common.saved'));
       setSaving(false);
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to save webhook config');
+      setWebhookStatus(error instanceof Error ? error.message : 'Failed to save webhook config');
       setSaving(false);
     }
   }
 
   async function handleTestWebhook() {
-    if (!biz?.id || !connectorId) return;
+    if (!selectedBizId || !connectorId) return;
     setTesting(true);
-    setStatus(null);
-    setStatusRequestId(null);
+    setWebhookStatus(null);
+    setWebhookStatusRequestId(null);
     setCopiedRequestId(false);
 
     try {
@@ -182,7 +275,7 @@ export default function IntegrationsPlaceholder() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-biz-id': biz.id,
+          'x-biz-id': selectedBizId,
         },
         body: JSON.stringify({
           connectorId,
@@ -194,22 +287,22 @@ export default function IntegrationsPlaceholder() {
 
       const payload = (await response.json().catch(() => ({}))) as WebhookTestResponse;
       const requestId = payload.request_id || response.headers.get('x-request-id');
-      setStatusRequestId(requestId || null);
+      setWebhookStatusRequestId(requestId || null);
       const base = payload.ok ? 'Webhook sent' : `Webhook ${payload.status || 'failed'}`;
       const extra = payload.error ? ` — ${payload.error}` : '';
-      setStatus(`${base}${extra}`);
+      setWebhookStatus(`${base}${extra}`);
       setTesting(false);
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Webhook test failed');
+      setWebhookStatus(error instanceof Error ? error.message : 'Webhook test failed');
       setTesting(false);
     }
   }
 
   async function handleRegenerateSecret() {
-    if (!biz?.id) return;
+    if (!selectedBizId) return;
     setSaving(true);
-    setStatus(null);
-    setStatusRequestId(null);
+    setWebhookStatus(null);
+    setWebhookStatusRequestId(null);
     setCopiedRequestId(false);
 
     try {
@@ -217,7 +310,7 @@ export default function IntegrationsPlaceholder() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-biz-id': biz.id,
+          'x-biz-id': selectedBizId,
         },
         body: JSON.stringify({
           type: 'webhook',
@@ -230,27 +323,71 @@ export default function IntegrationsPlaceholder() {
 
       const payload = (await response.json().catch(() => ({}))) as ConnectorUpsertResponse;
       const requestId = payload.request_id || response.headers.get('x-request-id');
-      setStatusRequestId(requestId || null);
+      setWebhookStatusRequestId(requestId || null);
 
       if (!response.ok || payload.error || !payload.connector) {
-        setStatus(payload.message || 'Failed to regenerate secret');
+        setWebhookStatus(payload.message || 'Failed to regenerate secret');
         setSaving(false);
         return;
       }
 
       setConnectorId(payload.connector.id);
       setSecretPresent(!!payload.connector.secret_present);
-      setStatus(t('settings.integrations.secretRegenerated'));
+      setWebhookStatus(t('settings.integrations.secretRegenerated'));
       setSaving(false);
     } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : 'Failed to regenerate secret');
+      setWebhookStatus(error instanceof Error ? error.message : 'Failed to regenerate secret');
       setSaving(false);
     }
   }
 
+  async function handleConnectGoogle() {
+    if (!selectedBizId) return;
+    setGoogleConnecting(true);
+    setGoogleFeedback(null);
+
+    try {
+      const response = await fetch('/api/integrations/google/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ biz_id: selectedBizId }),
+      });
+
+      const fromSafeList = businesses.some((item) => item.id === selectedBizId);
+      if (response.status === 404) {
+        setGoogleStatus(fromSafeList ? 'unavailable' : 'not_connected');
+        setGoogleFeedback(
+          fromSafeList
+            ? t('settings.integrations.googleStatusUnavailable')
+            : t('settings.integrations.googleStatusNotConnected'),
+        );
+        setGoogleConnecting(false);
+        return;
+      }
+
+      const payload = (await response.json().catch(() => ({}))) as GoogleConnectResponse;
+      if (!response.ok || payload.error) {
+        setGoogleFeedback(payload.message || t('settings.integrations.googleConnectError'));
+        setGoogleConnecting(false);
+        return;
+      }
+
+      if (!payload.url) {
+        setGoogleFeedback(t('settings.integrations.googleConnectError'));
+        setGoogleConnecting(false);
+        return;
+      }
+
+      window.location.assign(payload.url);
+    } catch {
+      setGoogleFeedback(t('settings.integrations.googleConnectError'));
+      setGoogleConnecting(false);
+    }
+  }
+
   async function copyRequestId() {
-    if (!statusRequestId) return;
-    await navigator.clipboard.writeText(statusRequestId);
+    if (!webhookStatusRequestId) return;
+    await navigator.clipboard.writeText(webhookStatusRequestId);
     setCopiedRequestId(true);
     window.setTimeout(() => setCopiedRequestId(false), 1200);
   }
@@ -259,9 +396,18 @@ export default function IntegrationsPlaceholder() {
     <div className="max-w-2xl space-y-4">
       <div className={cn(glassStrong, glassNoise, glassSweep, 'p-6 space-y-4')}>
         <div className="space-y-1">
-          <h3 className="font-semibold text-white/90">{t('settings.integrations.title')}</h3>
+          <h3 className="font-semibold text-white/90">{t('settings.integrations.publishSectionTitle')}</h3>
           <p className="text-xs text-white/70">{t('settings.integrations.webhookDesc')}</p>
         </div>
+
+        {businessOptions.length > 1 && (
+          <Select
+            label={t('settings.integrations.businessSelector')}
+            options={businessOptions}
+            value={selectedBizId || ''}
+            onChange={(event) => setSelectedBizId(event.target.value)}
+          />
+        )}
 
         <div className="flex items-center justify-between gap-3 rounded-xl border border-white/14 bg-white/8 px-3 py-2 transition-all duration-[220ms] ease-premium hover:border-brand-accent/20 hover:shadow-[0_0_16px_rgba(0,168,107,0.10)]">
           <div>
@@ -337,12 +483,12 @@ export default function IntegrationsPlaceholder() {
           </Button>
         </div>
 
-        {status && (
+        {webhookStatus && (
           <div className={cn(glass, glassNoise, 'text-xs text-white/72 px-2.5 py-2 space-y-1')} data-testid="webhook-test-status">
-            <p>{status}</p>
-            {statusRequestId && (
+            <p>{webhookStatus}</p>
+            {webhookStatusRequestId && (
               <div className="flex items-center gap-2">
-                <span>ID: {statusRequestId}</span>
+                <span>ID: {webhookStatusRequestId}</span>
                 <button
                   type="button"
                   onClick={() => void copyRequestId()}
@@ -352,6 +498,61 @@ export default function IntegrationsPlaceholder() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      <div className={cn(glassStrong, glassNoise, glassSweep, 'p-6 space-y-4')}>
+        <div className="space-y-1">
+          <h3 className="font-semibold text-white/90">{t('settings.integrations.reputationSectionTitle')}</h3>
+          <p className="text-xs text-white/70">{t('settings.integrations.reputationSectionDesc')}</p>
+        </div>
+
+        {businessOptions.length > 1 && (
+          <Select
+            label={t('settings.integrations.businessSelector')}
+            options={businessOptions}
+            value={selectedBizId || ''}
+            onChange={(event) => setSelectedBizId(event.target.value)}
+          />
+        )}
+
+        <div className="rounded-xl border border-white/14 bg-white/8 px-3 py-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-white/90">{t('settings.integrations.googleStatusLabel')}</p>
+            <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-xs', googleStatusClass)}>
+              {googleLoading ? t('common.loading') : googleStatusLabel}
+            </span>
+          </div>
+          <p className="text-xs text-white/70">
+            {selectedBusiness?.name || biz?.name || t('common.unknown')}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => void handleConnectGoogle()}
+            loading={googleConnecting}
+            disabled={googleLoading || googleStatus === 'unavailable' || !selectedBizId}
+            data-testid="google-business-connect"
+          >
+            {googleStatus === 'needs_reauth'
+              ? t('settings.integrations.googleReconnect')
+              : t('settings.integrations.googleConnect')}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => selectedBizId && void loadGoogleStatus(selectedBizId)}
+            disabled={!selectedBizId || googleLoading}
+            data-testid="google-business-refresh-status"
+          >
+            {t('settings.integrations.googleRefreshStatus')}
+          </Button>
+        </div>
+
+        {googleFeedback && (
+          <div className={cn(glass, glassNoise, 'text-xs text-white/72 px-2.5 py-2')}>
+            {googleFeedback}
           </div>
         )}
       </div>
