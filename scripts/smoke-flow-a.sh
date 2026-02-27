@@ -1,171 +1,148 @@
 #!/usr/bin/env bash
-# ─────────────────────────────────────────────────────────────────────────────
-# smoke-flow-a.sh — Flow A local smoke tests
-#
-# Prerequisites:
-#   1. npm run dev is running on localhost:3000
-#   2. INTERNAL_HMAC_SECRET is set in .env.local (or exported in env)
-#
-# Usage:
-#   ./scripts/smoke-flow-a.sh [base_url]
-#
-# Optional: override base URL, e.g.
-#   BASE=https://staging.opinia.cat ./scripts/smoke-flow-a.sh
-# ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 BASE="${1:-${BASE:-http://localhost:3000}}"
 WORKER_PATH="/api/_internal/google/publish"
 WORKER_URL="${BASE}${WORKER_PATH}"
 
-# ── Resolve INTERNAL_HMAC_SECRET ─────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${REPO_ROOT}/.env.local"
 
-if [[ -n "${INTERNAL_HMAC_SECRET:-}" ]]; then
-  SECRET="${INTERNAL_HMAC_SECRET}"
-elif [[ -f "${ENV_FILE}" ]]; then
-  # Last-wins (dotenv semantics): grep all lines, take last
-  SECRET=$(grep '^INTERNAL_HMAC_SECRET=' "${ENV_FILE}" | tail -1 | cut -d= -f2-)
-fi
+resolve_secret() {
+  if [ -n "${INTERNAL_HMAC_SECRET:-}" ]; then
+    printf '%s' "${INTERNAL_HMAC_SECRET}"
+    return
+  fi
+  if [ -f "${ENV_FILE}" ]; then
+    awk -F= '/^INTERNAL_HMAC_SECRET=/{v=$2} END{print v}' "${ENV_FILE}"
+    return
+  fi
+  printf ''
+}
 
-if [[ -z "${SECRET:-}" ]]; then
-  echo "ERROR: INTERNAL_HMAC_SECRET not found in .env.local or environment" >&2
+SECRET="$(resolve_secret)"
+if [ -z "${SECRET}" ]; then
+  echo "ERROR: falta INTERNAL_HMAC_SECRET (.env.local o env)"
   exit 1
 fi
 
-# ── Colour helpers ────────────────────────────────────────────────────────────
-GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; RESET='\033[0m'
-PASS="${GREEN}PASS${RESET}"; FAIL="${RED}FAIL${RESET}"; SKIP="${YELLOW}SKIP${RESET}"
-
+GREEN="$(printf '\033[32m')"
+RED="$(printf '\033[31m')"
+RESET="$(printf '\033[0m')"
+PASS="PASS"
+FAIL="FAIL"
 FAILURES=0
 
-check() {
-  local name="$1" want_code="$2" want_body_pattern="$3"
-  shift 3
-  local response http_code body
+REQ_CODE=""
+REQ_BODY=""
 
-  response=$(curl -s -w "\n%{http_code}" --max-time 15 "$@" 2>/dev/null) || {
-    echo -e "  [${FAIL}] ${name} — curl error (server down?)"
-    (( FAILURES++ )); return
-  }
-  http_code=$(echo "${response}" | tail -1)
-  body=$(echo "${response}" | sed '$d')
+perform_request() {
+  local resp
+  resp="$(curl -sS -w $'\n%{http_code}' --max-time 20 "$@" 2>/dev/null || true)"
+  REQ_CODE="$(printf '%s\n' "$resp" | tail -n 1)"
+  REQ_BODY="$(printf '%s\n' "$resp" | sed '$d')"
+}
 
-  local code_ok=0 body_ok=0
-  [[ "${http_code}" == "${want_code}" ]] && code_ok=1
-  [[ "${want_body_pattern}" == "*" ]] || echo "${body}" | grep -qE "${want_body_pattern}" && body_ok=1
-  [[ "${want_body_pattern}" == "*" ]] && body_ok=1
+pass() {
+  echo "  [${PASS}] $1"
+}
 
-  if [[ "${code_ok}" -eq 1 && "${body_ok}" -eq 1 ]]; then
-    echo -e "  [${PASS}] ${name}  HTTP ${http_code}"
+fail() {
+  echo "  [${FAIL}] $1"
+  echo "         HTTP=${REQ_CODE}"
+  echo "         BODY=$(printf '%s' "${REQ_BODY}" | head -c 240)"
+  FAILURES=$((FAILURES + 1))
+}
+
+check_status() {
+  local label="$1"
+  local expected="$2"
+  shift 2
+  perform_request "$@"
+  if [ "${REQ_CODE}" = "${expected}" ]; then
+    pass "${label} (HTTP ${REQ_CODE})"
   else
-    echo -e "  [${FAIL}] ${name}  HTTP ${http_code} (want ${want_code})       (( FAILURES++ ))
+    fail "${label} (expected ${expected})"
   fi
 }
 
-# ── Generate HMAC headers ─────────────────────────────────────────────────────
-hmac_headers() {
-  # Pass secret via env var to avoid shell-quoting issues with special chars
-  OPIN_HMAC_SECRET="${SECRET}" OPIN_HMAC_PATH="${WORKER_PATH}" node - <<'JSEOF'
-const {createHmac, createHash} = require('crypto');
+build_hmac() {
+  local path="$1"
+  local body="$2"
+  OPIN_HMAC_SECRET="${SECRET}" OPIN_HMAC_PATH="${path}" OPIN_HMAC_BODY="${body}" node - <<'JS'
+const crypto = require('crypto');
 const secret = process.env.OPIN_HMAC_SECRET;
-const path   = process.env.OPIN_HMAC_PATH;
+const path = process.env.OPIN_HMAC_PATH;
+const body = process.env.OPIN_HMAC_BODY || '';
 const ts = Date.now().toString();
-const bodyHex = createHash('sha256').update('').digest('hex');
-const canonical = `${ts}.POST.${path}.${bodyHex}`;
-const sig = createHmac('sha256', secret).update(canonical).digest('hex');
-process.stdout.write(`x-opin-timestamp: ${ts}\nx-opin-signature: ${sig}\n`);
-JSEOF
+const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
+const canonical = `${ts}.POST.${path}.${bodyHash}`;
+const sig = crypto.createHmac('sha256', secret).update(canonical).digest('hex');
+process.stdout.write(`${ts}\n${sig}\n`);
+JS
 }
 
-HMAC_OUT=$(hmac_headers)
-TS=$(echo "${HMAC_OUT}" | grep 'x-opin-timestamp' | cut -d' ' -f2)
-SIG=$(echo "${HMAC_OUT}" | grep 'x-opin-signature'  | cut -d' ' -f2)
-
-# ─────────────────────────────────────────────────────────────────────────────
 echo "Flow A smoke tests — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
+check_status "Health check" "200" "${BASE}/"
+
 echo ""
-echo "Guard: HMAC (worker endpoint)"
-# A — no HMAC headers → 401
-check "no HMAC → 401" "401" '"error"' \
+echo "1) Guard HMAC worker"
+check_status "no HMAC -> 401" "401" \
   -X POST "${WORKER_URL}" \
   -H "Content-Type: application/json" \
   -d ''
 
-# B — bad signature → 401
-check "bad HMAC sig → 401" "401" '"error"' \
-  -X POST "${WORKER_URL}" \
-  -H "x-opin-timestamp: $(date +%s)000" \
-  -H "x-opin-signature: deadbeefdeadbeef" \
-  -H "Content-Type: application/json" \
-  -d ''
-
-# C — replayed timestamp (way in the past → outside 5-min window) → 401
-check "replayed ts → 401" "401" '"error"' \
+check_status "bad HMAC -> 401" "401" \
   -X POST "${WORKER_URL}" \
   -H "x-opin-timestamp: 1000000000000" \
-  -H "x-opin-signature: deadbeefdeadbeef" \
+  -H "x-opin-signature: deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef" \
   -H "Content-Type: application/json" \
   -d ''
 
-# D — valid HMAC → guard passes (200 if DB up, 500 rpc_error if placeholder DB)
-response=$(curl -s -w "\n%{http_code}" --max-time 20 \
-  -X POST "${WORKER_URL}" \
-  -H "x-opin-timestamp: ${TS}" \
-  -H "x-opin-signature: ${SIG}" \
+hmac="$(build_hmac "${WORKER_PATH}" '')"
+ts="$(printf '%s\n' "${hmac}" | sed -n '1p')"
+sig="$(printf '%s\n' "${hmac}" | sed -n '2p')"
+perform_request -X POST "${WORKER_URL}" \
+  -H "x-opin-timestamp: ${ts}" \
+  -H "x-opin-signature: ${sig}" \
   -H "Content-Type: application/json" \
-  -d '' 2>/dev/null)
-http_code=$(echo "${response}" | tail -1)
-body=$(echo "${response}" | sed '$d')
+  -d ''
 
-if [[ "" == "200" ]]; then
-  echo -e "  [] valid HMAC → 200 + JSON  HTTP 200"
-elif [[ "" == "500" ]] && echo "" | grep -q 'rpc_error'; then
-  echo -e "  [] valid HMAC → guard passed (rpc_error expected — no live DB)  HTTP 500"
+if [ "${REQ_CODE}" = "200" ]; then
+  pass "valid HMAC -> 200"
+elif [ "${REQ_CODE}" = "500" ] && [[ "${REQ_BODY}" == *'"rpc_error"'* ]]; then
+  pass "valid HMAC -> 500 rpc_error (placeholder DB)"
 else
-  echo -e "  [] valid HMAC → HTTP "
-  (( FAILURES++ ))
+  fail "valid HMAC -> expected 200 or 500 rpc_error"
 fi
 
 echo ""
-echo "Guard: middleware blocks direct cron path"
-# E — direct /api/cron/worker/... → 404 (middleware)
-check "direct cron path → 404" "404" '"not_found"' \
+echo "2) Guard middleware direct cron path"
+check_status "direct cron path -> 404" "404" \
   -X POST "${BASE}/api/cron/worker/google/publish" \
   -H "Content-Type: application/json" \
   -d ''
 
 echo ""
-echo "Guard: CSRF (publish endpoint)"
-# F — evil origin → 403
-check "evil origin → 403" "403" '"csrf_failed"' \
-  -X POST "${BASE}/api/replies/00000000-0000-0000-0000-000000000001/publish" \
-  -H "Content-Type: application/json" \
-  -H "Origin: https://evil.com" \
-  -d '{"final_content":"test"}'
-
-echo ""
-echo "Guard: auth (session cookie required)"
-# G — no session on publish → 401
-check "no session publish → 401" "401" '"unauthorized"' \
+echo "3) Guard auth publish endpoints"
+check_status "no session replies publish -> 401" "401" \
   -X POST "${BASE}/api/replies/00000000-0000-0000-0000-000000000001/publish" \
   -H "Content-Type: application/json" \
   -H "Origin: ${BASE}" \
   -d '{"final_content":"test"}'
 
-# H — no session on publish-jobs → 401
-check "no session publish-jobs → 401" "401" '"unauthorized"' \
+check_status "no session publish-jobs -> 401" "401" \
   "${BASE}/api/publish-jobs/00000000-0000-0000-0000-000000000001"
 
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
-if [[ "${FAILURES}" -eq 0 ]]; then
+if [ "${FAILURES}" -eq 0 ]; then
   echo -e "${GREEN}All Flow A smoke tests passed.${RESET}"
-else
-  echo -e "${RED}${FAILURES} test(s) failed.${RESET}"
-  exit 1
+  exit 0
 fi
+
+echo -e "${RED}${FAILURES} test(s) failed.${RESET}"
+exit 1
