@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import { asMembershipRoleFilter, TEAM_MANAGEMENT_ROLES } from '@/lib/roles';
-import { assertOrgHasBusinessCapacity, OrgBusinessLimitError } from '@/lib/seats';
+import { getGoogleLocalsLimit } from '@/lib/integrations/google/multilocal';
 import {
   validateBody,
   validateQuery,
@@ -44,6 +44,42 @@ async function ensureOrgManagerPermission(args: {
   }
 
   return { supabase, user, response: null as NextResponse | null };
+}
+
+async function assertOrgBusinessPlanCapacity(args: {
+  supabase: ReturnType<typeof createServerSupabaseClient>;
+  orgId: string;
+}) {
+  const { data: org, error: orgError } = await args.supabase
+    .from('organizations')
+    .select('id, plan, plan_code')
+    .eq('id', args.orgId)
+    .maybeSingle();
+
+  if (orgError || !org) {
+    throw new Error(orgError?.message || 'organization_not_found');
+  }
+
+  const limit = getGoogleLocalsLimit({
+    plan: (org as { plan?: string | null }).plan,
+    planCode: (org as { plan_code?: string | null }).plan_code,
+  });
+
+  const { count, error: countError } = await args.supabase
+    .from('businesses')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', args.orgId)
+    .eq('is_active', true);
+
+  if (countError) {
+    throw new Error(countError.message || 'business_count_failed');
+  }
+
+  const current = count || 0;
+  if (current >= limit) {
+    return { reached: true, limit, current };
+  }
+  return { reached: false, limit, current };
 }
 
 export async function GET(request: Request) {
@@ -91,15 +127,19 @@ export async function POST(request: Request) {
   if (access.response) return access.response;
 
   try {
-    await assertOrgHasBusinessCapacity(access.supabase, body.org_id);
-  } catch (limitError: unknown) {
-    if (limitError instanceof OrgBusinessLimitError) {
+    const capacity = await assertOrgBusinessPlanCapacity({
+      supabase: access.supabase,
+      orgId: body.org_id,
+    });
+    if (capacity.reached) {
       return NextResponse.json({
-        error: limitError.code,
-        message: limitError.message,
-        limits: limitError.snapshot,
-      }, { status: limitError.status });
+        error: 'plan_limit',
+        message: "Has arribat al límit d'establiments del teu pla.",
+        limit: capacity.limit,
+        current: capacity.current,
+      }, { status: 402 });
     }
+  } catch {
     return NextResponse.json({ error: 'business_limit_check_failed', message: "No hem pogut validar el límit d'establiments." }, { status: 500 });
   }
 
