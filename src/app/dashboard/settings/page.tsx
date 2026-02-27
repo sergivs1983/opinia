@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import Divider from '@/components/ui/Divider';
 import GlassCard from '@/components/ui/GlassCard';
@@ -35,10 +36,14 @@ export default function SettingsPage() {
   const t = useT();
   const { biz, org, membership, businesses } = useWorkspace();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<SettingsTab>('adn');
   const [saving, setSaving] = useState(false);
   const [savedIndicatorVisible, setSavedIndicatorVisible] = useState(false);
+  const [oauthBanner, setOauthBanner] = useState<{ type: 'success' | 'warning'; message: string } | null>(null);
 
   const [businessType, setBusinessType] = useState('restaurant');
   const [topOffer, setTopOffer] = useState('');
@@ -95,6 +100,39 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!canManageTeamTab && tab === 'team') setTab('adn');
   }, [canManageTeamTab, tab]);
+
+  useEffect(() => {
+    if (!canManageTeamTab) return;
+    const queryTab = searchParams.get('tab');
+    if (queryTab === 'integrations' && tab !== 'team') {
+      setTab('team');
+    }
+  }, [canManageTeamTab, searchParams, tab]);
+
+  useEffect(() => {
+    const oauthState = searchParams.get('google_oauth');
+    if (!oauthState) return;
+
+    const requestId = searchParams.get('request_id');
+    const isConnected = oauthState === 'connected';
+    const message = isConnected
+      ? t('settings.integrations.googleCallbackConnected')
+      : t('settings.integrations.googleCallbackError');
+    const withRequestId = requestId ? `${message} (${requestId})` : message;
+
+    setOauthBanner({
+      type: isConnected ? 'success' : 'warning',
+      message: withRequestId,
+    });
+    toast(withRequestId, isConnected ? 'success' : 'warning');
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete('google_oauth');
+    nextParams.delete('message');
+    nextParams.delete('request_id');
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname);
+  }, [pathname, router, searchParams, t, toast]);
 
   const toneOptions = useMemo(
     () => [
@@ -212,6 +250,21 @@ export default function SettingsPage() {
         <h1 className={cn('font-display text-2xl font-semibold md:text-3xl', textMain)}>{t('settings.humanized.title')}</h1>
         <p className={cn('text-sm md:text-base', textSub)}>{t('settings.humanized.subtitle')}</p>
       </header>
+
+      {oauthBanner && (
+        <GlassCard
+          variant="glass"
+          className={cn(
+            'border px-4 py-3 text-sm',
+            oauthBanner.type === 'success'
+              ? 'border-emerald-400/35 bg-emerald-400/10 text-emerald-100'
+              : 'border-amber-300/35 bg-amber-300/10 text-amber-100',
+          )}
+          data-testid="settings-google-oauth-banner"
+        >
+          {oauthBanner.message}
+        </GlassCard>
+      )}
 
       <div className="overflow-x-auto pb-1">
         <div className="inline-flex min-w-full border-b border-white/10 md:min-w-0">

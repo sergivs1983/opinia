@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody } from '@/lib/validations';
-import { validateCsrf } from '@/lib/security/csrf';
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
 
 const ConnectGoogleSchema = z.object({
@@ -40,17 +39,58 @@ function clientIdTail(clientId: string | null): string {
   return clientId.slice(-6);
 }
 
-export async function POST(request: Request) {
-  const blocked = validateCsrf(request);
-  if (blocked) return blocked;
+function isSameOrigin(value: string, appOrigin: string): boolean {
+  try {
+    return new URL(value).origin === new URL(appOrigin).origin;
+  } catch {
+    return false;
+  }
+}
 
+function validateStrictCsrf(request: Request): NextResponse | null {
+  const appOrigin = getAppOrigin();
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+
+  if (origin) {
+    if (!isSameOrigin(origin, appOrigin)) {
+      return NextResponse.json(
+        { error: 'csrf_failed', message: 'Cross-origin request rejected' },
+        { status: 403 },
+      );
+    }
+    return null;
+  }
+
+  if (referer) {
+    if (!isSameOrigin(referer, appOrigin)) {
+      return NextResponse.json(
+        { error: 'csrf_failed', message: 'Cross-origin request rejected' },
+        { status: 403 },
+      );
+    }
+    return null;
+  }
+
+  return NextResponse.json(
+    { error: 'csrf_failed', message: 'Origin header required' },
+    { status: 403 },
+  );
+}
+
+export async function POST(request: Request) {
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
-  const log = createLogger({ request_id: requestId, route: '/api/integrations/google/connect' });
 
   const withRequestId = (response: NextResponse) => {
     response.headers.set('x-request-id', requestId);
+    response.headers.set('Cache-Control', 'no-store');
     return response;
   };
+
+  const blocked = validateStrictCsrf(request);
+  if (blocked) return withRequestId(blocked);
+
+  const log = createLogger({ request_id: requestId, route: '/api/integrations/google/connect' });
 
   const redirectUri = buildRedirectUri();
   const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || null;
@@ -93,11 +133,11 @@ export async function POST(request: Request) {
       return withRequestId(
         NextResponse.json(
           {
-            error: 'forbidden',
-            message: 'No tens permisos per connectar Google en aquest negoci',
+            error: 'not_found',
+            message: 'No disponible',
             request_id: requestId,
           },
-          { status: 403 },
+          { status: 404 },
         ),
       );
     }
@@ -136,8 +176,7 @@ export async function POST(request: Request) {
 
     return withRequestId(
       NextResponse.json({
-        authUrl: authUrl.toString(),
-        redirect_uri: redirectUri,
+        url: authUrl.toString(),
         request_id: requestId,
       }),
     );
