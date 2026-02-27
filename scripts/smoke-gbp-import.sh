@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE="${1:-${BASE:-http://localhost:3000}}"
-TEST_SEED_BIZ="00000000-0000-0000-0000-000000000000"
+BASE="${1:-http://localhost:3000}"
+TEST_BIZ_ID="7ea7fc33-4b79-48f2-b589-63d7f0c8da4f"
 
 PASS="PASS"
 FAIL="FAIL"
@@ -16,21 +16,26 @@ REQ_BODY=""
 REQ_HEADERS=""
 
 perform_request() {
+  local tmp_headers
+  tmp_headers="$(mktemp)"
   local resp
-  resp="$(curl -sS --max-time 20 -D - -w $'\n%{http_code}' "$@" 2>/dev/null || true)"
+  resp="$(curl -sS --max-time 20 -D "${tmp_headers}" -w $'\n%{http_code}' "$@" 2>/dev/null || true)"
   REQ_CODE="$(printf '%s\n' "$resp" | tail -n 1)"
-  REQ_HEADERS="$(printf '%s\n' "$resp" | sed '$d' | sed -n '1,/^\r$/p')"
-  REQ_BODY="$(printf '%s\n' "$resp" | sed '$d' | sed -e '1,/^\r$/d')"
+  REQ_BODY="$(printf '%s\n' "$resp" | sed '$d')"
+  REQ_HEADERS="$(cat "${tmp_headers}")"
+  rm -f "${tmp_headers}"
 }
 
 report_ok() {
-  echo "  [${PASS}] $1"
+  local label="$1"
+  echo "  [${PASS}] ${label}"
 }
 
 report_fail() {
-  echo "  [${FAIL}] $1"
+  local label="$1"
+  echo "  [${FAIL}] ${label}"
   echo "         HTTP=${REQ_CODE}"
-  echo "         BODY=$(printf '%s' "${REQ_BODY}" | head -c 240)"
+  echo "         BODY=$(printf '%s' "${REQ_BODY}" | head -c 220)"
   FAILURES=$((FAILURES + 1))
 }
 
@@ -45,7 +50,7 @@ check_unauthorized() {
   fi
 }
 
-check_no_store() {
+check_no_store_header() {
   local label="$1"
   if printf '%s' "${REQ_HEADERS}" | tr '[:upper:]' '[:lower:]' | grep -q '^cache-control: no-store'; then
     report_ok "${label} has Cache-Control: no-store"
@@ -54,33 +59,23 @@ check_no_store() {
   fi
 }
 
-echo "Flow B multi-local smoke tests — ${BASE}"
+echo "GBP import smoke tests — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
-if ! curl -sS --max-time 5 "${BASE}/" >/dev/null 2>&1; then
-  echo "ERROR: no es pot contactar amb ${BASE}. Arrenca el dev server abans d'executar aquest smoke."
-  exit 1
-fi
-
-check_unauthorized "GET /api/integrations/google/list (no session)" \
-  "${BASE}/api/integrations/google/list"
-check_no_store "GET /api/integrations/google/list"
-
 check_unauthorized "GET /api/integrations/google/locations (no session)" \
-  "${BASE}/api/integrations/google/locations?seed_biz_id=${TEST_SEED_BIZ}"
-check_no_store "GET /api/integrations/google/locations"
+  "${BASE}/api/integrations/google/locations?seed_biz_id=${TEST_BIZ_ID}"
+check_no_store_header "GET /api/integrations/google/locations"
 
 check_unauthorized "POST /api/integrations/google/import-locations (no session)" \
   -X POST "${BASE}/api/integrations/google/import-locations" \
   -H "Content-Type: application/json" \
-  -H "Origin: ${BASE}" \
-  -d "{\"seed_biz_id\":\"${TEST_SEED_BIZ}\",\"locations\":[{\"account_id\":\"accounts/123\",\"location_name\":\"locations/123\",\"title\":\"Demo Local\",\"city\":\"Barcelona\",\"country\":\"ES\"}],\"mode\":\"auto\"}"
-check_no_store "POST /api/integrations/google/import-locations"
+  --data '{"seed_biz_id":"7ea7fc33-4b79-48f2-b589-63d7f0c8da4f","locations":[{"account_id":"accounts/123","location_name":"locations/123","title":"Demo Local","city":"Barcelona","country":"ES"}],"mode":"auto"}'
+check_no_store_header "POST /api/integrations/google/import-locations"
 
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
 if [ "${FAILURES}" -eq 0 ]; then
-  echo -e "${GREEN}All Flow B multi-local smoke tests passed.${RESET}"
+  echo -e "${GREEN}All GBP import smoke tests passed.${RESET}"
   exit 0
 fi
 

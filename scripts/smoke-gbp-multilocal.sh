@@ -67,7 +67,7 @@ check_unauthorized "GET /api/integrations/google/businesses (no session)" \
 check_no_store_header "GET /api/integrations/google/businesses"
 
 check_unauthorized "GET /api/integrations/google/locations (no session)" \
-  "${BASE}/api/integrations/google/locations?biz_id=${TEST_BIZ_ID}"
+  "${BASE}/api/integrations/google/locations?seed_biz_id=${TEST_BIZ_ID}"
 check_no_store_header "GET /api/integrations/google/locations"
 
 echo ""
