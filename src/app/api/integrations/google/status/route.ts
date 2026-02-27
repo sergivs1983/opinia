@@ -142,7 +142,7 @@ export async function GET(request: Request) {
     if (integration?.id) {
       const { data: secretRow, error: secretError } = await supabase
         .from('integrations_secrets')
-        .select('id')
+        .select('integration_id, updated_at')
         .eq('integration_id', integration.id)
         .limit(1)
         .maybeSingle();
@@ -162,7 +162,7 @@ export async function GET(request: Request) {
           });
         }
       } else {
-        hasSecret = !!secretRow;
+        hasSecret = !!secretRow?.integration_id;
       }
     }
 

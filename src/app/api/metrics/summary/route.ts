@@ -47,6 +47,33 @@ type BusinessAccessRow = {
   org_id: string | null;
 };
 
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+const missingDependencyCodes = new Set(['PGRST204', 'PGRST205', '42P01', '42703', '42883']);
+
+function hasMissingDependencyPattern(value: string): boolean {
+  return (
+    /schema cache/i.test(value) ||
+    /relation .* does not exist/i.test(value) ||
+    /table .* does not exist/i.test(value) ||
+    /column .* does not exist/i.test(value) ||
+    /function .* does not exist/i.test(value)
+  );
+}
+
+function isMissingDependencyError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as SupabaseErrorLike;
+  if (err.code && missingDependencyCodes.has(err.code)) return true;
+  const message = `${err.message || ''} ${err.details || ''} ${err.hint || ''}`.trim();
+  return message.length > 0 && hasMissingDependencyPattern(message);
+}
+
 function toIsoDay(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
@@ -102,12 +129,60 @@ function sumTotals(rows: MetricsDailyRow[]): MetricsSummaryTotals {
   );
 }
 
+function buildStubSummary(rangeDays: number, days: string[], requestId: string): MetricsSummaryResponse & {
+  ok: true;
+  stub: true;
+  range: number;
+} {
+  return {
+    ok: true,
+    stub: true,
+    range: rangeDays,
+    rangeDays,
+    totals: {
+      replies_generated: 0,
+      replies_approved: 0,
+      assets_created: 0,
+      planner_published: 0,
+      ai_cost_cents: 0,
+      time_saved_minutes_est: 0,
+    },
+    series: days.map((day) => ({
+      day,
+      replies_generated: 0,
+      planner_published: 0,
+      ai_cost_cents: 0,
+      avg_rating: null,
+      sentiment_negative_pct: null,
+    })),
+    highlights: [
+      { label: 'replies_generated', value: 0, delta: null },
+      { label: 'planner_published', value: 0, delta: null },
+      { label: 'assets_created', value: 0, delta: null },
+      { label: 'avg_rating_or_sentiment_proxy', value: null, delta: null },
+    ],
+    value: {
+      time_saved_hours: 0,
+      time_saved_minutes: 0,
+      streak_weeks: 0,
+      benchmark: {
+        metric: 'posts_published',
+        label: 'Estimació: continua publicant per tenir comparació',
+        status: 'estimate',
+        percentile: null,
+      },
+    },
+    request_id: requestId,
+  };
+}
+
 export async function GET(request: Request) {
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/metrics/summary' });
 
   const withResponseRequestId = (response: NextResponse) => {
     response.headers.set('x-request-id', requestId);
+    response.headers.set('Cache-Control', 'no-store');
     return response;
   };
 
@@ -162,6 +237,19 @@ export async function GET(request: Request) {
       .order('day', { ascending: true });
 
     if (summaryRowsError) {
+      if (isMissingDependencyError(summaryRowsError)) {
+        log.warn('missing_dependency metrics summary source', {
+          error_code: summaryRowsError.code || null,
+          error: summaryRowsError.message || null,
+          business_id: businessId,
+          request_id: requestId,
+        });
+        const stubSummary = filterMetricsSummaryForViewer(
+          buildStubSummary(rangeDays, days, requestId),
+          admin,
+        );
+        return withResponseRequestId(NextResponse.json(stubSummary));
+      }
       log.error('Failed to load metrics summary rows', { error: summaryRowsError.message, business_id: businessId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to load metrics summary', request_id: requestId }, { status: 500 }),
@@ -328,6 +416,16 @@ export async function GET(request: Request) {
       NextResponse.json(filteredSummary),
     );
   } catch (error: unknown) {
+    if (isMissingDependencyError(error)) {
+      const [query] = validateQuery(request, MetricsSummaryQuerySchema);
+      const rangeDays = Number((query as MetricsSummaryQuery | null)?.range || '30');
+      const days = dayWindow(rangeDays);
+      log.warn('missing_dependency metrics summary fallback from exception', {
+        error: error instanceof Error ? error.message : String(error),
+        request_id: requestId,
+      });
+      return withResponseRequestId(NextResponse.json(buildStubSummary(rangeDays, days, requestId)));
+    }
     const message = error instanceof Error ? error.message : 'Unknown';
     log.error('Unhandled metrics summary error', { error: message });
     return withResponseRequestId(
