@@ -697,6 +697,51 @@
         "noAsset": "No asset is available yet. You can create one from Studio."
       }
     },
+    "litoPage": {
+      "title": "LITO Command Center",
+      "subtitle": "Context, conversation, and workbench in one flow.",
+      "openWithLito": "Open with LITO",
+      "context": {
+        "title": "Context",
+        "vertical": "Vertical",
+        "language": "Language",
+        "gbp": "Google Business",
+        "gbpConnected": "Connected",
+        "gbpNeedsReauth": "Needs reconnect",
+        "gbpNotConnected": "Not connected",
+        "gbpUnknown": "No data",
+        "role": "Role",
+        "signalsTitle": "Weekly signals",
+        "askLito": "Ask LITO",
+        "quotaUnknown": "Monthly drafts: —"
+      },
+      "thread": {
+        "title": "Thread",
+        "newThread": "New thread",
+        "emptyThreads": "No threads for this business yet.",
+        "assignmentTitle": "Brief",
+        "generalThreadTitle": "LITO — Questions",
+        "recommendationThreadTitle": "LITO — Recommendation"
+      },
+      "workbench": {
+        "title": "Workbench",
+        "emptyTitle": "Select a recommendation or open a general thread.",
+        "selectRecommendation": "Pick a recommendation to generate copy, refine, and prepare assets.",
+        "tabs": {
+          "short": "Short copy",
+          "long": "Long copy",
+          "hashtags": "Hashtags",
+          "shotlist": "Shotlist",
+          "imageIdea": "Image idea"
+        },
+        "refineTitle": "Refine with LITO",
+        "ikeaTitle": "IKEA mode (step by step)"
+      },
+      "messages": {
+        "quotaExceeded": "You have reached the monthly quota. You can write manually or upgrade your plan.",
+        "managerRequired": "Manager required"
+      }
+    },
     "layout": {
       "accountFallback": "Account",
       "userFallback": "User",

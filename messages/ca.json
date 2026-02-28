@@ -697,6 +697,51 @@
         "noAsset": "No hi ha cap asset disponible encara. Pots crear-lo des de Studio."
       }
     },
+    "litoPage": {
+      "title": "Sala de Comandaments LITO",
+      "subtitle": "Context, conversa i workbench en un sol flux.",
+      "openWithLito": "Obrir amb LITO",
+      "context": {
+        "title": "Context",
+        "vertical": "Vertical",
+        "language": "Idioma",
+        "gbp": "Google Business",
+        "gbpConnected": "Connectat",
+        "gbpNeedsReauth": "Cal reconnectar",
+        "gbpNotConnected": "No connectat",
+        "gbpUnknown": "Sense dades",
+        "role": "Rol",
+        "signalsTitle": "Signals setmanals",
+        "askLito": "Preguntar a LITO",
+        "quotaUnknown": "Drafts mes: —"
+      },
+      "thread": {
+        "title": "Thread",
+        "newThread": "Nou fil",
+        "emptyThreads": "Encara no hi ha fils per aquest negoci.",
+        "assignmentTitle": "Encàrrec",
+        "generalThreadTitle": "LITO — Consultes",
+        "recommendationThreadTitle": "LITO — Recomanació"
+      },
+      "workbench": {
+        "title": "Workbench",
+        "emptyTitle": "Selecciona una recomanació o obre un fil general.",
+        "selectRecommendation": "Tria una recomanació per generar copy, retocar i preparar assets.",
+        "tabs": {
+          "short": "Copy curt",
+          "long": "Copy llarg",
+          "hashtags": "Hashtags",
+          "shotlist": "Shotlist",
+          "imageIdea": "Idea d'imatge"
+        },
+        "refineTitle": "Retocar amb LITO",
+        "ikeaTitle": "Mode IKEA (pas a pas)"
+      },
+      "messages": {
+        "quotaExceeded": "Has esgotat la quota del mes. Pots escriure manualment o ampliar el pla.",
+        "managerRequired": "Cal manager"
+      }
+    },
     "layout": {
       "accountFallback": "Compte",
       "userFallback": "Usuari",

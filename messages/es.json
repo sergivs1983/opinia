@@ -697,6 +697,51 @@
         "noAsset": "Aún no hay un asset disponible. Puedes crearlo desde Studio."
       }
     },
+    "litoPage": {
+      "title": "Sala de Mandos LITO",
+      "subtitle": "Contexto, conversación y workbench en un solo flujo.",
+      "openWithLito": "Abrir con LITO",
+      "context": {
+        "title": "Contexto",
+        "vertical": "Vertical",
+        "language": "Idioma",
+        "gbp": "Google Business",
+        "gbpConnected": "Conectado",
+        "gbpNeedsReauth": "Requiere reconexión",
+        "gbpNotConnected": "No conectado",
+        "gbpUnknown": "Sin datos",
+        "role": "Rol",
+        "signalsTitle": "Signals semanales",
+        "askLito": "Preguntar a LITO",
+        "quotaUnknown": "Drafts mes: —"
+      },
+      "thread": {
+        "title": "Thread",
+        "newThread": "Nuevo hilo",
+        "emptyThreads": "Aún no hay hilos para este negocio.",
+        "assignmentTitle": "Encargo",
+        "generalThreadTitle": "LITO — Consultas",
+        "recommendationThreadTitle": "LITO — Recomendación"
+      },
+      "workbench": {
+        "title": "Workbench",
+        "emptyTitle": "Selecciona una recomendación o abre un hilo general.",
+        "selectRecommendation": "Elige una recomendación para generar copy, refinar y preparar assets.",
+        "tabs": {
+          "short": "Copy corto",
+          "long": "Copy largo",
+          "hashtags": "Hashtags",
+          "shotlist": "Shotlist",
+          "imageIdea": "Idea de imagen"
+        },
+        "refineTitle": "Refinar con LITO",
+        "ikeaTitle": "Modo IKEA (paso a paso)"
+      },
+      "messages": {
+        "quotaExceeded": "Has agotado la cuota mensual. Puedes escribir manualmente o ampliar el plan.",
+        "managerRequired": "Requiere manager"
+      }
+    },
     "layout": {
       "accountFallback": "Cuenta",
       "userFallback": "Usuario",
