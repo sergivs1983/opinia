@@ -18,15 +18,17 @@ import {
   parseModelOutput,
   parseStoredGeneratedCopy,
   resolveQuickRefineInstruction,
-  type LitoQuickRefineMode,
   type LitoGeneratedCopy,
+  type LitoQuickRefineMode,
 } from '@/lib/ai/lito-copy';
-import { consumeQuota } from '@/lib/ai/quota';
-import { consumeStaffDailyAction } from '@/lib/ai/staff-rate-limit';
-import { getAIProviderState } from '@/lib/ai/provider';
+import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
+import { consumeOrgQuota, consumeStaffDaily, enforceStaffMonthlyCap } from '@/lib/ai/staff-guards';
+import { litoCopyUnavailableMessage, resolveLitoCopyStatus } from '@/lib/ai/copy-status';
+import { resolveProvider } from '@/lib/ai/provider';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -91,6 +93,12 @@ type BusinessRow = {
   formality: string | null;
 };
 
+type OrganizationSettingsRow = {
+  id: string;
+  ai_provider: string | null;
+  lito_staff_ai_paused: boolean | null;
+};
+
 const SYSTEM_PROMPT =
   "Ets LITO, assistent de social media per negocis locals. No inventis dades. Respon en l'idioma demanat. Retorna NOMÉS JSON vàlid segons l'esquema.";
 
@@ -131,6 +139,38 @@ function resolveInstruction(payload: z.infer<typeof RefineBodySchema>): string {
     return resolveQuickRefineInstruction(payload.quick_mode as LitoQuickRefineMode);
   }
   return payload.instruction?.trim() || 'Refina aquest copy mantenint la mateixa intenció.';
+}
+
+async function loadThreadContext(admin: ReturnType<typeof createAdminClient>, bizId: string, recommendationId: string): Promise<string[]> {
+  const { data: threadData } = await admin
+    .from('lito_threads')
+    .select('id')
+    .eq('biz_id', bizId)
+    .eq('recommendation_id', recommendationId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const threadId = (threadData as { id?: string } | null)?.id;
+  if (!threadId) return [];
+
+  const { data: messagesData } = await admin
+    .from('lito_messages')
+    .select('role, content')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  const raw = (messagesData || []) as Array<{ role?: string; content?: string }>;
+  return raw
+    .reverse()
+    .map((message) => {
+      const role = typeof message.role === 'string' ? message.role : 'user';
+      const content = typeof message.content === 'string' ? message.content.trim() : '';
+      return content ? `${role}: ${content}` : '';
+    })
+    .filter(Boolean)
+    .slice(-10);
 }
 
 async function persistRefinedCopy(params: {
@@ -221,15 +261,14 @@ export async function POST(request: Request) {
       supabase,
       userId: user.id,
       businessId: payload.biz_id,
-      allowedRoles: ['owner', 'admin', 'manager', 'responder', 'staff'],
     });
-    if (!access.allowed) {
+    const memberRole = toLitoMemberRole(access.role);
+    if (!access.allowed || !memberRole) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
-    const memberRole = access.role || 'responder';
 
     const admin = createAdminClient();
     const [{ data: recommendationData, error: recommendationErr }, { data: businessData, error: businessErr }] = await Promise.all([
@@ -255,6 +294,12 @@ export async function POST(request: Request) {
 
     const recommendation = recommendationData as RecommendationRow;
     const business = businessData as BusinessRow;
+    const { data: orgSettingsData } = await admin
+      .from('organizations')
+      .select('id, ai_provider, lito_staff_ai_paused')
+      .eq('id', recommendation.org_id)
+      .maybeSingle();
+    const orgSettings = (orgSettingsData || null) as OrganizationSettingsRow | null;
 
     const instruction = resolveInstruction(payload);
     const targetLanguage = normalizeLanguage(business.default_language);
@@ -277,8 +322,12 @@ export async function POST(request: Request) {
           .maybeSingle();
 
         const vertical = normalizeVertical((playbookData as PlaybookRow | null)?.vertical || business.type);
+        const template = ensureTemplateOrFallback(ruleData.recommendation_template);
         current = buildDeterministicCopyBase({
-          templateRaw: ruleData.recommendation_template,
+          templateRaw: {
+            ...template,
+            format: template.format || 'post',
+          },
           generatedCopyRaw: recommendation.generated_copy,
           vertical,
           signal: (recommendation.signal || {}) as Record<string, unknown>,
@@ -299,7 +348,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const providerState = getAIProviderState();
+    const providerState = resolveProvider({
+      orgProvider: orgSettings?.ai_provider ?? null,
+    });
     const idempotencyKey = buildIdempotencyKey({
       org_id: recommendation.org_id,
       biz_id: recommendation.biz_id,
@@ -371,17 +422,64 @@ export async function POST(request: Request) {
     jobId = jobAcquire.jobId;
     const activeJobId = jobAcquire.jobId;
 
-    if (memberRole === 'staff') {
-      const staffLimit = await consumeStaffDailyAction({
+    const copyStatus = resolveLitoCopyStatus({
+      providerState,
+      paused: memberRole === 'staff' && Boolean(orgSettings?.lito_staff_ai_paused),
+    });
+
+    if (memberRole === 'staff' && copyStatus.reason === 'paused') {
+      await markLitoCopyJobFailed({
         admin,
+        jobId: activeJobId,
+        error: 'staff_ai_paused',
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'staff_ai_paused',
+            message: "Funció desactivada pel manager.",
+            request_id: requestId,
+          },
+          { status: 403 },
+        ),
+        requestId,
+      );
+    }
+
+    if (!copyStatus.enabled) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: copyStatus.reason,
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'ai_unavailable',
+            reason: copyStatus.reason,
+            message: litoCopyUnavailableMessage(copyStatus.reason),
+            request_id: requestId,
+          },
+          { status: 503 },
+        ),
+        requestId,
+      );
+    }
+
+    if (memberRole === 'staff') {
+      const staffLimit = await consumeStaffDaily({
+        supabase,
+        admin,
+        orgId: recommendation.org_id,
         userId: user.id,
+        inc: 1,
         limit: 10,
       });
       if (!staffLimit.ok) {
         await markLitoCopyJobFailed({
           admin,
           jobId: activeJobId,
-          error: staffLimit.reason,
+          error: staffLimit.reason || 'staff_daily_limit',
         });
         if (staffLimit.reason === 'staff_daily_limit') {
           return withStandardHeaders(
@@ -406,28 +504,50 @@ export async function POST(request: Request) {
           requestId,
         );
       }
-    }
 
-    if (!providerState.available) {
-      await markLitoCopyJobFailed({
-        admin,
-        jobId: activeJobId,
-        error: 'ai_unavailable',
+      const monthlyCap = await enforceStaffMonthlyCap({
+        supabase,
+        orgId: recommendation.org_id,
+        inc: 1,
+        capRatio: 0.30,
       });
-      return withStandardHeaders(
-        NextResponse.json(
-          {
-            error: 'ai_unavailable',
-            message: 'Activa LITO Copy a Configuració (Admin).',
-            request_id: requestId,
-          },
-          { status: 503 },
-        ),
-        requestId,
-      );
+      if (!monthlyCap.ok) {
+        await markLitoCopyJobFailed({
+          admin,
+          jobId: activeJobId,
+          error: monthlyCap.reason || 'staff_monthly_cap',
+        });
+        if (monthlyCap.reason === 'staff_monthly_cap') {
+          return withStandardHeaders(
+            NextResponse.json(
+              {
+                error: 'staff_monthly_cap',
+                message: "Has arribat al límit mensual de l'equip staff.",
+                used: monthlyCap.used,
+                limit: monthlyCap.limit,
+                remaining: monthlyCap.remaining,
+                request_id: requestId,
+              },
+              { status: 429 },
+            ),
+            requestId,
+          );
+        }
+        return withStandardHeaders(
+          NextResponse.json(
+            { error: 'internal', message: "No s'ha pogut validar el límit mensual de staff.", request_id: requestId },
+            { status: 500 },
+          ),
+          requestId,
+        );
+      }
     }
 
-    const quota = await consumeQuota(supabase, recommendation.org_id, 1);
+    const quota = await consumeOrgQuota({
+      supabase,
+      orgId: recommendation.org_id,
+      inc: 1,
+    });
     if (!quota.ok) {
       await markLitoCopyJobFailed({
         admin,
@@ -438,7 +558,7 @@ export async function POST(request: Request) {
         return withStandardHeaders(
           NextResponse.json(
             {
-              error: 'quota_exhausted',
+              error: 'quota_exceeded',
               message: 'Quota mensual assolida. Pots escriure manualment o ampliar el pla.',
               used: quota.used,
               limit: quota.limit,
@@ -462,9 +582,15 @@ export async function POST(request: Request) {
         requestId,
       );
     }
+
+    const threadContext = await loadThreadContext(admin, payload.biz_id, payload.recommendation_id);
+    const contextInstruction = threadContext.length > 0
+      ? `${instruction}\n\nContext recent:\n${threadContext.map((line) => `- ${line}`).join('\n')}`
+      : instruction;
+
     const prompt = buildRefinePrompt({
       language: targetLanguage,
-      instruction,
+      instruction: contextInstruction,
       current,
     });
 

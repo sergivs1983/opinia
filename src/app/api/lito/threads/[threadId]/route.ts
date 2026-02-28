@@ -43,7 +43,7 @@ type MessageRow = {
   created_at: string;
 };
 
-const LITO_ALLOWED_ROLES = ['owner', 'admin', 'manager', 'responder'] as const;
+const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);

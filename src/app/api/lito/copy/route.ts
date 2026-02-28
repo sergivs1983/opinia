@@ -4,8 +4,10 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
-import { getAIProviderState } from '@/lib/ai/provider';
+import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
+import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
+import { resolveLitoCopyStatus } from '@/lib/ai/copy-status';
+import { resolveProvider } from '@/lib/ai/provider';
 import { getDraftUsage } from '@/lib/ai/quota';
 import { parseStoredGeneratedCopy, type LitoGeneratedCopy } from '@/lib/ai/lito-copy';
 import { createLogger } from '@/lib/logger';
@@ -30,6 +32,12 @@ type RecommendationRow = {
   format: string | null;
   assets_needed: string[] | null;
   steps: unknown;
+};
+
+type OrganizationSettingsRow = {
+  id: string;
+  ai_provider: string | null;
+  lito_staff_ai_paused: boolean | null;
 };
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
@@ -89,13 +97,13 @@ export async function GET(request: Request) {
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const payload = query as z.infer<typeof QuerySchema>;
 
-    const access = await hasAcceptedBusinessMembership({
+    const access = await getAcceptedBusinessMembershipContext({
       supabase,
       userId: user.id,
       businessId: payload.biz_id,
-      allowedRoles: ['owner', 'admin', 'manager', 'responder'],
     });
-    if (!access.allowed) {
+    const memberRole = toLitoMemberRole(access.role);
+    if (!access.allowed || !memberRole) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -120,7 +128,19 @@ export async function GET(request: Request) {
     const recommendation = recommendationData as RecommendationRow;
     const copy = parseStoredGeneratedCopy(recommendation.generated_copy) || fallbackCopyFromColumns(recommendation);
     const quota = await getDraftUsage(supabase, recommendation.org_id);
-    const provider = getAIProviderState();
+    const { data: orgData } = await admin
+      .from('organizations')
+      .select('id, ai_provider, lito_staff_ai_paused')
+      .eq('id', recommendation.org_id)
+      .maybeSingle();
+    const orgSettings = (orgData || null) as OrganizationSettingsRow | null;
+    const providerState = resolveProvider({
+      orgProvider: orgSettings?.ai_provider ?? null,
+    });
+    const copyStatus = resolveLitoCopyStatus({
+      providerState,
+      paused: memberRole === 'staff' && Boolean(orgSettings?.lito_staff_ai_paused),
+    });
 
     return withStandardHeaders(
       NextResponse.json({
@@ -128,8 +148,9 @@ export async function GET(request: Request) {
         copy,
         quota,
         ai: {
-          available: provider.available,
-          provider: provider.provider,
+          available: copyStatus.enabled,
+          provider: copyStatus.provider,
+          reason: copyStatus.reason,
         },
         request_id: requestId,
       }),

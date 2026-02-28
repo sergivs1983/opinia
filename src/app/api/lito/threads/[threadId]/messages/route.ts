@@ -47,7 +47,7 @@ type MessageRow = {
   created_at: string;
 };
 
-const LITO_ALLOWED_ROLES = ['owner', 'admin', 'manager', 'responder'] as const;
+const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
 
 type RecommendationTemplate = {
   format: string;
