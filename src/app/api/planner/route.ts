@@ -60,6 +60,22 @@ type LinkedEntityRow = {
   business_id: string;
 };
 
+function isBizScopeSchemaError(error: unknown): boolean {
+  const message = ((error as { message?: string })?.message || '').toLowerCase();
+  const code = ((error as { code?: string })?.code || '').toUpperCase();
+  if (!message && !code) return false;
+  return (
+    message.includes('bm.biz_id')
+    || (
+      message.includes('business_memberships')
+      && (message.includes('schema cache') || message.includes('does not exist') || message.includes('column'))
+    )
+    || code === '42703'
+    || code === 'PGRST204'
+    || code === 'PGRST205'
+  );
+}
+
 function toIsoString(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
@@ -152,9 +168,17 @@ export async function GET(request: Request) {
     const rl = await rateLimitStandard(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
 
-    const admin = createAdminClient();
+    let admin: ReturnType<typeof createAdminClient> | null = null;
+    try {
+      admin = createAdminClient();
+    } catch (adminError) {
+      log.warn('Planner admin client unavailable, using user-scoped client', {
+        error: adminError instanceof Error ? adminError.message : 'unknown',
+      });
+    }
+    const dataClient = admin ?? supabase;
     const access = await hasAcceptedBusinessMembership({
-      supabase: admin,
+      supabase: dataClient,
       userId: user.id,
       businessId,
     });
@@ -164,7 +188,7 @@ export async function GET(request: Request) {
       );
     }
 
-    let plannerQuery = admin
+    let plannerQuery = dataClient
       .from('content_planner_items')
       .select('id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
       .eq('business_id', businessId)
@@ -178,6 +202,21 @@ export async function GET(request: Request) {
     const { data: plannerData, error: plannerError } = await plannerQuery;
 
     if (plannerError) {
+      if (isBizScopeSchemaError(plannerError)) {
+        log.warn('Planner GET degraded due schema scope mismatch', {
+          error: plannerError.message,
+          error_code: plannerError.code || null,
+          business_id: businessId,
+        });
+        return withResponseRequestId(
+          NextResponse.json({
+            weekStart: normalizeWeekStartMonday(payload.weekStart),
+            items: [],
+            request_id: requestId,
+            degraded: true,
+          }),
+        );
+      }
       log.error('Failed to load planner items', { error: plannerError.message, business_id: businessId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to load planner items', request_id: requestId }, { status: 500 }),
@@ -280,6 +319,11 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (existingError) {
+      if (isBizScopeSchemaError(existingError)) {
+        return withResponseRequestId(
+          NextResponse.json({ error: 'schema_scope_unavailable', message: 'No disponible', request_id: requestId }, { status: 409 }),
+        );
+      }
       log.error('Failed to check planner dedup', { error: existingError.message, business_id: payload.businessId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to save planner item', request_id: requestId }, { status: 500 }),
@@ -316,6 +360,11 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError || !insertedData) {
+      if (isBizScopeSchemaError(insertError)) {
+        return withResponseRequestId(
+          NextResponse.json({ error: 'schema_scope_unavailable', message: 'No disponible', request_id: requestId }, { status: 409 }),
+        );
+      }
       log.error('Failed to insert planner item', { error: insertError?.message || 'unknown', business_id: payload.businessId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to save planner item', request_id: requestId }, { status: 500 }),
