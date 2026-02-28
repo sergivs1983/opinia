@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody, validateParams, validateQuery } from '@/lib/validations';
 
@@ -68,6 +69,48 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   response.headers.set('x-request-id', requestId);
   response.headers.set('Cache-Control', 'no-store');
   return response;
+}
+
+function isPlaceholderThreadTitle(value: string): boolean {
+  const normalized = value.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    normalized === 'lito — consultes'
+    || normalized === 'lito — consultas'
+    || normalized === 'lito — questions'
+    || normalized === 'lito — consulta'
+    || normalized.startsWith('lito — consulta ·')
+    || normalized.startsWith('lito — consultas ·')
+    || normalized.startsWith('lito — questions ·')
+    || normalized === 'nova conversa'
+    || normalized === 'nueva conversación'
+    || normalized === 'new conversation'
+  );
+}
+
+function capitalizeFirst(value: string): string {
+  if (!value) return value;
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function makeThreadTitleFromText(content: string): string {
+  let text = content.replace(/\s+/g, ' ').trim();
+  if (!text) return 'Consulta';
+
+  text = text.replace(/^[¡!¿?\-–—\s]+/, '');
+  text = text.replace(/^(hola|bon dia|bones|hey|ei|hello|hi)\b[,\s!:.;-]*/i, '');
+  text = text.replace(/^lito\b[,\s:;-]*/i, '');
+  text = text.replace(/^(vull|voldria|necessito|necessitem|busco|m'agradaria|quiero|necesito|busco|i need|i want)\b[,\s:;-]*/i, '');
+  text = text.replace(/^(em pots|me puedes|can you|could you|podries|podrías)\b[,\s:;-]*/i, '');
+  text = text.trim();
+  if (!text) return 'Consulta';
+
+  const words = text.split(' ').filter(Boolean);
+  let candidate = words.slice(0, 10).join(' ');
+  if (candidate.length > 48) candidate = candidate.slice(0, 48).trimEnd();
+  candidate = candidate.replace(/[.,;:!?]+$/g, '').trim();
+  if (!candidate) return 'Consulta';
+
+  return capitalizeFirst(candidate);
 }
 
 function parseTemplateFromGeneratedCopy(raw: unknown): RecommendationTemplate | null {
@@ -236,6 +279,20 @@ export async function GET(
       );
     }
 
+    const { count: existingUserMessagesCount, error: countErr } = await supabase
+      .from('lito_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('thread_id', thread.id)
+      .eq('role', 'user');
+
+    if (countErr) {
+      log.warn('lito_user_message_count_failed', {
+        error_code: countErr.code || null,
+        error: countErr.message || null,
+        thread_id: thread.id,
+      });
+    }
+
     const { data: messagesData, error: messagesErr } = await supabase
       .from('lito_messages')
       .select('id, thread_id, role, content, meta, created_at')
@@ -376,10 +433,35 @@ export async function POST(
       );
     }
 
-    await supabase
+    // Count user messages that existed before this insert (for title auto-update)
+    const { count: existingUserMessagesCount } = await supabase
+      .from('lito_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('thread_id', thread.id)
+      .eq('role', 'user')
+      .neq('id', (userMessageData as { id: string }).id);
+
+    const admin = createAdminClient();
+    const threadUpdates: Record<string, string> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if ((existingUserMessagesCount || 0) === 0 && isPlaceholderThreadTitle(thread.title)) {
+      threadUpdates.title = makeThreadTitleFromText(payload.content);
+    }
+
+    const { error: threadUpdateErr } = await admin
       .from('lito_threads')
-      .update({ updated_at: new Date().toISOString() })
+      .update(threadUpdates)
       .eq('id', thread.id);
+
+    if (threadUpdateErr) {
+      log.warn('lito_thread_touch_failed', {
+        error_code: threadUpdateErr.code || null,
+        error: threadUpdateErr.message || null,
+        thread_id: thread.id,
+      });
+    }
 
     return withStandardHeaders(
       NextResponse.json({
