@@ -18,6 +18,7 @@ import type {
   LitoRecommendationTemplate,
   LitoThreadItem,
   LitoThreadMessage,
+  LitoVoiceActionDraft,
   LitoViewerRole,
 } from '@/components/lito/types';
 
@@ -78,6 +79,13 @@ type RecommendationFeedbackPayload = {
 
 type GoogleStatusPayload = {
   state?: 'connected' | 'needs_reauth' | 'not_connected';
+};
+
+type VoiceDraftsPayload = {
+  ok?: boolean;
+  items?: LitoVoiceActionDraft[];
+  error?: string;
+  message?: string;
 };
 
 function normalizeRecommendationItem(
@@ -159,6 +167,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const [gbpState, setGbpState] = useState<'connected' | 'needs_reauth' | 'not_connected' | 'unknown'>('unknown');
   const [quota, setQuota] = useState<LitoQuotaState | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<'post' | 'story' | 'reel'>('post');
+  const [voicePendingCount, setVoicePendingCount] = useState(0);
 
   const bootstrapRef = useRef<string | null>(null);
 
@@ -288,6 +297,24 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
       setSignals([]);
     } finally {
       setSignalsLoading(false);
+    }
+  }, [biz?.id]);
+
+  const loadVoicePendingCount = useCallback(async () => {
+    if (!biz?.id) return;
+    try {
+      const response = await fetch(`/api/lito/action-drafts?biz_id=${biz.id}&limit=40`);
+      const payload = (await response.json().catch(() => ({}))) as VoiceDraftsPayload;
+      if (!response.ok || payload.error) {
+        setVoicePendingCount(0);
+        return;
+      }
+      const pending = (payload.items || []).filter(
+        (item) => item.status !== 'executed' && item.status !== 'rejected',
+      );
+      setVoicePendingCount(pending.length);
+    } catch {
+      setVoicePendingCount(0);
     }
   }, [biz?.id]);
 
@@ -422,11 +449,13 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     if (!biz?.id) return;
     setQuota(null);
     setSignals([]);
+    setVoicePendingCount(0);
     void loadWeeklyRecommendations();
     void loadThreads();
     void loadGoogleStatus();
     void loadSignals();
-  }, [biz?.id, loadGoogleStatus, loadSignals, loadThreads, loadWeeklyRecommendations]);
+    void loadVoicePendingCount();
+  }, [biz?.id, loadGoogleStatus, loadSignals, loadThreads, loadVoicePendingCount, loadWeeklyRecommendations]);
 
   useEffect(() => {
     if (!biz?.id || !queryBizId) return;
@@ -623,6 +652,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           recommendations={weeklyRecommendations}
           recommendationsLoading={weeklyLoading}
           quota={quota}
+          voicePendingCount={voicePendingCount}
           selectedRecommendationId={selectedRecommendationId}
           onOpenGeneral={() => void openGeneralThread()}
           onSelectRecommendation={(item) => void openThreadForRecommendation(item)}

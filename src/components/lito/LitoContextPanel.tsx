@@ -15,6 +15,7 @@ type LitoContextPanelProps = {
   recommendations: LitoRecommendationItem[];
   recommendationsLoading: boolean;
   quota: LitoQuotaState | null;
+  voicePendingCount: number;
   selectedRecommendationId: string | null;
   onOpenGeneral: () => void;
   onSelectRecommendation: (item: LitoRecommendationItem) => void;
@@ -52,6 +53,7 @@ export default function LitoContextPanel({
   recommendations,
   recommendationsLoading,
   quota,
+  voicePendingCount,
   selectedRecommendationId,
   onOpenGeneral,
   onSelectRecommendation,
@@ -99,6 +101,22 @@ export default function LitoContextPanel({
         <Button size="sm" variant="secondary" className="h-7 px-2.5 text-xs" onClick={onOpenGeneral}>
           {t('dashboard.litoPage.context.askLito')}
         </Button>
+      </div>
+
+      <div className="mt-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className={cn('text-xs font-medium text-white/85')}>
+            {t('dashboard.litoPage.voice.widgetTitle')}
+          </p>
+          <span className="rounded-full border border-amber-300/30 bg-amber-500/12 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+            {voicePendingCount}
+          </span>
+        </div>
+        <p className={cn('mt-1 text-[11px]', textSub)}>
+          {voicePendingCount > 0
+            ? t('dashboard.litoPage.voice.widgetPending', { count: voicePendingCount })
+            : t('dashboard.litoPage.voice.widgetEmpty')}
+        </p>
       </div>
 
       <div className="mt-2 space-y-2">

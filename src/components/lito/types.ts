@@ -97,3 +97,21 @@ export type LitoQuotaState = {
   limit: number;
   remaining: number;
 };
+
+export type LitoVoiceDraftKind = 'gbp_update' | 'social_post' | 'customer_email';
+export type LitoVoiceDraftStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'executed';
+
+export type LitoVoiceActionDraft = {
+  id: string;
+  org_id: string;
+  biz_id: string;
+  thread_id: string | null;
+  source_voice_clip_id: string | null;
+  kind: LitoVoiceDraftKind;
+  status: LitoVoiceDraftStatus;
+  payload: Record<string, unknown>;
+  created_by: string;
+  reviewed_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
