@@ -47,6 +47,19 @@ export type InlineIkeaHowTo = {
   }>;
 };
 
+export type IkeaChecklist = {
+  title: string;
+  format: RecommendationFormat;
+  channel: RecommendationChannel;
+  channelLabel: string;
+  formatLabel: string;
+  copyChecklistLabel: string;
+  copiedToast: string;
+  steps: string[];
+  notes: string[];
+  copyText: string;
+};
+
 type InlineIkeaInput = {
   format?: string | null;
   hook?: string | null;
@@ -55,6 +68,10 @@ type InlineIkeaInput = {
   vertical?: string | null;
   channel?: RecommendationChannel | null;
   locale?: RecommendationLocale | null;
+};
+
+type GetIkeaChecklistInput = InlineIkeaInput & {
+  t: (key: string, vars?: Record<string, string | number>) => string;
 };
 
 type BuildHowToInput = {
@@ -249,6 +266,51 @@ export function buildInlineIkeaHowTo(input: InlineIkeaInput): InlineIkeaHowTo {
     steps: buildInlineSteps(format, channel),
     photo_notes: buildPhotoNotes(format, vertical),
     channel_notes: buildChannelNotes(channel),
+  };
+}
+
+export function getIkeaChecklist(input: GetIkeaChecklistInput): IkeaChecklist {
+  const payload = buildInlineIkeaHowTo(input);
+  const translate = input.t;
+
+  const resolvedHook = payload.hook.value || translate(payload.hook.fallbackKey);
+  const resolvedIdea = payload.idea.value || translate(payload.idea.fallbackKey);
+  const resolvedCta = payload.cta.value || translate(payload.cta.fallbackKey);
+
+  const resolveMessage = (token: { key: string; vars?: Record<string, string | number> }) => translate(token.key, {
+    ...(token.vars || {}),
+    hook: resolvedHook,
+    idea: resolvedIdea,
+    cta: resolvedCta,
+  });
+
+  const channelLabel = translate(`dashboard.litoPage.ikea.channel.${payload.channel}`);
+  const formatLabel = translate(`dashboard.litoPage.ikea.format.${payload.format}`);
+  const steps = payload.steps.map((step) => resolveMessage(step));
+  const notes = [...payload.photo_notes, ...payload.channel_notes].map((note) => resolveMessage(note));
+
+  const copyText = [
+    translate('dashboard.litoPage.ikea.headerChannel', { channel: channelLabel }),
+    translate('dashboard.litoPage.ikea.headerFormat', { format: formatLabel }),
+    '',
+    translate('dashboard.litoPage.ikea.sectionSteps'),
+    ...steps.map((step, index) => `${index + 1}. ${step}`),
+    '',
+    translate('dashboard.litoPage.ikea.sectionNotes'),
+    ...notes.map((note) => `- ${note}`),
+  ].join('\n');
+
+  return {
+    title: translate('dashboard.litoPage.ikea.title'),
+    format: payload.format,
+    channel: payload.channel,
+    channelLabel,
+    formatLabel,
+    copyChecklistLabel: translate('dashboard.litoPage.ikea.copyChecklist'),
+    copiedToast: translate('dashboard.litoPage.ikea.copiedToast'),
+    steps,
+    notes,
+    copyText,
   };
 }
 

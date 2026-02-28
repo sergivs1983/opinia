@@ -887,6 +887,26 @@
         "refineTitle": "Refine with LITO",
         "ikeaTitle": "IKEA mode (step by step)"
       },
+      "ikea": {
+        "title": "IKEA mode (step by step)",
+        "channelLabel": "Channel",
+        "channel": {
+          "instagram": "Instagram",
+          "tiktok": "TikTok"
+        },
+        "format": {
+          "post": "Post",
+          "story": "Story",
+          "reel": "Reel"
+        },
+        "sectionSteps": "Steps",
+        "sectionNotes": "Execution notes",
+        "copyChecklist": "Copy checklist",
+        "copiedToast": "Checklist copied.",
+        "copyError": "Could not copy the checklist.",
+        "headerChannel": "CHANNEL: {channel}",
+        "headerFormat": "FORMAT: {format}"
+      },
       "messages": {
         "quotaExceeded": "You have reached the monthly quota. You can write manually or upgrade your plan.",
         "managerRequired": "Manager required"

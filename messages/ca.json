@@ -887,6 +887,26 @@
         "refineTitle": "Retocar amb LITO",
         "ikeaTitle": "Mode IKEA (pas a pas)"
       },
+      "ikea": {
+        "title": "Mode IKEA (pas a pas)",
+        "channelLabel": "Canal",
+        "channel": {
+          "instagram": "Instagram",
+          "tiktok": "TikTok"
+        },
+        "format": {
+          "post": "Post",
+          "story": "Story",
+          "reel": "Reel"
+        },
+        "sectionSteps": "Passos",
+        "sectionNotes": "Notes d'execució",
+        "copyChecklist": "Copiar checklist",
+        "copiedToast": "Checklist copiat.",
+        "copyError": "No s'ha pogut copiar el checklist.",
+        "headerChannel": "CANAL: {channel}",
+        "headerFormat": "FORMAT: {format}"
+      },
       "messages": {
         "quotaExceeded": "Has esgotat la quota del mes. Pots escriure manualment o ampliar el pla.",
         "managerRequired": "Cal manager"

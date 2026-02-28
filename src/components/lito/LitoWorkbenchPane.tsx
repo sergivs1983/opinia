@@ -9,6 +9,7 @@ import EntitlementPaywallModal, { type EntitlementModalType } from '@/components
 import { textMain, textSub } from '@/components/ui/glass';
 import { cn } from '@/lib/utils';
 import { emitLitoCopyUpdated, isLitoCopyUpdatedEvent, LITO_COPY_UPDATED_EVENT } from '@/components/lito/copy-sync';
+import { getIkeaChecklist, type RecommendationChannel } from '@/lib/recommendations/howto';
 import type {
   LitoGeneratedCopy,
   LitoQuotaState,
@@ -66,49 +67,6 @@ type LitoWorkbenchPaneProps = {
   quickRefineTrigger?: QuickRefineTrigger | null;
 };
 
-const IKEA_BY_FORMAT: Record<FormatKey, string[]> = {
-  post: [
-    'Tria foto o carrusel amb un únic missatge central.',
-    'Ajusta llum i color perquè el producte quedi net.',
-    'Afegeix ubicació i context local en la primera línia.',
-    'Inclou prova real (equip, client, detall de producte).',
-    "Tanca amb CTA clar: reserva, visita o opinió.",
-  ],
-  story: [
-    'Obre amb text gran i clar en els primers 2 segons.',
-    'Mostra una prova visual curta (producte, ambient o equip).',
-    'Afegeix sticker (pregunta o enquesta) per activar resposta.',
-    'Inclou link o instrucció concreta (DM, reserva, web).',
-    'Publica i revisa respostes durant la primera hora.',
-  ],
-  reel: [
-    'Ganxo visual als 0-3s amb el millor detall.',
-    'Munta 3-5 clips curts amb ritme consistent.',
-    'Text inicial gran amb proposta de valor.',
-    'Mostra procés o abans/després en 1-2 escenes.',
-    'Caption curt + hashtags rellevants del negoci.',
-    'Tanca amb CTA i resposta ràpida als comentaris.',
-  ],
-};
-
-const DIRECTOR_NOTES_BY_FORMAT: Record<FormatKey, string[]> = {
-  post: [
-    'Llum natural lateral o frontal suau.',
-    'Enquadrament net, evita fons saturat.',
-    'Mantingues coherència de color amb la marca.',
-  ],
-  story: [
-    'Text molt llegible, alt contrast.',
-    'Clip curt (3-5s) amb un sol missatge.',
-    'Usa sticker només si reforça la CTA.',
-  ],
-  reel: [
-    'Primer pla fort al segon 1.',
-    'Canvi de pla cada 1-2 segons.',
-    'Audio net i subtítols curts.',
-  ],
-};
-
 function normalizedFormat(value: string | undefined): FormatKey {
   if (value === 'story' || value === 'reel') return value;
   return 'post';
@@ -135,8 +93,6 @@ export default function LitoWorkbenchPane({
   const [refineLoading, setRefineLoading] = useState<string | null>(null);
   const [customInstruction, setCustomInstruction] = useState('');
 
-  const [steps, setSteps] = useState<string[]>([]);
-  const [directorNotes, setDirectorNotes] = useState<string[]>([]);
   const [assets, setAssets] = useState<string[]>([]);
   const [copyShort, setCopyShort] = useState('');
   const [copyLong, setCopyLong] = useState('');
@@ -155,17 +111,36 @@ export default function LitoWorkbenchPane({
   const [paywallLimit, setPaywallLimit] = useState<number | undefined>(undefined);
   const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
   const [previewChannel, setPreviewChannel] = useState<PreviewChannel>('instagram');
+  const [ikeaChannel, setIkeaChannel] = useState<RecommendationChannel>('instagram');
   const lastQuickRefineHandled = useRef<number | null>(null);
 
   const recommendationTemplate = recommendation?.recommendation_template;
   const fallbackFormat = normalizedFormat(recommendation?.format || recommendationTemplate?.format);
   const effectiveFormat = recommendation ? fallbackFormat : selectedFormat;
   const hookTitle = recommendation?.hook || recommendationTemplate?.hook || t('dashboard.home.recommendations.lito.defaultTitle');
-  const ideaText = recommendation?.idea || recommendationTemplate?.idea || '';
-  const ctaText = recommendation?.cta || recommendationTemplate?.cta || '';
   const localHowTo = recommendation?.how_to || recommendationTemplate?.how_to;
   const canMarkPublished = viewerRole !== 'staff';
   const settingsHref = '/dashboard/admin';
+  const ikeaChecklist = useMemo(() => {
+    if (!recommendation) return null;
+    return getIkeaChecklist({
+      format: effectiveFormat,
+      channel: ikeaChannel,
+      vertical: recommendation.vertical || null,
+      hook: recommendation.hook || recommendationTemplate?.hook || null,
+      idea: recommendation.idea || recommendationTemplate?.idea || null,
+      cta: recommendation.cta || recommendationTemplate?.cta || null,
+      t,
+    });
+  }, [
+    effectiveFormat,
+    ikeaChannel,
+    recommendation,
+    recommendationTemplate?.cta,
+    recommendationTemplate?.hook,
+    recommendationTemplate?.idea,
+    t,
+  ]);
 
   const aiReasonMessage = useCallback((reason?: LitoCopyStatusReason, fallback?: string) => {
     if (reason === 'missing_api_key') return t('dashboard.home.recommendations.lito.copyDisabledMissingKey');
@@ -186,23 +161,17 @@ export default function LitoWorkbenchPane({
     setHashtags(copy.hashtags || []);
     setShotlist(copy.shotlist || []);
     setImageIdea(copy.image_idea || '');
-    setSteps(copy.execution_checklist || IKEA_BY_FORMAT[normalizedFormat(copy.format)]);
-    setDirectorNotes(copy.director_notes || DIRECTOR_NOTES_BY_FORMAT[normalizedFormat(copy.format)]);
     setAssets(copy.assets_needed || []);
     setHasGeneratedCopy(true);
     setPreviewChannel(copy.channel === 'tiktok' ? 'tiktok' : 'instagram');
+    setIkeaChannel(copy.channel === 'tiktok' ? 'tiktok' : 'instagram');
   }, []);
 
   const hydrateFallbackPlan = useCallback(() => {
-    const fallbackSteps = localHowTo?.steps?.length
-      ? localHowTo.steps
-      : IKEA_BY_FORMAT[effectiveFormat];
     const fallbackAssets = localHowTo?.assets_needed?.length
       ? localHowTo.assets_needed
       : recommendationTemplate?.assets_needed || [];
 
-    setSteps(fallbackSteps.slice(0, 9));
-    setDirectorNotes(DIRECTOR_NOTES_BY_FORMAT[effectiveFormat]);
     setAssets(fallbackAssets.slice(0, 10));
     setCopyShort('');
     setCopyLong('');
@@ -210,7 +179,7 @@ export default function LitoWorkbenchPane({
     setShotlist([]);
     setImageIdea('');
     setHasGeneratedCopy(false);
-  }, [effectiveFormat, localHowTo?.assets_needed, localHowTo?.steps, recommendationTemplate?.assets_needed]);
+  }, [localHowTo?.assets_needed, recommendationTemplate?.assets_needed]);
 
   const loadCopyStatus = useCallback(async () => {
     if (!bizId) return;
@@ -458,6 +427,16 @@ export default function LitoWorkbenchPane({
     }
   }, [t, toast]);
 
+  const handleCopyChecklist = useCallback(async () => {
+    if (!ikeaChecklist?.copyText?.trim()) return;
+    try {
+      await navigator.clipboard.writeText(ikeaChecklist.copyText);
+      toast(t('dashboard.litoPage.ikea.copiedToast'), 'success');
+    } catch {
+      toast(t('dashboard.litoPage.ikea.copyError'), 'error');
+    }
+  }, [ikeaChecklist, t, toast]);
+
   useEffect(() => {
     setStepsDone({});
     setActiveTab('copy_short');
@@ -467,6 +446,7 @@ export default function LitoWorkbenchPane({
     setAiMessage('');
     setCustomInstruction('');
     setPreviewChannel('instagram');
+    setIkeaChannel('instagram');
     hydrateFallbackPlan();
     void loadCopyStatus();
     void loadStoredCopy();
@@ -736,9 +716,30 @@ export default function LitoWorkbenchPane({
             </div>
 
             <div className="rounded-xl border border-white/10 bg-white/6 p-3">
-              <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.litoPage.workbench.ikeaTitle')}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className={cn('text-sm font-semibold', textMain)}>
+                  {ikeaChecklist?.title || t('dashboard.litoPage.ikea.title')}
+                </p>
+                <div className="inline-flex rounded-full border border-white/15 bg-white/5 p-0.5">
+                  {(['instagram', 'tiktok'] as RecommendationChannel[]).map((channel) => (
+                    <button
+                      key={`ikea-channel-${channel}`}
+                      type="button"
+                      onClick={() => setIkeaChannel(channel)}
+                      className={cn(
+                        'rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors',
+                        ikeaChannel === channel
+                          ? 'bg-white/15 text-white'
+                          : 'text-white/65 hover:bg-white/10 hover:text-white/90',
+                      )}
+                    >
+                      {t(`dashboard.litoPage.ikea.channel.${channel}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ul className="mt-2 space-y-2">
-                {steps.map((step, index) => {
+                {(ikeaChecklist?.steps || []).map((step, index) => {
                   const key = `${index}:${step}`;
                   const checked = Boolean(stepsDone[key]);
                   return (
@@ -754,9 +755,9 @@ export default function LitoWorkbenchPane({
                   );
                 })}
               </ul>
-              <p className={cn('mt-3 text-xs font-medium text-white/65')}>{t('dashboard.home.recommendations.lito.directorNotes')}</p>
+              <p className={cn('mt-3 text-xs font-medium text-white/65')}>{t('dashboard.litoPage.ikea.sectionNotes')}</p>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-white/75">
-                {directorNotes.map((note, index) => (
+                {(ikeaChecklist?.notes || []).map((note, index) => (
                   <li key={`note-${index}`}>{note}</li>
                 ))}
               </ul>
@@ -772,6 +773,17 @@ export default function LitoWorkbenchPane({
                   {t('dashboard.litoPage.workbench.assetsEmpty')}
                 </p>
               )}
+              <div className="mt-3 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => void handleCopyChecklist()}
+                  disabled={!ikeaChecklist}
+                >
+                  {t('dashboard.litoPage.ikea.copyChecklist')}
+                </Button>
+              </div>
             </div>
           </div>
         )}
