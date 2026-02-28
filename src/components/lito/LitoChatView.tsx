@@ -66,16 +66,19 @@ type GeneratePayload = {
 
 type VoicePreparePayload = {
   ok?: boolean;
-  upload?: { mode?: 'direct'; maxSeconds?: number };
+  mode?: 'record' | 'paste_transcript_only';
+  maxSeconds?: number;
+  upload?: { mode?: 'record' | 'paste_transcript_only'; maxSeconds?: number };
   provider?: 'openai' | 'anthropic' | 'none';
   error?: string;
-  reason?: 'missing_api_key' | 'disabled' | 'ok';
+  reason?: 'disabled' | 'ok';
   message?: string;
 };
 
 type VoiceTranscribePayload = {
   ok?: boolean;
   clip_id?: string;
+  idempotent?: boolean;
   transcript?: { text?: string; lang?: string };
   actions?: LitoVoiceActionDraft[];
   messages?: LitoThreadMessage[];
@@ -202,10 +205,10 @@ function voiceDraftStatusLabel(status: LitoVoiceActionDraft['status']): string {
 }
 
 function extractVoiceDraftSummary(payload: Record<string, unknown>): string {
-  const summary = payload.summary;
+  const summary = payload.human_summary ?? payload.summary;
   if (typeof summary === 'string' && summary.trim().length > 0) return summary.trim();
-  const title = payload.title;
-  if (typeof title === 'string' && title.trim().length > 0) return title.trim();
+  const action = payload.action;
+  if (typeof action === 'string' && action.trim().length > 0) return action.trim();
   return 'Sense resum';
 }
 
@@ -286,6 +289,7 @@ export default function LitoChatView() {
   const [voiceEditingSummary, setVoiceEditingSummary] = useState('');
   const [voiceRecording, setVoiceRecording] = useState(false);
   const [voiceSpeechSupported, setVoiceSpeechSupported] = useState(false);
+  const [voicePrepareMode, setVoicePrepareMode] = useState<'record' | 'paste_transcript_only'>('paste_transcript_only');
 
   const bootstrapRef = useRef<string | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
@@ -642,6 +646,8 @@ export default function LitoChatView() {
       if (!response.ok || payload.error) {
         throw new Error(payload.message || t('dashboard.litoPage.voice.prepareError'));
       }
+      const nextMode = payload.mode || payload.upload?.mode || 'paste_transcript_only';
+      setVoicePrepareMode(nextMode);
       setVoiceSheetOpen(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.litoPage.voice.prepareError');
@@ -652,6 +658,10 @@ export default function LitoChatView() {
   }, [activeThreadId, biz?.id, router, t, toast]);
 
   const startVoiceCapture = useCallback(() => {
+    if (voicePrepareMode !== 'record') {
+      toast(t('dashboard.litoPage.voice.manualOnly'), 'warning');
+      return;
+    }
     if (typeof window === 'undefined') return;
     const speechWindow = window as Window & {
       SpeechRecognition?: BrowserSpeechRecognitionConstructor;
@@ -693,7 +703,7 @@ export default function LitoChatView() {
     recognitionRef.current.lang = voiceTranscriptLang === 'es' ? 'es-ES' : voiceTranscriptLang === 'en' ? 'en-US' : 'ca-ES';
     setVoiceRecording(true);
     recognitionRef.current.start();
-  }, [t, toast, voiceTranscriptLang]);
+  }, [t, toast, voicePrepareMode, voiceTranscriptLang]);
 
   const stopVoiceCapture = useCallback(() => {
     setVoiceRecording(false);
@@ -735,7 +745,7 @@ export default function LitoChatView() {
     }
     const nextPayload = {
       ...(draft.payload || {}),
-      summary: nextSummary,
+      human_summary: nextSummary,
     };
 
     try {
@@ -1142,6 +1152,7 @@ export default function LitoChatView() {
 
   const visibleMessages = useMemo(() => sanitizeMessages(messages), [messages]);
   const canConfirmVoiceActions = voiceViewerRole === 'owner' || voiceViewerRole === 'manager';
+  const canRecordWithBrowser = voicePrepareMode === 'record' && voiceSpeechSupported;
 
   if (!biz) {
     return (
@@ -1499,7 +1510,12 @@ export default function LitoChatView() {
                   const summary = extractVoiceDraftSummary(payload);
                   const isExpanded = voiceExpandedDraftId === draft.id;
                   const isEditing = voiceEditingDraftId === draft.id;
-                  const canSubmitForReview = voiceViewerRole === 'staff' && draft.created_by && draft.status === 'draft';
+                  const isStaff = voiceViewerRole === 'staff';
+                  const isStaffOwnDraft = isStaff && draft.created_by && draft.status === 'draft';
+                  const canSubmitForReview = Boolean(isStaffOwnDraft);
+                  const canApproveOrReject = canConfirmVoiceActions && (draft.status === 'draft' || draft.status === 'pending_review');
+                  const canExecute = canConfirmVoiceActions && draft.status === 'approved';
+                  const canEditDraft = canConfirmVoiceActions || Boolean(isStaffOwnDraft);
                   return (
                     <div key={draft.id} className="rounded-lg border border-white/10 bg-black/20 p-2.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1521,21 +1537,23 @@ export default function LitoChatView() {
                               ? t('dashboard.litoPage.voice.hideDraft')
                               : t('dashboard.litoPage.voice.viewDraft')}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setVoiceEditingDraftId(draft.id);
-                              setVoiceEditingSummary(summary);
-                            }}
-                            className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
-                          >
-                            {t('dashboard.litoPage.voice.editDraft')}
-                          </button>
-                          {canConfirmVoiceActions ? (
+                          {canEditDraft ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setVoiceEditingDraftId(draft.id);
+                                setVoiceEditingSummary(summary);
+                              }}
+                              className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+                            >
+                              {t('dashboard.litoPage.voice.editDraft')}
+                            </button>
+                          ) : null}
+                          {canApproveOrReject ? (
                             <>
                               <button
                                 type="button"
-                                onClick={() => void handleVoiceDraftMutation(draft.id, 'execute')}
+                                onClick={() => void handleVoiceDraftMutation(draft.id, 'approve')}
                                 className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/18"
                               >
                                 {t('dashboard.litoPage.voice.confirmAction')}
@@ -1548,7 +1566,17 @@ export default function LitoChatView() {
                                 {t('dashboard.litoPage.voice.cancelAction')}
                               </button>
                             </>
-                          ) : canSubmitForReview ? (
+                          ) : null}
+                          {canExecute ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleVoiceDraftMutation(draft.id, 'execute')}
+                              className="rounded-full border border-teal-300/35 bg-teal-500/12 px-2 py-0.5 text-[11px] font-semibold text-teal-200 transition-colors hover:bg-teal-500/18"
+                            >
+                              {t('dashboard.litoPage.voice.executeAction')}
+                            </button>
+                          ) : null}
+                          {!canConfirmVoiceActions && canSubmitForReview ? (
                             <button
                               type="button"
                               onClick={() => void handleVoiceDraftMutation(draft.id, 'submit')}
@@ -1595,10 +1623,10 @@ export default function LitoChatView() {
 
                       {isExpanded ? (
                         <div className="mt-2 space-y-1 rounded-md border border-white/10 bg-white/4 px-2.5 py-2 text-[11px] text-white/75">
-                          {typeof payload.title === 'string' ? <p><strong>Titol:</strong> {payload.title}</p> : null}
-                          {typeof payload.summary === 'string' ? <p><strong>Resum:</strong> {payload.summary}</p> : null}
-                          {typeof payload.suggested_channel === 'string' ? <p><strong>Canal:</strong> {payload.suggested_channel}</p> : null}
-                          {typeof payload.suggested_format === 'string' ? <p><strong>Format:</strong> {payload.suggested_format}</p> : null}
+                          {typeof payload.human_summary === 'string' ? <p><strong>Resum:</strong> {payload.human_summary}</p> : null}
+                          {typeof payload.action === 'string' ? <p><strong>Accio:</strong> {payload.action}</p> : null}
+                          {typeof payload.channel === 'string' ? <p><strong>Canal:</strong> {payload.channel}</p> : null}
+                          {typeof payload.format === 'string' ? <p><strong>Format:</strong> {payload.format}</p> : null}
                         </div>
                       ) : null}
                     </div>
@@ -1782,7 +1810,7 @@ export default function LitoChatView() {
 
             <div className="mb-3 rounded-xl border border-white/10 bg-black/25 p-3">
               <p className={cn('mb-2 text-xs', textSub)}>
-                {voiceSpeechSupported
+                {canRecordWithBrowser
                   ? t('dashboard.litoPage.voice.holdToTalk')
                   : t('dashboard.litoPage.voice.manualOnly')}
               </p>
@@ -1806,7 +1834,7 @@ export default function LitoChatView() {
                     event.preventDefault();
                     stopVoiceCapture();
                   }}
-                  disabled={!voiceSpeechSupported}
+                  disabled={!canRecordWithBrowser}
                 >
                   {voiceRecording
                     ? t('dashboard.litoPage.voice.recording')

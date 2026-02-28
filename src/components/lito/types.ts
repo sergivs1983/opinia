@@ -107,6 +107,7 @@ export type LitoVoiceActionDraft = {
   biz_id: string;
   thread_id: string | null;
   source_voice_clip_id: string | null;
+  idempotency_key?: string | null;
   kind: LitoVoiceDraftKind;
   status: LitoVoiceDraftStatus;
   payload: Record<string, unknown>;

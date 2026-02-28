@@ -935,6 +935,7 @@
         "hideDraft": "Ocultar",
         "editDraft": "Editar",
         "confirmAction": "Confirmar acción",
+        "executeAction": "Ejecutar",
         "cancelAction": "Cancelar",
         "submitReview": "Enviar a revisión",
         "unavailable": "LITO Voice no está disponible ahora mismo.",
