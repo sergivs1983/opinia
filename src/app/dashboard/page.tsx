@@ -14,7 +14,6 @@ import Button from '@/components/ui/Button';
 import GlassCard from '@/components/ui/GlassCard';
 import ActionReviewCard from '@/components/home/ActionReviewCard';
 import PublishSuccessModal from '@/components/home/PublishSuccessModal';
-import LitoAssistDrawer from '@/components/lito/LitoAssistDrawer';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type { Reply, Review } from '@/types/database';
@@ -96,7 +95,7 @@ type WeeklyRecommendationItem = {
 type WeeklyRecommendationsPayload = {
   week_start?: string;
   items?: WeeklyRecommendationItem[];
-  viewer_role?: 'owner' | 'admin' | 'manager' | 'responder' | 'staff' | null;
+  viewer_role?: 'owner' | 'manager' | 'staff' | null;
   error?: string;
   message?: string;
   request_id?: string;
@@ -172,9 +171,6 @@ export default function DashboardPage() {
   const [weeklyRecommendations, setWeeklyRecommendations] = useState<WeeklyRecommendationItem[]>([]);
   const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
   const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
-  const [weeklyViewerRole, setWeeklyViewerRole] = useState<'owner' | 'admin' | 'manager' | 'responder' | 'staff' | null>(null);
-  const [litoOpen, setLitoOpen] = useState(false);
-  const [litoRecommendation, setLitoRecommendation] = useState<WeeklyRecommendationItem | null>(null);
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -259,7 +255,6 @@ export default function DashboardPage() {
           throw new Error(payload.message || t('dashboard.home.recommendations.loadError'));
         }
         if (cancelled) return;
-        setWeeklyViewerRole(payload.viewer_role || null);
         setWeeklyRecommendations(
           (payload.items || [])
             .map((item) => normalizeRecommendationItem(item))
@@ -268,7 +263,6 @@ export default function DashboardPage() {
       })
       .catch(() => {
         if (cancelled) return;
-        setWeeklyViewerRole(null);
         setWeeklyRecommendations([]);
       })
       .finally(() => {
@@ -482,16 +476,12 @@ export default function DashboardPage() {
     [biz?.id, t, toast],
   );
 
-  const handleOpenLito = useCallback((recommendation: WeeklyRecommendationItem) => {
+  const handleOpenLito = useCallback((recommendation: WeeklyRecommendationItem | null = null) => {
     if (!biz?.id) return;
-    setLitoRecommendation(recommendation);
-    setLitoOpen(true);
-  }, [biz?.id]);
-
-  const handleMarkRecommendationPublished = useCallback(async (recommendationId: string) => {
-    await handleRecommendationFeedback(recommendationId, 'published');
-    setLitoOpen(false);
-  }, [handleRecommendationFeedback]);
+    const query = new URLSearchParams({ biz_id: biz.id });
+    if (recommendation?.id) query.set('recommendation_id', recommendation.id);
+    router.push(`/dashboard/lito?${query.toString()}`);
+  }, [biz?.id, router]);
 
   if (!biz) {
     return (
@@ -561,6 +551,13 @@ export default function DashboardPage() {
                 {t('dashboard.home.recommendations.subtitle')}
               </p>
             </div>
+            <Button
+              variant="secondary"
+              className="h-8 px-3 text-xs"
+              onClick={() => handleOpenLito(null)}
+            >
+              {t('dashboard.home.recommendations.actions.talkLito')}
+            </Button>
           </div>
 
           {weeklyRecommendationsLoading ? (
@@ -606,7 +603,7 @@ export default function DashboardPage() {
                         disabled={actionPending}
                         onClick={() => handleOpenLito(item)}
                       >
-                        {t('dashboard.home.recommendations.actions.generateLito')}
+                        {t('dashboard.litoPage.openWithLito')}
                       </Button>
                     </div>
                   </div>
@@ -662,17 +659,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      <LitoAssistDrawer
-        open={litoOpen}
-        onClose={() => setLitoOpen(false)}
-        bizId={biz?.id || null}
-        businessName={biz?.name || null}
-        recommendation={litoRecommendation}
-        onMarkPublished={handleMarkRecommendationPublished}
-        publishing={Boolean(litoRecommendation?.id && weeklyRecommendationActionById[litoRecommendation.id])}
-        canMarkPublished={weeklyViewerRole !== 'staff'}
-      />
 
       <PublishSuccessModal
         open={successModalOpen}
