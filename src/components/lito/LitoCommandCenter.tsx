@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import GlassCard from '@/components/ui/GlassCard';
 import LitoContextPanel from '@/components/lito/LitoContextPanel';
 import LitoWorkbenchPane from '@/components/lito/LitoWorkbenchPane';
+import { buildFallbackRecommendation } from '@/components/lito/recommendation-fallback';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type {
@@ -167,8 +168,16 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const activeRecommendation = useMemo(() => {
     const recommendationId = activeThread?.recommendation_id || queryRecommendationId;
     if (!recommendationId) return null;
-    return weeklyRecommendations.find((item) => item.id === recommendationId) || null;
-  }, [activeThread?.recommendation_id, queryRecommendationId, weeklyRecommendations]);
+    const fromWeekly = weeklyRecommendations.find((item) => item.id === recommendationId);
+    if (fromWeekly) return fromWeekly;
+    if (!activeThread || activeThread.recommendation_id !== recommendationId) return null;
+    return buildFallbackRecommendation({
+      thread: activeThread,
+      recommendationId,
+      selectedFormat,
+      defaultTitle: t('dashboard.home.recommendations.lito.defaultTitle'),
+    });
+  }, [activeThread, queryRecommendationId, selectedFormat, t, weeklyRecommendations]);
 
   const selectedRecommendationId = activeRecommendation?.id || null;
 

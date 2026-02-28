@@ -752,9 +752,11 @@
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomanació o obre un fil general.",
         "selectRecommendation": "Tria una recomanació per generar copy, retocar i preparar assets.",
+        "selectRecommendationIkea": "Tria una recomanació per veure el pas a pas.",
         "previewTitle": "Mobile Preview",
         "previewSubtitle": "Vista ràpida del copy en format mòbil.",
         "previewEmpty": "Genera o retoca el copy per veure la previsualització.",
+        "assetsEmpty": "Sense assets suggerits encara.",
         "previewChannels": {
           "instagram": "Instagram",
           "tiktok": "TikTok"

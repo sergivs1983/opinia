@@ -752,9 +752,11 @@
         "title": "Workbench",
         "emptyTitle": "Select a recommendation or open a general thread.",
         "selectRecommendation": "Pick a recommendation to generate copy, refine, and prepare assets.",
+        "selectRecommendationIkea": "Pick a recommendation to view the step-by-step plan.",
         "previewTitle": "Mobile Preview",
         "previewSubtitle": "Quick preview of the copy inside a mobile frame.",
         "previewEmpty": "Generate or refine copy to see a preview.",
+        "assetsEmpty": "No suggested assets yet.",
         "previewChannels": {
           "instagram": "Instagram",
           "tiktok": "TikTok"

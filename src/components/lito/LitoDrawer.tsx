@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import LitoThreadPane from '@/components/lito/LitoThreadPane';
 import LitoWorkbenchPane from '@/components/lito/LitoWorkbenchPane';
+import { buildFallbackRecommendation } from '@/components/lito/recommendation-fallback';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type {
@@ -128,8 +129,16 @@ export default function LitoDrawer({ open, onClose, enabled, reason, canActivate
   const activeRecommendation = useMemo(() => {
     const recommendationId = activeThread?.recommendation_id;
     if (!recommendationId) return null;
-    return weeklyRecommendations.find((item) => item.id === recommendationId) || null;
-  }, [activeThread?.recommendation_id, weeklyRecommendations]);
+    const fromWeekly = weeklyRecommendations.find((item) => item.id === recommendationId);
+    if (fromWeekly) return fromWeekly;
+    if (!activeThread) return null;
+    return buildFallbackRecommendation({
+      thread: activeThread,
+      recommendationId,
+      selectedFormat,
+      defaultTitle: t('dashboard.home.recommendations.lito.defaultTitle'),
+    });
+  }, [activeThread, selectedFormat, t, weeklyRecommendations]);
 
   const disabledMessage = reason === 'missing_api_key'
     ? t('dashboard.litoPage.launcher.bannerMissingKey')

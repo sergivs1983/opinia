@@ -9,6 +9,7 @@ import { useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useToast } from '@/components/ui/Toast';
 import { emitLitoCopyUpdated, isLitoCopyUpdatedEvent, LITO_COPY_UPDATED_EVENT } from '@/components/lito/copy-sync';
+import { buildFallbackRecommendation } from '@/components/lito/recommendation-fallback';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type {
@@ -187,8 +188,15 @@ export default function LitoChatView() {
 
   const activeRecommendation = useMemo(() => {
     if (!activeThread?.recommendation_id) return null;
-    return weeklyRecommendations.find((item) => item.id === activeThread.recommendation_id) || null;
-  }, [activeThread?.recommendation_id, weeklyRecommendations]);
+    const fromWeekly = weeklyRecommendations.find((item) => item.id === activeThread.recommendation_id);
+    if (fromWeekly) return fromWeekly;
+    return buildFallbackRecommendation({
+      thread: activeThread,
+      recommendationId: activeThread.recommendation_id,
+      selectedFormat: 'post',
+      defaultTitle: t('dashboard.home.recommendations.lito.defaultTitle'),
+    });
+  }, [activeThread, t, weeklyRecommendations]);
 
   const commandCenterHref = useMemo(() => {
     if (!biz?.id) return '/dashboard/lito';

@@ -551,7 +551,7 @@ export default function LitoWorkbenchPane({
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {!recommendation ? (
           <p className={cn('rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-sm', textSub)}>
-            {t('dashboard.litoPage.workbench.selectRecommendation')}
+            {t('dashboard.litoPage.workbench.selectRecommendationIkea')}
           </p>
         ) : (
           <div className="space-y-3">
@@ -760,16 +760,18 @@ export default function LitoWorkbenchPane({
                   <li key={`note-${index}`}>{note}</li>
                 ))}
               </ul>
+              <p className={cn('mt-3 text-xs font-medium text-white/65')}>{t('dashboard.home.recommendations.lito.tabs.assets')}</p>
               {assets.length > 0 ? (
-                <>
-                  <p className={cn('mt-3 text-xs font-medium text-white/65')}>{t('dashboard.home.recommendations.lito.tabs.assets')}</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-white/75">
-                    {assets.map((asset, index) => (
-                      <li key={`asset-${index}`}>{asset}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-white/75">
+                  {assets.map((asset, index) => (
+                    <li key={`asset-${index}`}>{asset}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className={cn('mt-1 text-sm text-white/65')}>
+                  {t('dashboard.litoPage.workbench.assetsEmpty')}
+                </p>
+              )}
             </div>
           </div>
         )}
