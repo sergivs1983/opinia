@@ -852,6 +852,8 @@
         "renameCancel": "Cancel·lar",
         "renamePlaceholder": "Nom del fil",
         "renameError": "No s'ha pogut renombrar el fil.",
+        "threadRequired": "Selecciona un fil o crea'n un de nou.",
+        "sendServerError": "Error enviant el missatge. Reintenta.",
         "quickPrompts": {
           "shorter": "Fes-ho més curt mantenint el missatge principal.",
           "premium": "Dona-li un to més premium sense perdre claredat.",
@@ -1830,6 +1832,15 @@
         "saveCta": "Desar configuració LITO",
         "saved": "Configuració de LITO desada.",
         "managerOnly": "Només Owner o Manager poden canviar aquesta configuració."
+      }
+    }
+  },
+  "lito": {
+    "chat": {
+      "ikea": {
+        "toggle_show": "📋 Mode IKEA",
+        "toggle_hide": "✕ Mode IKEA",
+        "title": "Mode IKEA (pas a pas)"
       }
     }
   }

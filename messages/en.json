@@ -1832,5 +1832,14 @@
         "managerOnly": "Only Owner or Manager can change this setting."
       }
     }
+  },
+  "lito": {
+    "chat": {
+      "ikea": {
+        "toggle_show": "📋 IKEA Mode",
+        "toggle_hide": "✕ IKEA Mode",
+        "title": "IKEA Mode (step by step)"
+      }
+    }
   }
 }

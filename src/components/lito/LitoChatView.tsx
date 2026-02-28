@@ -179,6 +179,8 @@ export default function LitoChatView() {
   const [copyAction, setCopyAction] = useState<'generate' | QuickRefineMode | null>(null);
   const [quickRefinePrompt, setQuickRefinePrompt] = useState('');
   const [ikeaChannel, setIkeaChannel] = useState<RecommendationChannel>('instagram');
+  // D1.6: IKEA panel is hidden by default; user opens it on-demand
+  const [ikeaOpen, setIkeaOpen] = useState(false);
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [renamingLoading, setRenamingLoading] = useState(false);
@@ -545,10 +547,35 @@ export default function LitoChatView() {
   }, [activeThreadId, renameDraft, renamingThreadId, t, toast]);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!activeThreadId || content.trim().length < 2) return;
+    const normalized = content.trim();
+    if (normalized.length < 2) return;
+    if (!biz?.id) {
+      toast(t('dashboard.litoPage.chat.threadRequired'), 'warning');
+      return;
+    }
+
+    const recommendationContext = {
+      recommendationId: activeRecommendation?.id ?? null,
+      format: activeRecommendation?.format === 'story' || activeRecommendation?.format === 'reel'
+        ? activeRecommendation.format
+        : 'post',
+      hook: activeRecommendation?.hook || null,
+    } as const;
+
     setSending(true);
     try {
-      const normalized = content.trim();
+      const ensureThreadId = async (): Promise<string | null> => {
+        if (activeThreadId) return activeThreadId;
+        const createdThread = await openOrCreateThread(recommendationContext);
+        return createdThread?.id || null;
+      };
+
+      let threadId = await ensureThreadId();
+      if (!threadId) {
+        toast(t('dashboard.litoPage.chat.threadRequired'), 'warning');
+        return;
+      }
+
       const quickMode = resolveQuickRefineModeFromText(normalized);
       if (activeRecommendation?.id && quickMode) {
         if (generatedCopy) {
@@ -558,19 +585,53 @@ export default function LitoChatView() {
         }
       }
 
-      const response = await fetch('/api/lito/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          thread_id: activeThreadId,
-          content: normalized,
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { messages?: LitoThreadMessage[]; error?: string; message?: string };
+      const postMessage = async (targetThreadId: string): Promise<{
+        response: Response;
+        payload: { messages?: LitoThreadMessage[]; error?: string; message?: string };
+      }> => {
+        const response = await fetch('/api/lito/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            thread_id: targetThreadId,
+            content: normalized,
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          messages?: LitoThreadMessage[];
+          error?: string;
+          message?: string;
+        };
+        return { response, payload };
+      };
+
+      let { response, payload } = await postMessage(threadId);
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (response.status === 404 || payload.error === 'not_found') {
+        const recoveredThread = await openOrCreateThread(recommendationContext);
+        threadId = recoveredThread?.id || null;
+        if (!threadId) {
+          toast(t('dashboard.litoPage.chat.threadRequired'), 'warning');
+          return;
+        }
+        ({ response, payload } = await postMessage(threadId));
+      }
+
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (response.status >= 500) {
+        throw new Error(t('dashboard.litoPage.chat.sendServerError'));
+      }
       if (!response.ok || payload.error) {
         throw new Error(payload.message || t('dashboard.home.recommendations.lito.sendError'));
       }
       setMessageDraft('');
+      setActiveThreadId(threadId);
       const appended = Array.isArray(payload.messages) ? payload.messages : [];
       if (appended.length > 0) {
         setMessages((previous) => [...previous, ...appended]);
@@ -582,7 +643,21 @@ export default function LitoChatView() {
     } finally {
       setSending(false);
     }
-  }, [activeRecommendation?.id, activeThreadId, generatedCopy, loadThreads, runGenerate, runQuickRefine, t, toast]);
+  }, [
+    activeRecommendation?.format,
+    activeRecommendation?.hook,
+    activeRecommendation?.id,
+    activeThreadId,
+    biz?.id,
+    generatedCopy,
+    loadThreads,
+    openOrCreateThread,
+    router,
+    runGenerate,
+    runQuickRefine,
+    t,
+    toast,
+  ]);
 
   useEffect(() => {
     if (!biz?.id || !queryBizId) return;
@@ -652,6 +727,8 @@ export default function LitoChatView() {
 
   useEffect(() => {
     setIkeaChannel('instagram');
+    // D1.6: collapse IKEA panel whenever the recommendation changes
+    setIkeaOpen(false);
   }, [activeRecommendation?.id]);
 
   useEffect(() => {
@@ -965,7 +1042,8 @@ export default function LitoChatView() {
             </div>
           ) : null}
 
-          {activeRecommendation && ikeaChecklist ? (
+          {/* D1.6: IKEA panel is rendered only when ikeaOpen=true */}
+          {ikeaOpen && activeRecommendation && ikeaChecklist ? (
             <div className="mb-3 rounded-xl border border-white/10 bg-white/6 p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
@@ -1090,6 +1168,23 @@ export default function LitoChatView() {
             </Button>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
+            {/* D1.6: on-demand IKEA toggle — only shown when a recommendation is active */}
+            {activeRecommendation && ikeaChecklist ? (
+              <button
+                type="button"
+                onClick={() => setIkeaOpen((prev) => !prev)}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  ikeaOpen
+                    ? 'border-amber-300/40 bg-amber-500/15 text-amber-200 hover:bg-amber-500/20'
+                    : 'border-white/15 bg-white/6 text-white/80 hover:bg-white/12 hover:text-white',
+                )}
+              >
+                {ikeaOpen
+                  ? t('lito.chat.ikea.toggle_hide')
+                  : t('lito.chat.ikea.toggle_show')}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.shorter'))}

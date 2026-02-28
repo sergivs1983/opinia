@@ -852,6 +852,8 @@
         "renameCancel": "Cancelar",
         "renamePlaceholder": "Nombre del hilo",
         "renameError": "No se pudo renombrar el hilo.",
+        "threadRequired": "Selecciona un hilo o crea uno nuevo.",
+        "sendServerError": "Error al enviar el mensaje. Reintenta.",
         "quickPrompts": {
           "shorter": "Hazlo más corto manteniendo el mensaje principal.",
           "premium": "Dale un tono más premium sin perder claridad.",
@@ -1830,6 +1832,15 @@
         "saveCta": "Guardar configuración LITO",
         "saved": "Configuración de LITO guardada.",
         "managerOnly": "Solo Owner o Manager pueden cambiar esta configuración."
+      }
+    }
+  },
+  "lito": {
+    "chat": {
+      "ikea": {
+        "toggle_show": "📋 Modo IKEA",
+        "toggle_hide": "✕ Modo IKEA",
+        "title": "Modo IKEA (paso a paso)"
       }
     }
   }
