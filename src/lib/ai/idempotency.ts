@@ -29,6 +29,7 @@ type BuildIdempotencyInput = {
   format?: string | null;
   channel?: string | null;
   tone?: string | null;
+  day_bucket?: string | null;
 };
 
 function normalize(value: string | null | undefined): string {
@@ -42,6 +43,7 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 export function buildIdempotencyKey(input: BuildIdempotencyInput): string {
+  const dayBucket = normalize(input.day_bucket || new Date().toISOString().slice(0, 10));
   const canonical = [
     normalize(input.org_id),
     normalize(input.biz_id),
@@ -53,6 +55,7 @@ export function buildIdempotencyKey(input: BuildIdempotencyInput): string {
     normalize(input.format || ''),
     normalize(input.channel || ''),
     normalize(input.tone || ''),
+    dayBucket,
   ].join('|');
   return createHash('sha256').update(canonical).digest('hex');
 }
