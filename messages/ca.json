@@ -620,6 +620,10 @@
           "generateError": "No s'ha pogut generar el pla amb LITO.",
           "refineError": "No s'ha pogut retocar el copy ara mateix.",
           "aiUnavailable": "Activa LITO Copy a Configuració (Admin).",
+          "copyDisabledTitle": "LITO Copy desactivat",
+          "copyDisabledMissingKey": "Falta configurar la clau d'IA",
+          "copyDisabledManager": "Funció desactivada pel manager",
+          "copyDisabledActivate": "Activar",
           "copySuccess": "Copy copiat al porta-retalls.",
           "copyError": "No s'ha pogut copiar el text.",
           "customRefineTitle": "Refinament personalitzat",
@@ -1584,7 +1588,21 @@
       "proSeats": "Fins a 6 persones · 10 establiments",
       "updateCta": "Actualitzar pla",
       "updated": "Pla actualitzat.",
-      "ownerOnly": "Només l’Owner pot actualitzar el pla."
+      "ownerOnly": "Només l’Owner pot actualitzar el pla.",
+      "lito": {
+        "title": "Configuració de LITO Copy",
+        "subtitle": "Defineix el proveïdor d'IA i si l'equip staff pot generar/refinar copy.",
+        "providerLabel": "Proveïdor IA",
+        "providerAuto": "Auto",
+        "providerOpenAI": "OpenAI",
+        "providerAnthropic": "Anthropic",
+        "staffToggleLabel": "Pausar IA per staff",
+        "staffPaused": "L'equip staff està pausat.",
+        "staffEnabled": "L'equip staff pot generar i refinar.",
+        "saveCta": "Desar configuració LITO",
+        "saved": "Configuració de LITO desada.",
+        "managerOnly": "Només Owner o Manager poden canviar aquesta configuració."
+      }
     }
   }
 }

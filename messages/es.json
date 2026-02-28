@@ -620,6 +620,10 @@
           "generateError": "No se pudo generar el plan con LITO.",
           "refineError": "No se pudo retocar el copy ahora mismo.",
           "aiUnavailable": "Activa LITO Copy en Configuración (Admin).",
+          "copyDisabledTitle": "LITO Copy desactivado",
+          "copyDisabledMissingKey": "Falta configurar la clave de IA",
+          "copyDisabledManager": "Función desactivada por el manager",
+          "copyDisabledActivate": "Activar",
           "copySuccess": "Copy copiado al portapapeles.",
           "copyError": "No se pudo copiar el texto.",
           "customRefineTitle": "Refinado personalizado",
@@ -1584,7 +1588,21 @@
       "proSeats": "Hasta 6 personas · 10 negocios",
       "updateCta": "Actualizar plan",
       "updated": "Plan actualizado.",
-      "ownerOnly": "Solo el Owner puede actualizar el plan."
+      "ownerOnly": "Solo el Owner puede actualizar el plan.",
+      "lito": {
+        "title": "Configuración de LITO Copy",
+        "subtitle": "Configura el proveedor de IA y si el equipo staff puede generar/refinar copy.",
+        "providerLabel": "Proveedor de IA",
+        "providerAuto": "Auto",
+        "providerOpenAI": "OpenAI",
+        "providerAnthropic": "Anthropic",
+        "staffToggleLabel": "Pausar IA para staff",
+        "staffPaused": "La IA para staff está pausada.",
+        "staffEnabled": "El equipo staff puede generar y refinar.",
+        "saveCta": "Guardar configuración LITO",
+        "saved": "Configuración de LITO guardada.",
+        "managerOnly": "Solo Owner o Manager pueden cambiar esta configuración."
+      }
     }
   }
 }

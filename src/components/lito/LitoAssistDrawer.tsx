@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import Tabs from '@/components/ui/Tabs';
@@ -62,10 +63,16 @@ type CopyApiPayload = {
   ok?: boolean;
   copy?: LitoGeneratedCopy | null;
   quota?: QuotaState | null;
-  ai?: {
-    available?: boolean;
-    provider?: string;
-  };
+  error?: string;
+  message?: string;
+};
+
+type LitoCopyStatusReason = 'missing_api_key' | 'paused' | 'disabled' | 'ok';
+
+type CopyStatusPayload = {
+  enabled?: boolean;
+  reason?: LitoCopyStatusReason;
+  provider?: 'openai' | 'anthropic' | 'none';
   error?: string;
   message?: string;
 };
@@ -75,6 +82,7 @@ type GeneratePayload = {
   copy?: LitoGeneratedCopy;
   quota?: QuotaState;
   error?: string;
+  reason?: LitoCopyStatusReason;
   message?: string;
 };
 
@@ -128,6 +136,7 @@ export default function LitoAssistDrawer({
   const [quota, setQuota] = useState<QuotaState | null>(null);
   const [aiUnavailable, setAiUnavailable] = useState(false);
   const [aiMessage, setAiMessage] = useState('');
+  const [aiStatusReason, setAiStatusReason] = useState<LitoCopyStatusReason>('ok');
   const [hasGeneratedCopy, setHasGeneratedCopy] = useState(false);
 
   const [assetsDone, setAssetsDone] = useState<Record<string, boolean>>({});
@@ -151,6 +160,19 @@ export default function LitoAssistDrawer({
     const tags = hashtags.length ? `\n\n${hashtags.join(' ')}` : '';
     return `${copyLong || copyShort}${tags}`.trim();
   }, [copyLong, copyShort, hashtags]);
+
+  const settingsHref = '/dashboard/admin';
+
+  const reasonToMessage = useCallback((reason?: LitoCopyStatusReason, fallback?: string) => {
+    if (reason === 'missing_api_key') return t('dashboard.home.recommendations.lito.copyDisabledMissingKey');
+    if (reason === 'disabled' || reason === 'paused') return t('dashboard.home.recommendations.lito.copyDisabledManager');
+    return fallback || t('dashboard.home.recommendations.lito.aiUnavailable');
+  }, [t]);
+
+  const aiTooltip = useMemo(
+    () => (aiUnavailable ? (aiMessage || reasonToMessage(aiStatusReason)) : undefined),
+    [aiMessage, aiStatusReason, aiUnavailable, reasonToMessage],
+  );
 
   const applyCopy = useCallback((copy: LitoGeneratedCopy) => {
     setCopyShort(copy.caption_short || '');
@@ -192,20 +214,35 @@ export default function LitoAssistDrawer({
     setHasGeneratedCopy(false);
   }, [baseAssets, ctaText, hookTitle, ideaText, localHowTo?.assets_needed, localHowTo?.steps, t]);
 
+  const loadCopyStatus = useCallback(async () => {
+    if (!bizId) return;
+    try {
+      const response = await fetch(`/api/lito/copy/status?biz_id=${bizId}`);
+      const payload = (await response.json().catch(() => ({}))) as CopyStatusPayload;
+      if (!response.ok || typeof payload.enabled !== 'boolean') return;
+
+      if (payload.enabled) {
+        setAiUnavailable(false);
+        setAiStatusReason('ok');
+        setAiMessage('');
+        return;
+      }
+
+      const reason = payload.reason || 'disabled';
+      setAiUnavailable(true);
+      setAiStatusReason(reason);
+      setAiMessage(reasonToMessage(reason, payload.message));
+    } catch {
+      // Keep current banner state; copy and how-to remain available.
+    }
+  }, [bizId, reasonToMessage]);
+
   const loadStoredCopy = useCallback(async () => {
     if (!bizId || !recommendation?.id) return;
     setLoadingStored(true);
     try {
       const response = await fetch(`/api/lito/copy?biz_id=${bizId}&recommendation_id=${recommendation.id}`);
       const payload = (await response.json().catch(() => ({}))) as CopyApiPayload;
-      if (response.status === 503 || payload.error === 'ai_unavailable') {
-        setAiUnavailable(true);
-        setAiMessage(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'));
-      } else {
-        setAiUnavailable(Boolean(payload.ai && payload.ai.available === false));
-        setAiMessage(payload.ai?.available === false ? t('dashboard.home.recommendations.lito.aiUnavailable') : '');
-      }
-
       if (payload.quota) setQuota(payload.quota);
       if (payload.copy) {
         applyCopy(payload.copy);
@@ -215,7 +252,7 @@ export default function LitoAssistDrawer({
     } finally {
       setLoadingStored(false);
     }
-  }, [applyCopy, bizId, recommendation?.id, t]);
+  }, [applyCopy, bizId, recommendation?.id]);
 
   const pollUntilCopyAvailable = useCallback(async (): Promise<boolean> => {
     if (!bizId || !recommendation?.id) return false;
@@ -254,9 +291,12 @@ export default function LitoAssistDrawer({
       const payload = (await response.json().catch(() => ({}))) as GeneratePayload;
 
       if (response.status === 503 || payload.error === 'ai_unavailable') {
+        const reason = payload.reason || 'missing_api_key';
+        const message = reasonToMessage(reason, payload.message);
         setAiUnavailable(true);
-        setAiMessage(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'));
-        toast(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'), 'error');
+        setAiStatusReason(reason);
+        setAiMessage(message);
+        toast(message, 'error');
         return;
       }
       if (response.status === 409 && (payload.error === 'in_flight' || payload.error === 'retry_later')) {
@@ -274,6 +314,7 @@ export default function LitoAssistDrawer({
       applyCopy(payload.copy);
       if (payload.quota) setQuota(payload.quota);
       setAiUnavailable(false);
+      setAiStatusReason('ok');
       setAiMessage('');
       setActiveTab('copy');
     } catch (error) {
@@ -282,7 +323,7 @@ export default function LitoAssistDrawer({
     } finally {
       setGenerating(false);
     }
-  }, [applyCopy, bizId, pollUntilCopyAvailable, recommendation?.format, recommendation?.id, recommendationTemplate?.format, t, toast]);
+  }, [applyCopy, bizId, pollUntilCopyAvailable, reasonToMessage, recommendation?.format, recommendation?.id, recommendationTemplate?.format, t, toast]);
 
   const runRefine = useCallback(async (opts: { mode: 'quick' | 'custom'; quickMode?: RefineMode; instruction?: string }) => {
     if (!bizId || !recommendation?.id) return;
@@ -304,9 +345,12 @@ export default function LitoAssistDrawer({
       const payload = (await response.json().catch(() => ({}))) as GeneratePayload;
 
       if (response.status === 503 || payload.error === 'ai_unavailable') {
+        const reason = payload.reason || 'missing_api_key';
+        const message = reasonToMessage(reason, payload.message);
         setAiUnavailable(true);
-        setAiMessage(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'));
-        toast(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'), 'error');
+        setAiStatusReason(reason);
+        setAiMessage(message);
+        toast(message, 'error');
         return;
       }
       if (response.status === 409 && (payload.error === 'in_flight' || payload.error === 'retry_later')) {
@@ -325,6 +369,7 @@ export default function LitoAssistDrawer({
       if (payload.quota) setQuota(payload.quota);
       if (opts.mode === 'custom') setCustomInstruction('');
       setAiUnavailable(false);
+      setAiStatusReason('ok');
       setAiMessage('');
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.refineError');
@@ -332,7 +377,7 @@ export default function LitoAssistDrawer({
     } finally {
       setRefineLoading(null);
     }
-  }, [applyCopy, bizId, pollUntilCopyAvailable, recommendation?.id, t, toast]);
+  }, [applyCopy, bizId, pollUntilCopyAvailable, reasonToMessage, recommendation?.id, t, toast]);
 
   useEffect(() => {
     if (!open) return;
@@ -341,11 +386,13 @@ export default function LitoAssistDrawer({
     setStepsDone({});
     setQuota(null);
     setAiUnavailable(false);
+    setAiStatusReason('ok');
     setAiMessage('');
     setCustomInstruction('');
     hydrateFallbackPlan();
+    void loadCopyStatus();
     void loadStoredCopy();
-  }, [hydrateFallbackPlan, loadStoredCopy, open]);
+  }, [hydrateFallbackPlan, loadCopyStatus, loadStoredCopy, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -386,7 +433,16 @@ export default function LitoAssistDrawer({
                   </p>
                 ) : null}
                 {aiUnavailable ? (
-                  <p className="mt-1 text-xs text-amber-300">{aiMessage || t('dashboard.home.recommendations.lito.aiUnavailable')}</p>
+                  <div className="mt-2 rounded-lg border border-amber-300/25 bg-amber-500/10 px-3 py-2">
+                    <p className="text-xs font-semibold text-amber-100">{t('dashboard.home.recommendations.lito.copyDisabledTitle')}</p>
+                    <p className="mt-1 text-xs text-amber-200/95">{aiTooltip}</p>
+                    <Link
+                      href={settingsHref}
+                      className="mt-2 inline-flex h-7 items-center rounded-md border border-amber-200/35 px-2.5 text-xs font-medium text-amber-100 transition-colors duration-200 ease-premium hover:bg-amber-300/15"
+                    >
+                      {t('dashboard.home.recommendations.lito.copyDisabledActivate')}
+                    </Link>
+                  </div>
                 ) : null}
               </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
@@ -462,6 +518,7 @@ export default function LitoAssistDrawer({
                       className="h-8 px-3 text-xs"
                       loading={generating}
                       disabled={generating || pollingCopy || aiUnavailable}
+                      title={aiTooltip}
                       onClick={() => void runGenerate()}
                     >
                       {t('dashboard.home.recommendations.actions.generateLito')}
@@ -538,25 +595,25 @@ export default function LitoAssistDrawer({
                   >
                     {t('dashboard.home.recommendations.lito.actions.copy')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'shorter' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'shorter' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.shorter')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'premium'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'premium' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'premium'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'premium' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.premium')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'funny' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'funny' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.funny')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'formal' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'formal' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.formal')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_ca'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_ca' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_ca'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_ca' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.translateCa')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_es' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_es' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.translateEs')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_en' })} disabled={pollingCopy || aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_en' })} disabled={pollingCopy || aiUnavailable} title={aiTooltip}>
                     {t('dashboard.home.recommendations.lito.refine.translateEn')}
                   </Button>
                 </section>
@@ -575,6 +632,7 @@ export default function LitoAssistDrawer({
                       size="sm"
                       loading={refineLoading === 'custom'}
                       disabled={pollingCopy || aiUnavailable || customInstruction.trim().length < 2}
+                      title={aiTooltip}
                       onClick={() => void runRefine({ mode: 'custom', instruction: customInstruction.trim() })}
                     >
                       {t('dashboard.home.recommendations.lito.actions.refineCustom')}

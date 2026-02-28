@@ -47,11 +47,12 @@ type DragState = {
   overId: string | null;
 };
 
+type LitoProvider = 'auto' | 'openai' | 'anthropic';
+
 const ROLE_OPTIONS = [
   { value: 'owner', labelKey: 'settings.humanized.team.roles.owner' },
-  { value: 'admin', labelKey: 'settings.humanized.team.roles.admin' },
   { value: 'manager', labelKey: 'settings.humanized.team.roles.manager' },
-  { value: 'responder', labelKey: 'settings.humanized.team.roles.responder' },
+  { value: 'staff', labelKey: 'settings.humanized.team.roles.staff' },
 ] as const;
 
 function reorderBusinesses(list: AdminBusiness[], draggedId: string, targetId: string): AdminBusiness[] {
@@ -70,9 +71,10 @@ export default function DashboardAdminPage() {
   const t = useT();
   const { toast } = useToast();
   const { org, membership } = useWorkspace();
-  const canAccessAdmin = roleCanAccessAdmin(membership?.role);
   const normalizedRole = normalizeMemberRole(membership?.role);
+  const canAccessAdmin = roleCanAccessAdmin(membership?.role) || normalizedRole === 'manager';
   const isOwner = normalizedRole === 'owner';
+  const canManageLitoSettings = normalizedRole === 'owner' || normalizedRole === 'manager';
 
   const [tab, setTab] = useState<AdminTab>('team');
   const [assignmentsByUser, setAssignmentsByUser] = useState<Record<string, string[]>>({});
@@ -89,13 +91,17 @@ export default function DashboardAdminPage() {
   const [newBusinessType, setNewBusinessType] = useState('other');
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('responder');
+  const [inviteRole, setInviteRole] = useState('staff');
   const [inviting, setInviting] = useState(false);
   const [updatingRoleMembershipId, setUpdatingRoleMembershipId] = useState<string | null>(null);
   const [removingMembershipId, setRemovingMembershipId] = useState<string | null>(null);
 
   const [updatingPlan, setUpdatingPlan] = useState(false);
   const [targetPlanCode, setTargetPlanCode] = useState<'starter_49' | 'pro_149'>('starter_49');
+  const [litoProvider, setLitoProvider] = useState<LitoProvider>('auto');
+  const [litoStaffPaused, setLitoStaffPaused] = useState(false);
+  const [loadingLitoSettings, setLoadingLitoSettings] = useState(false);
+  const [savingLitoSettings, setSavingLitoSettings] = useState(false);
 
   const { members, seats, loading: teamLoading, refetch: refetchTeam } = useTeamMembers(org?.id);
   const acceptedMembers = useMemo(() => members.filter((member) => member.accepted_at), [members]);
@@ -109,7 +115,6 @@ export default function DashboardAdminPage() {
   const businessesLimit = seats?.business_limit ?? businessLimitForPlan(planCode);
   const businessesFull = businessesUsed >= businessesLimit;
   const businessesPercent = Math.max(0, Math.min(100, Math.round((businessesUsed / Math.max(1, businessesLimit)) * 100)));
-  const canAssignAdminRole = planCode === 'pro_149';
 
   useEffect(() => {
     if (!seats?.plan_code) return;
@@ -120,11 +125,25 @@ export default function DashboardAdminPage() {
     }
   }, [seats?.plan_code]);
 
-  useEffect(() => {
-    if (!canAssignAdminRole && inviteRole === 'admin') {
-      setInviteRole('manager');
+  const loadLitoSettings = useCallback(async () => {
+    if (!org?.id || !canManageLitoSettings) return;
+    setLoadingLitoSettings(true);
+    try {
+      const response = await fetch(`/api/admin/org-settings/lito?org_id=${org.id}`);
+      const payload = (await response.json().catch(() => ({}))) as {
+        settings?: { ai_provider?: LitoProvider; lito_staff_ai_paused?: boolean };
+        message?: string;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.message || payload.error || 'lito_settings_error');
+      setLitoProvider(payload.settings?.ai_provider || 'auto');
+      setLitoStaffPaused(Boolean(payload.settings?.lito_staff_ai_paused));
+    } catch (error: unknown) {
+      toast(error instanceof Error ? error.message : t('common.error'), 'warning');
+    } finally {
+      setLoadingLitoSettings(false);
     }
-  }, [canAssignAdminRole, inviteRole]);
+  }, [canManageLitoSettings, org?.id, t, toast]);
 
   const loadAssignments = useCallback(async () => {
     if (!org?.id || !canAccessAdmin) return;
@@ -165,10 +184,21 @@ export default function DashboardAdminPage() {
   }, [canAccessAdmin, org?.id, t, toast]);
 
   useEffect(() => {
-    if (!canAccessAdmin) return;
+    if (!canAccessAdmin || normalizedRole === 'manager') return;
     void loadAssignments();
     void loadBusinesses();
-  }, [canAccessAdmin, loadAssignments, loadBusinesses]);
+  }, [canAccessAdmin, loadAssignments, loadBusinesses, normalizedRole]);
+
+  useEffect(() => {
+    if (normalizedRole === 'manager') {
+      setTab('plan');
+    }
+  }, [normalizedRole]);
+
+  useEffect(() => {
+    if (!canManageLitoSettings) return;
+    void loadLitoSettings();
+  }, [canManageLitoSettings, loadLitoSettings]);
 
   const businessTypeOptions = useMemo(() => [
     { value: 'restaurant', label: t('settings.humanized.adn.businessTypes.restaurant') },
@@ -182,15 +212,17 @@ export default function DashboardAdminPage() {
     value: option.value,
     label: t(option.labelKey),
   })), [t]);
-  const assignableRoleOptions = useMemo(() => {
-    if (canAssignAdminRole) return roleOptions;
-    return roleOptions.filter((option) => option.value !== 'admin');
-  }, [canAssignAdminRole, roleOptions]);
+  const assignableRoleOptions = roleOptions;
 
   const roleLabel = useCallback((role: string) => {
     const mapped = roleOptions.find((option) => option.value === normalizeMemberRole(role));
     return mapped?.label || role;
   }, [roleOptions]);
+
+  const availableTabs: AdminTab[] = useMemo(
+    () => (normalizedRole === 'manager' ? ['plan'] : ['team', 'businesses', 'plan']),
+    [normalizedRole],
+  );
 
   const setMemberAssignments = useCallback((memberUserId: string, businessId: string, checked: boolean) => {
     setAssignmentsByUser((prev) => {
@@ -403,6 +435,32 @@ export default function DashboardAdminPage() {
     }
   }, [isOwner, org?.id, refetchTeam, t, targetPlanCode, toast]);
 
+  const handleLitoSettingsSave = useCallback(async () => {
+    if (!org?.id || !canManageLitoSettings) return;
+    setSavingLitoSettings(true);
+    try {
+      const response = await fetch('/api/admin/org-settings/lito', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          org_id: org.id,
+          ai_provider: litoProvider,
+          lito_staff_ai_paused: litoStaffPaused,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const data = payload as { message?: string; error?: string };
+        throw new Error(data.message || data.error || 'lito_settings_update_error');
+      }
+      toast(t('admin.plan.lito.saved'), 'success');
+    } catch (error: unknown) {
+      toast(error instanceof Error ? error.message : t('common.error'), 'warning');
+    } finally {
+      setSavingLitoSettings(false);
+    }
+  }, [canManageLitoSettings, litoProvider, litoStaffPaused, org?.id, t, toast]);
+
   if (!org) {
     return <div className={cn('p-6', textSub)}>{t('common.loading')}</div>;
   }
@@ -458,7 +516,7 @@ export default function DashboardAdminPage() {
       </GlassCard>
 
       <div className="flex flex-wrap gap-2">
-        {(['team', 'businesses', 'plan'] as const).map((entry) => (
+        {availableTabs.map((entry) => (
           <button
             key={entry}
             type="button"
@@ -751,6 +809,56 @@ export default function DashboardAdminPage() {
             <Link href="/pricing" className="text-sm text-emerald-300 hover:text-emerald-200 underline underline-offset-2">
               {t('settings.humanized.team.upgradePlan')}
             </Link>
+          </div>
+
+          <div className="space-y-4 rounded-2xl border border-white/12 bg-white/5 p-4">
+            <div>
+              <h3 className={cn('text-sm font-semibold', textMain)}>{t('admin.plan.lito.title')}</h3>
+              <p className={cn('text-xs', textSub)}>{t('admin.plan.lito.subtitle')}</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Select
+                value={litoProvider}
+                onChange={(event) => setLitoProvider(event.target.value as LitoProvider)}
+                label={t('admin.plan.lito.providerLabel')}
+                options={[
+                  { value: 'auto', label: t('admin.plan.lito.providerAuto') },
+                  { value: 'openai', label: t('admin.plan.lito.providerOpenAI') },
+                  { value: 'anthropic', label: t('admin.plan.lito.providerAnthropic') },
+                ]}
+                disabled={!canManageLitoSettings || loadingLitoSettings}
+              />
+              <div className="flex items-end justify-between rounded-xl border border-white/12 bg-white/5 px-3 py-2">
+                <div className="space-y-1">
+                  <p className={cn('text-xs font-semibold uppercase tracking-[0.08em]', textSub)}>
+                    {t('admin.plan.lito.staffToggleLabel')}
+                  </p>
+                  <p className={cn('text-xs', textSub)}>
+                    {litoStaffPaused ? t('admin.plan.lito.staffPaused') : t('admin.plan.lito.staffEnabled')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={litoStaffPaused}
+                  onChange={setLitoStaffPaused}
+                  disabled={!canManageLitoSettings || loadingLitoSettings}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => void handleLitoSettingsSave()}
+                loading={savingLitoSettings}
+                disabled={!canManageLitoSettings}
+              >
+                {t('admin.plan.lito.saveCta')}
+              </Button>
+              {!canManageLitoSettings && (
+                <span className={cn('text-xs', textSub)}>
+                  {t('admin.plan.lito.managerOnly')}
+                </span>
+              )}
+            </div>
           </div>
         </GlassCard>
       )}
