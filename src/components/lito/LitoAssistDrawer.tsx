@@ -111,6 +111,7 @@ export default function LitoAssistDrawer({
   const [activeTab, setActiveTab] = useState<LitoTabKey>('howto');
   const [loadingStored, setLoadingStored] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [pollingCopy, setPollingCopy] = useState(false);
   const [refineLoading, setRefineLoading] = useState<string | null>(null);
   const [customInstruction, setCustomInstruction] = useState('');
 
@@ -214,6 +215,27 @@ export default function LitoAssistDrawer({
     }
   }, [applyCopy, bizId, recommendation?.id, t]);
 
+  const pollUntilCopyAvailable = useCallback(async (): Promise<boolean> => {
+    if (!bizId || !recommendation?.id) return false;
+    setPollingCopy(true);
+    try {
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const response = await fetch(`/api/lito/copy?biz_id=${bizId}&recommendation_id=${recommendation.id}`);
+        if (!response.ok) continue;
+        const payload = (await response.json().catch(() => ({}))) as CopyApiPayload;
+        if (payload.quota) setQuota(payload.quota);
+        if (payload.copy) {
+          applyCopy(payload.copy);
+          return true;
+        }
+      }
+      return false;
+    } finally {
+      setPollingCopy(false);
+    }
+  }, [applyCopy, bizId, recommendation?.id]);
+
   const runGenerate = useCallback(async () => {
     if (!bizId || !recommendation?.id) return;
     setGenerating(true);
@@ -235,6 +257,14 @@ export default function LitoAssistDrawer({
         toast(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'), 'error');
         return;
       }
+      if (response.status === 409 && (payload.error === 'in_flight' || payload.error === 'retry_later')) {
+        toast(t('dashboard.home.recommendations.lito.inFlightToast'), 'warning');
+        const resolved = await pollUntilCopyAvailable();
+        if (!resolved) {
+          toast(t('dashboard.home.recommendations.lito.pollTimeout'), 'error');
+        }
+        return;
+      }
       if (!response.ok || payload.error || !payload.copy) {
         throw new Error(payload.message || t('dashboard.home.recommendations.lito.generateError'));
       }
@@ -250,7 +280,7 @@ export default function LitoAssistDrawer({
     } finally {
       setGenerating(false);
     }
-  }, [applyCopy, bizId, recommendation?.format, recommendation?.id, recommendationTemplate?.format, t, toast]);
+  }, [applyCopy, bizId, pollUntilCopyAvailable, recommendation?.format, recommendation?.id, recommendationTemplate?.format, t, toast]);
 
   const runRefine = useCallback(async (opts: { mode: 'quick' | 'custom'; quickMode?: RefineMode; instruction?: string }) => {
     if (!bizId || !recommendation?.id) return;
@@ -277,6 +307,14 @@ export default function LitoAssistDrawer({
         toast(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'), 'error');
         return;
       }
+      if (response.status === 409 && (payload.error === 'in_flight' || payload.error === 'retry_later')) {
+        toast(t('dashboard.home.recommendations.lito.inFlightToast'), 'warning');
+        const resolved = await pollUntilCopyAvailable();
+        if (!resolved) {
+          toast(t('dashboard.home.recommendations.lito.pollTimeout'), 'error');
+        }
+        return;
+      }
       if (!response.ok || payload.error || !payload.copy) {
         throw new Error(payload.message || t('dashboard.home.recommendations.lito.refineError'));
       }
@@ -292,7 +330,7 @@ export default function LitoAssistDrawer({
     } finally {
       setRefineLoading(null);
     }
-  }, [applyCopy, bizId, recommendation?.id, t, toast]);
+  }, [applyCopy, bizId, pollUntilCopyAvailable, recommendation?.id, t, toast]);
 
   useEffect(() => {
     if (!open) return;
@@ -421,7 +459,7 @@ export default function LitoAssistDrawer({
                       size="sm"
                       className="h-8 px-3 text-xs"
                       loading={generating}
-                      disabled={generating || aiUnavailable}
+                      disabled={generating || pollingCopy || aiUnavailable}
                       onClick={() => void runGenerate()}
                     >
                       {t('dashboard.home.recommendations.actions.generateLito')}
@@ -498,25 +536,25 @@ export default function LitoAssistDrawer({
                   >
                     {t('dashboard.home.recommendations.lito.actions.copy')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'shorter' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'shorter' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.shorter')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'premium'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'premium' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'premium'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'premium' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.premium')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'funny' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'funny' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.funny')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'formal' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'formal' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.formal')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_ca'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_ca' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_ca'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_ca' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.translateCa')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_es' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_es' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.translateEs')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_en' })} disabled={aiUnavailable}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_en' })} disabled={pollingCopy || aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.translateEn')}
                   </Button>
                 </section>
@@ -534,7 +572,7 @@ export default function LitoAssistDrawer({
                     <Button
                       size="sm"
                       loading={refineLoading === 'custom'}
-                      disabled={aiUnavailable || customInstruction.trim().length < 2}
+                      disabled={pollingCopy || aiUnavailable || customInstruction.trim().length < 2}
                       onClick={() => void runRefine({ mode: 'custom', instruction: customInstruction.trim() })}
                     >
                       {t('dashboard.home.recommendations.lito.actions.refineCustom')}

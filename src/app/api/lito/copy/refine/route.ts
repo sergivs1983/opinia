@@ -6,6 +6,12 @@ import { z } from 'zod';
 
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import {
+  acquireLitoCopyJob,
+  buildIdempotencyKey,
+  markLitoCopyJobFailed,
+  markLitoCopyJobSuccess,
+} from '@/lib/ai/idempotency';
+import {
   buildDeterministicCopyBase,
   buildRefinePrompt,
   mergeModelOutputIntoCopy,
@@ -20,7 +26,6 @@ import { getAIProviderState } from '@/lib/ai/provider';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -192,6 +197,7 @@ async function persistRefinedCopy(params: {
 export async function POST(request: Request) {
   const requestId = getRequestIdFromHeaders(request.headers);
   const log = createLogger({ request_id: requestId, route: 'POST /api/lito/copy/refine' });
+  let jobId: string | null = null;
 
   try {
     const supabase = createServerSupabaseClient();
@@ -248,8 +254,125 @@ export async function POST(request: Request) {
     const recommendation = recommendationData as RecommendationRow;
     const business = businessData as BusinessRow;
 
+    const instruction = resolveInstruction(payload);
+    const targetLanguage = normalizeLanguage(business.default_language);
+
+    let current = parseStoredGeneratedCopy(recommendation.generated_copy);
+    let ruleData: RuleRow | null = null;
+    if (!current) {
+      const { data: fetchedRuleData } = await admin
+        .from('playbook_rules')
+        .select('playbook_id, recommendation_template')
+        .eq('id', recommendation.rule_id)
+        .maybeSingle();
+      ruleData = (fetchedRuleData as RuleRow | null) || null;
+
+      if (ruleData) {
+        const { data: playbookData } = await admin
+          .from('social_playbooks')
+          .select('vertical')
+          .eq('id', ruleData.playbook_id)
+          .maybeSingle();
+
+        const vertical = normalizeVertical((playbookData as PlaybookRow | null)?.vertical || business.type);
+        current = buildDeterministicCopyBase({
+          templateRaw: ruleData.recommendation_template,
+          generatedCopyRaw: recommendation.generated_copy,
+          vertical,
+          signal: (recommendation.signal || {}) as Record<string, unknown>,
+          language: targetLanguage,
+          channel: 'instagram',
+          tone: business.formality === 'voste' ? 'formal' : 'neutral',
+        });
+      }
+    }
+
+    if (!current) {
+      return withStandardHeaders(
+        NextResponse.json(
+          { error: 'not_found', message: 'No hi ha cap copy generat encara.', request_id: requestId },
+          { status: 404 },
+        ),
+        requestId,
+      );
+    }
+
     const providerState = getAIProviderState();
+    const idempotencyKey = buildIdempotencyKey({
+      org_id: recommendation.org_id,
+      biz_id: recommendation.biz_id,
+      recommendation_id: recommendation.id,
+      action: 'refine',
+      instruction,
+      model: providerState.model,
+      lang: targetLanguage,
+      format: current.format,
+      channel: current.channel,
+      tone: current.tone,
+    });
+
+    const jobAcquire = await acquireLitoCopyJob({
+      admin,
+      orgId: recommendation.org_id,
+      bizId: recommendation.biz_id,
+      recommendationId: recommendation.id,
+      action: 'refine',
+      idempotencyKey,
+    });
+
+    log.info('lito_copy_refine_idempotency', {
+      recommendation_id: recommendation.id,
+      idempotency_key: idempotencyKey,
+      state: jobAcquire.state,
+    });
+
+    if (jobAcquire.state === 'cached') {
+      return withStandardHeaders(
+        NextResponse.json({
+          ...jobAcquire.result,
+          request_id: requestId,
+        }),
+        requestId,
+      );
+    }
+
+    if (jobAcquire.state === 'in_flight') {
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'in_flight',
+            message: 'LITO està generant el copy… (uns segons)',
+            request_id: requestId,
+          },
+          { status: 409 },
+        ),
+        requestId,
+      );
+    }
+
+    if (jobAcquire.state === 'retry_later') {
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'retry_later',
+            message: 'LITO acaba d\'intentar aquesta acció. Torna-ho a provar en uns segons.',
+            request_id: requestId,
+          },
+          { status: 409 },
+        ),
+        requestId,
+      );
+    }
+
+    jobId = jobAcquire.jobId;
+    const activeJobId = jobAcquire.jobId;
+
     if (!providerState.available) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'ai_unavailable',
+      });
       return withStandardHeaders(
         NextResponse.json(
           {
@@ -265,6 +388,11 @@ export async function POST(request: Request) {
 
     const quota = await consumeQuota(supabase, recommendation.org_id, 1);
     if (!quota.ok) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: quota.reason || 'quota_failed',
+      });
       if (quota.reason === 'quota_exceeded') {
         return withStandardHeaders(
           NextResponse.json(
@@ -293,47 +421,6 @@ export async function POST(request: Request) {
         requestId,
       );
     }
-
-    let current = parseStoredGeneratedCopy(recommendation.generated_copy);
-    if (!current) {
-      const { data: ruleData } = await admin
-        .from('playbook_rules')
-        .select('playbook_id, recommendation_template')
-        .eq('id', recommendation.rule_id)
-        .maybeSingle();
-
-      if (ruleData) {
-        const { data: playbookData } = await admin
-          .from('social_playbooks')
-          .select('vertical')
-          .eq('id', (ruleData as RuleRow).playbook_id)
-          .maybeSingle();
-
-        const vertical = normalizeVertical((playbookData as PlaybookRow | null)?.vertical || business.type);
-        current = buildDeterministicCopyBase({
-          templateRaw: (ruleData as RuleRow).recommendation_template,
-          generatedCopyRaw: recommendation.generated_copy,
-          vertical,
-          signal: (recommendation.signal || {}) as Record<string, unknown>,
-          language: normalizeLanguage(business.default_language),
-          channel: 'instagram',
-          tone: business.formality === 'voste' ? 'formal' : 'neutral',
-        });
-      }
-    }
-
-    if (!current) {
-      return withStandardHeaders(
-        NextResponse.json(
-          { error: 'not_found', message: 'No hi ha cap copy generat encara.', request_id: requestId },
-          { status: 404 },
-        ),
-        requestId,
-      );
-    }
-
-    const instruction = resolveInstruction(payload);
-    const targetLanguage = normalizeLanguage(business.default_language);
     const prompt = buildRefinePrompt({
       language: targetLanguage,
       instruction,
@@ -354,6 +441,11 @@ export async function POST(request: Request) {
 
     const parsed = parseModelOutput(llmResult.content);
     if (!parsed) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'invalid_ai_output',
+      });
       return withStandardHeaders(
         NextResponse.json(
           { error: 'invalid_ai_output', message: "La resposta de LITO no és vàlida ara mateix.", request_id: requestId },
@@ -371,6 +463,11 @@ export async function POST(request: Request) {
       log,
     });
     if (!persisted) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'persist_failed',
+      });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
         requestId,
@@ -405,16 +502,36 @@ export async function POST(request: Request) {
       });
     }
 
+    const resultPayload = {
+      ok: true,
+      copy: refined,
+      quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
+    };
+    await markLitoCopyJobSuccess({
+      admin,
+      jobId: activeJobId,
+      result: resultPayload,
+    });
+
     return withStandardHeaders(
       NextResponse.json({
-        ok: true,
-        copy: refined,
-        quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
+        ...resultPayload,
         request_id: requestId,
       }),
       requestId,
     );
   } catch (error) {
+    if (jobId) {
+      try {
+        await markLitoCopyJobFailed({
+          admin: createAdminClient(),
+          jobId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch {
+        // ignore best-effort job failure marking
+      }
+    }
     log.error('lito_copy_refine_unhandled', {
       error: error instanceof Error ? error.message : String(error),
     });

@@ -647,7 +647,9 @@
             "translateCa": "Translate CA",
             "translateEs": "Translate ES",
             "translateEn": "Translate EN"
-          }
+          },
+          "inFlightToast": "LITO is generating the copy… (a few seconds)",
+          "pollTimeout": "We still have not received the copy. Please try again."
         },
         "errors": {
           "howtoLoadFailed": "Could not load the guide."

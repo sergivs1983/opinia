@@ -647,7 +647,9 @@
             "translateCa": "Pasar a CA",
             "translateEs": "Pasar a ES",
             "translateEn": "Pasar a EN"
-          }
+          },
+          "inFlightToast": "LITO está generando el copy… (unos segundos)",
+          "pollTimeout": "Aún no hemos recibido el copy. Vuelve a intentarlo."
         },
         "errors": {
           "howtoLoadFailed": "No se pudo cargar la guía."
