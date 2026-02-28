@@ -65,6 +65,8 @@ type RecommendationTemplate = {
   };
 };
 
+type AssistantChannel = 'instagram' | 'tiktok';
+
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
   response.headers.set('Cache-Control', 'no-store');
@@ -115,33 +117,52 @@ function makeThreadTitleFromText(content: string): string {
 
 function parseTemplateFromGeneratedCopy(raw: unknown): RecommendationTemplate | null {
   if (!raw) return null;
-  const trimmed = typeof raw === 'string' ? raw.trim() : JSON.stringify(raw);
+
+  const asStringArray = (value: unknown): string[] => (
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : []
+  );
+
+  const fromObject = (candidate: unknown): RecommendationTemplate | null => {
+    if (!candidate || typeof candidate !== 'object') return null;
+    const parsed = candidate as Record<string, unknown>;
+    const format = typeof parsed.format === 'string' ? parsed.format : '';
+    const hook = typeof parsed.hook === 'string' ? parsed.hook : '';
+    const idea = typeof parsed.idea === 'string' ? parsed.idea : '';
+    const cta = typeof parsed.cta === 'string' ? parsed.cta : '';
+    if (!format || !hook || !idea || !cta) return null;
+
+    const howToRaw = parsed.how_to && typeof parsed.how_to === 'object'
+      ? parsed.how_to as Record<string, unknown>
+      : null;
+    const executionChecklist = asStringArray(parsed.execution_checklist);
+    const shotlist = asStringArray(parsed.shotlist);
+
+    return {
+      format,
+      hook,
+      idea,
+      cta,
+      assets_needed: asStringArray(parsed.assets_needed),
+      how_to: {
+        why: typeof howToRaw?.why === 'string' ? howToRaw.why : 'Executa la recomanació amb una peça curta i clara.',
+        steps: asStringArray(howToRaw?.steps).length > 0 ? asStringArray(howToRaw?.steps) : executionChecklist,
+        checklist: asStringArray(howToRaw?.checklist).length > 0 ? asStringArray(howToRaw?.checklist) : executionChecklist,
+        assets_needed: asStringArray(howToRaw?.assets_needed).length > 0 ? asStringArray(howToRaw?.assets_needed) : shotlist,
+        time_estimate_min: typeof howToRaw?.time_estimate_min === 'number' ? howToRaw.time_estimate_min : 10,
+      },
+    };
+  };
+
+  if (typeof raw === 'object') {
+    return fromObject(raw);
+  }
+
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
   if (!trimmed) return null;
 
   try {
-    const parsed = JSON.parse(trimmed) as Partial<RecommendationTemplate>;
-    if (
-      parsed
-      && typeof parsed.format === 'string'
-      && typeof parsed.hook === 'string'
-      && typeof parsed.idea === 'string'
-      && typeof parsed.cta === 'string'
-    ) {
-      return {
-        format: parsed.format,
-        hook: parsed.hook,
-        idea: parsed.idea,
-        cta: parsed.cta,
-        assets_needed: Array.isArray(parsed.assets_needed) ? parsed.assets_needed.filter((v): v is string => typeof v === 'string') : [],
-        how_to: {
-          why: typeof parsed.how_to?.why === 'string' ? parsed.how_to.why : 'Executa la recomanació amb una peça curta i clara.',
-          steps: Array.isArray(parsed.how_to?.steps) ? parsed.how_to.steps.filter((v): v is string => typeof v === 'string') : [],
-          checklist: Array.isArray(parsed.how_to?.checklist) ? parsed.how_to.checklist.filter((v): v is string => typeof v === 'string') : [],
-          assets_needed: Array.isArray(parsed.how_to?.assets_needed) ? parsed.how_to.assets_needed.filter((v): v is string => typeof v === 'string') : [],
-          time_estimate_min: typeof parsed.how_to?.time_estimate_min === 'number' ? parsed.how_to.time_estimate_min : 10,
-        },
-      };
-    }
+    const parsed = JSON.parse(trimmed) as unknown;
+    return fromObject(parsed);
   } catch {
     // ignore parse errors; fallback to generic response
   }
@@ -149,67 +170,212 @@ function parseTemplateFromGeneratedCopy(raw: unknown): RecommendationTemplate | 
   return null;
 }
 
-function buildAssistantReplyFromTemplate(template: RecommendationTemplate): { content: string; meta: Record<string, unknown> } {
-  const howTo = template.how_to;
-  const steps = (howTo.steps || []).slice(0, 6);
-  const checklist = (howTo.checklist || []).slice(0, 6);
-  const assets = (template.assets_needed.length > 0 ? template.assets_needed : howTo.assets_needed).slice(0, 6);
+function normalizeFormat(value: string): 'post' | 'story' | 'reel' {
+  const normalized = value.toLowerCase();
+  if (normalized === 'story' || normalized === 'reel') return normalized;
+  return 'post';
+}
+
+function detectChannelFromText(content: string): AssistantChannel {
+  const text = content.toLowerCase();
+  if (text.includes('tiktok') || text.includes('tik tok')) return 'tiktok';
+  return 'instagram';
+}
+
+function wantsFullIkea(content: string): boolean {
+  const text = content.toLowerCase();
+  const triggers = [
+    'pas a pas',
+    'checklist',
+    'com ho faig',
+    'com es fa',
+    'com fer-ho',
+    'com faig',
+    'how to',
+    'step by step',
+  ];
+  return triggers.some((trigger) => text.includes(trigger));
+}
+
+function seemsLost(content: string): boolean {
+  const text = content.toLowerCase();
+  const lostSignals = [
+    'no ho entenc',
+    'estic perdut',
+    'estic perduda',
+    'no sé per on començar',
+    'ajuda',
+    'help',
+    'em perdo',
+  ];
+  return lostSignals.some((signal) => text.includes(signal));
+}
+
+function buildImmediateSteps(params: {
+  format: 'post' | 'story' | 'reel';
+  channel: AssistantChannel;
+  hook: string;
+  idea: string;
+  cta: string;
+}): string[] {
+  if (params.format === 'story') {
+    if (params.channel === 'tiktok') {
+      return [
+        `Obre amb text gran i directe: "${params.hook}".`,
+        `Tanca demanant comentaris amb una CTA breu: ${params.cta}.`,
+      ];
+    }
+    return [
+      `Story 1 amb hook clar: "${params.hook}".`,
+      `Story 2 amb sticker + CTA final: ${params.cta}.`,
+    ];
+  }
+
+  if (params.format === 'reel') {
+    if (params.channel === 'tiktok') {
+      return [
+        `0-2s amb ganxo visual + text curt: "${params.hook}".`,
+        `Tanca amb CTA a seguir/comentar: ${params.cta}.`,
+      ];
+    }
+    return [
+      `0-3s amb hook en pantalla: "${params.hook}".`,
+      `Afegeix música en tendència i caption final: ${params.cta}.`,
+    ];
+  }
+
+  if (params.channel === 'tiktok') {
+    return [
+      `Publica una frase molt directa amb el hook: "${params.hook}".`,
+      `Acaba amb pregunta a comentaris + CTA: ${params.cta}.`,
+    ];
+  }
+  return [
+    `Fes un post curt amb hook + idea: "${params.hook}" / ${params.idea}.`,
+    `Afegeix ubicació i tanca amb CTA: ${params.cta}.`,
+  ];
+}
+
+function buildOptions(format: 'post' | 'story' | 'reel', channel: AssistantChannel): [string, string] {
+  if (format === 'story') {
+    return [
+      `A) Story ràpida a ${channel} (2 pantalles).`,
+      `B) Convertir-ho a Reel curt (10-15s).`,
+    ];
+  }
+  if (format === 'reel') {
+    return [
+      `A) Reel curt (${channel}) amb hook en 3 segons.`,
+      'B) Versió Post resumida per avui.',
+    ];
+  }
+  return [
+    `A) Post directe a ${channel} (publicació avui).`,
+    'B) Adaptar-ho a Reel per més abast.',
+  ];
+}
+
+function buildQuestion(format: 'post' | 'story' | 'reel', channel: AssistantChannel): string {
+  if (format === 'story') return `Ho publiquem avui a ${channel} en format Story? (sí/no)`;
+  if (format === 'reel') return `Vols que el fem en Reel curt a ${channel}? (sí/no)`;
+  return `Ho vols publicar avui com a Post a ${channel}? (sí/no)`;
+}
+
+function buildAssistantReplyFromTemplate(params: {
+  template: RecommendationTemplate;
+  userMessage: string;
+  hasCopy: boolean;
+}): { content: string; meta: Record<string, unknown> } {
+  const format = normalizeFormat(params.template.format);
+  const channel = detectChannelFromText(params.userMessage);
+  const fullIkea = wantsFullIkea(params.userMessage) || seemsLost(params.userMessage);
+  const immediateSteps = buildImmediateSteps({
+    format,
+    channel,
+    hook: params.template.hook,
+    idea: params.template.idea,
+    cta: params.template.cta,
+  });
+  const options = buildOptions(format, channel);
+  const quickQuestion = buildQuestion(format, channel);
 
   const lines: string[] = [
-    `Perfecte. Anem a executar aquesta recomanació (${template.format}).`,
-    `Objectiu: ${howTo.why}`,
+    'Ara mateix:',
+    `1) ${immediateSteps[0]}`,
+    `2) ${immediateSteps[1]}`,
     '',
-    'Pas a pas:',
+    'Pregunta ràpida:',
+    quickQuestion,
+    '',
   ];
 
-  if (steps.length === 0) {
-    lines.push('1. Publica una peça curta amb el hook i una prova real del negoci.');
-    lines.push('2. Tanca amb CTA perquè el client deixi feedback.');
+  if (fullIkea) {
+    const fullSteps = (params.template.how_to.steps || params.template.how_to.checklist || []).slice(0, 8);
+    lines.push('Mode IKEA complet:');
+    if (fullSteps.length > 0) {
+      fullSteps.forEach((step, index) => lines.push(`${index + 1}. ${step}`));
+    } else {
+      lines.push(`1. ${immediateSteps[0]}`);
+      lines.push(`2. ${immediateSteps[1]}`);
+      lines.push('3. Revisa que el missatge sigui clar i amb CTA final.');
+    }
+    lines.push('');
   } else {
-    steps.forEach((step, index) => lines.push(`${index + 1}. ${step}`));
+    lines.push('Opcions:');
+    lines.push(options[0]);
+    lines.push(options[1]);
+    lines.push('');
   }
 
-  lines.push('', 'Checklist ràpida:');
-  if (checklist.length === 0) {
-    lines.push('- Hook clar');
-    lines.push('- Missatge en 2-4 línies');
-    lines.push('- CTA final');
-  } else {
-    checklist.forEach((item) => lines.push(`- ${item}`));
-  }
-
-  lines.push('', 'Assets recomanats:');
-  if (assets.length === 0) {
-    lines.push('- 1 foto o clip real');
-    lines.push('- Text curt sobre valor diferencial');
-  } else {
-    assets.forEach((item) => lines.push(`- ${item}`));
-  }
-
-  lines.push('', `Temps estimat: ${howTo.time_estimate_min} min`);
-  lines.push('Quan ho publiquis, marca-ho com feta.');
+  lines.push('Si vols:');
+  lines.push('Mostra Mode IKEA complet');
 
   return {
     content: lines.join('\n'),
     meta: {
-      mode: 'deterministic_howto',
-      format: template.format,
-      hook: template.hook,
+      mode: 'deterministic_ikea_assist',
+      format,
+      channel,
+      full_ikea: fullIkea,
+      has_copy: params.hasCopy,
     },
   };
 }
 
-function buildGenericAssistantReply(): { content: string; meta: Record<string, unknown> } {
+function buildGenericAssistantReply(userMessage: string): { content: string; meta: Record<string, unknown> } {
+  const fullIkea = wantsFullIkea(userMessage) || seemsLost(userMessage);
+  const lines: string[] = [
+    'Ara mateix:',
+    '1) Tria canal: Instagram o TikTok.',
+    '2) Digue’m objectiu en 3 paraules (reserves, visites o confiança).',
+    '',
+    'Pregunta ràpida:',
+    'Vols que ho enfoquem a reserves aquesta setmana? (sí/no)',
+    '',
+  ];
+
+  if (fullIkea) {
+    lines.push('Mode IKEA complet:');
+    lines.push('1. Defineix una sola idea principal.');
+    lines.push('2. Prepara una peça visual real del negoci.');
+    lines.push('3. Escriu hook curt + CTA final.');
+    lines.push('4. Publica en horari actiu i respon comentaris.');
+    lines.push('');
+  } else {
+    lines.push('Opcions:');
+    lines.push('A) Post curt avui.');
+    lines.push('B) Reel curt demà.');
+    lines.push('');
+  }
+
+  lines.push('Si vols:');
+  lines.push('Mostra Mode IKEA complet');
+
   return {
-    content: [
-      'Perfecte, t\'ajudo a enfocar-ho ara mateix.',
-      'Respon aquestes 3 preguntes breus:',
-      '1) A quin canal publicaràs primer? (Instagram, Facebook, Google)',
-      '2) Quin objectiu tens aquesta setmana? (reserves, visites, confiança)',
-      '3) Quin to vols usar? (proper, formal o energètic)',
-    ].join('\n'),
+    content: lines.join('\n'),
     meta: {
       mode: 'deterministic_generic',
+      full_ikea: fullIkea,
     },
   };
 }
@@ -395,21 +561,38 @@ export async function POST(
       );
     }
 
-    let assistantReply = buildGenericAssistantReply();
+    let assistantReply = buildGenericAssistantReply(payload.content);
     if (thread.recommendation_id) {
       const { data: recommendationData } = await supabase
         .from('recommendation_log')
-        .select('generated_copy')
+        .select('generated_copy, recommendation_template, copy_short, copy_long')
         .eq('id', thread.recommendation_id)
         .eq('biz_id', thread.biz_id)
         .maybeSingle();
 
-      const parsed = parseTemplateFromGeneratedCopy(
-        (recommendationData as { generated_copy?: unknown } | null)?.generated_copy || null,
+      const row = recommendationData as {
+        generated_copy?: unknown;
+        recommendation_template?: unknown;
+        copy_short?: string | null;
+        copy_long?: string | null;
+      } | null;
+
+      const parsed = parseTemplateFromGeneratedCopy(row?.generated_copy || null)
+        || parseTemplateFromGeneratedCopy(row?.recommendation_template || null);
+
+      const hasCopy = Boolean(
+        (typeof row?.copy_short === 'string' && row.copy_short.trim().length > 0)
+        || (typeof row?.copy_long === 'string' && row.copy_long.trim().length > 0),
       );
       if (parsed) {
-        assistantReply = buildAssistantReplyFromTemplate(parsed);
+        assistantReply = buildAssistantReplyFromTemplate({
+          template: parsed,
+          userMessage: payload.content,
+          hasCopy,
+        });
       }
+    } else {
+      assistantReply = buildGenericAssistantReply(payload.content);
     }
 
     const { data: assistantMessageData, error: assistantMessageErr } = await supabase
