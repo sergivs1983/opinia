@@ -204,7 +204,12 @@ export default function LitoDrawer({ open, onClose, enabled, reason, canActivate
     }
   }, [t, toast, weeklyRecommendations]);
 
-  const openOrCreateThread = useCallback(async (options: { recommendationId?: string | null; title?: string | null }) => {
+  const openOrCreateThread = useCallback(async (options: {
+    recommendationId?: string | null;
+    title?: string | null;
+    format?: 'post' | 'story' | 'reel' | null;
+    hook?: string | null;
+  }) => {
     if (!biz?.id) return null;
     try {
       const response = await fetch('/api/lito/threads', {
@@ -214,6 +219,8 @@ export default function LitoDrawer({ open, onClose, enabled, reason, canActivate
           biz_id: biz.id,
           recommendation_id: options.recommendationId ?? null,
           title: options.title ?? null,
+          format: options.format ?? null,
+          hook: options.hook ?? null,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as ThreadCreatePayload;
@@ -240,17 +247,17 @@ export default function LitoDrawer({ open, onClose, enabled, reason, canActivate
   const openGeneralThread = useCallback(async () => {
     await openOrCreateThread({
       recommendationId: null,
-      title: t('dashboard.litoPage.thread.generalThreadTitle'),
     });
-  }, [openOrCreateThread, t]);
+  }, [openOrCreateThread]);
 
   const openThreadForRecommendation = useCallback(async (recommendation: LitoRecommendationItem) => {
     setSelectedFormat(normalizeFormat(recommendation.format));
     await openOrCreateThread({
       recommendationId: recommendation.id,
-      title: recommendation.hook || t('dashboard.litoPage.thread.recommendationThreadTitle'),
+      format: recommendation.format === 'story' || recommendation.format === 'reel' ? recommendation.format : 'post',
+      hook: recommendation.hook || null,
     });
-  }, [openOrCreateThread, t]);
+  }, [openOrCreateThread]);
 
   const openThreadForFormat = useCallback(async (format: 'post' | 'story' | 'reel') => {
     setSelectedFormat(format);

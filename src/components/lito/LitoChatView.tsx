@@ -384,7 +384,12 @@ export default function LitoChatView() {
     }
   }, [t, toast]);
 
-  const openOrCreateThread = useCallback(async (options: { recommendationId?: string | null; title?: string | null }) => {
+  const openOrCreateThread = useCallback(async (options: {
+    recommendationId?: string | null;
+    title?: string | null;
+    format?: 'post' | 'story' | 'reel' | null;
+    hook?: string | null;
+  }) => {
     if (!biz?.id) return null;
     try {
       const response = await fetch('/api/lito/threads', {
@@ -394,6 +399,8 @@ export default function LitoChatView() {
           biz_id: biz.id,
           recommendation_id: options.recommendationId ?? null,
           title: options.title ?? null,
+          format: options.format ?? null,
+          hook: options.hook ?? null,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as ThreadCreatePayload;
@@ -421,9 +428,8 @@ export default function LitoChatView() {
   const openGeneralThread = useCallback(async () => {
     await openOrCreateThread({
       recommendationId: null,
-      title: t('dashboard.litoPage.thread.generalThreadTitle'),
     });
-  }, [openOrCreateThread, t]);
+  }, [openOrCreateThread]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!activeThreadId || content.trim().length < 2) return;
@@ -494,7 +500,8 @@ export default function LitoChatView() {
       const recommendation = weeklyRecommendations.find((item) => item.id === queryRecommendationId);
       void openOrCreateThread({
         recommendationId: queryRecommendationId,
-        title: recommendation?.hook || t('dashboard.litoPage.thread.recommendationThreadTitle'),
+        format: recommendation?.format === 'story' || recommendation?.format === 'reel' ? recommendation.format : 'post',
+        hook: recommendation?.hook || null,
       });
       return;
     }
@@ -621,7 +628,7 @@ export default function LitoChatView() {
             ) : threads.length > 0 ? (
               threads.map((thread) => (
                 <option key={thread.id} value={thread.id} className="bg-zinc-900 text-white">
-                  {thread.title}
+                  {`${thread.title} · ${formatThreadDate(thread.updated_at || thread.created_at)}`}
                 </option>
               ))
             ) : (

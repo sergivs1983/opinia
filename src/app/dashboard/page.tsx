@@ -486,7 +486,8 @@ export default function DashboardPage() {
         body: JSON.stringify({
           biz_id: biz.id,
           recommendation_id: recommendation?.id || null,
-          title: recommendation?.hook || null,
+          format: recommendation?.format === 'story' || recommendation?.format === 'reel' ? recommendation.format : 'post',
+          hook: recommendation?.hook || null,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as { thread?: { id?: string }; error?: string };

@@ -260,7 +260,12 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     }
   }, [t, toast, weeklyRecommendations]);
 
-  const openOrCreateThread = useCallback(async (options: { recommendationId?: string | null; title?: string | null }) => {
+  const openOrCreateThread = useCallback(async (options: {
+    recommendationId?: string | null;
+    title?: string | null;
+    format?: 'post' | 'story' | 'reel' | null;
+    hook?: string | null;
+  }) => {
     if (!biz?.id) return null;
     try {
       const response = await fetch('/api/lito/threads', {
@@ -270,6 +275,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           biz_id: biz.id,
           recommendation_id: options.recommendationId ?? null,
           title: options.title ?? null,
+          format: options.format ?? null,
+          hook: options.hook ?? null,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as ThreadCreatePayload;
@@ -301,15 +308,15 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const openGeneralThread = useCallback(async () => {
     await openOrCreateThread({
       recommendationId: null,
-      title: t('dashboard.litoPage.thread.generalThreadTitle'),
     });
-  }, [openOrCreateThread, t]);
+  }, [openOrCreateThread]);
 
   const openThreadForRecommendation = useCallback(async (recommendation: LitoRecommendationItem) => {
     setSelectedFormat(normalizeFormat(recommendation.format));
     const thread = await openOrCreateThread({
       recommendationId: recommendation.id,
-      title: recommendation.hook || t('dashboard.litoPage.thread.recommendationThreadTitle'),
+      format: recommendation.format === 'story' || recommendation.format === 'reel' ? recommendation.format : 'post',
+      hook: recommendation.hook || null,
     });
     if (!thread || !biz?.id) return;
 
@@ -318,7 +325,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     params.set('thread_id', thread.id);
     if (thread.recommendation_id) params.set('recommendation_id', thread.recommendation_id);
     router.push(`/dashboard/lito/chat?${params.toString()}`);
-  }, [biz?.id, openOrCreateThread, router, t]);
+  }, [biz?.id, openOrCreateThread, router]);
 
   const handleMarkPublished = useCallback(async (recommendationId: string) => {
     const response = await fetch(`/api/recommendations/${recommendationId}/feedback`, {
@@ -369,7 +376,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
       const recommendation = weeklyRecommendations.find((item) => item.id === queryRecommendationId);
       void openOrCreateThread({
         recommendationId: queryRecommendationId,
-        title: recommendation?.hook || t('dashboard.litoPage.thread.recommendationThreadTitle'),
+        format: recommendation?.format === 'story' || recommendation?.format === 'reel' ? recommendation.format : 'post',
+        hook: recommendation?.hook || null,
       });
       return;
     }
@@ -506,7 +514,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
                 ) : threads.length > 0 ? (
                   threads.map((thread) => (
                     <option key={thread.id} value={thread.id} className="bg-zinc-900 text-white">
-                      {thread.title}
+                      {`${thread.title} · ${formatThreadDate(thread.updated_at || thread.created_at)}`}
                     </option>
                   ))
                 ) : (

@@ -15,6 +15,8 @@ const LitoThreadsBodySchema = z.object({
   biz_id: z.string().uuid(),
   recommendation_id: z.string().uuid().nullable().optional(),
   title: z.string().trim().min(1).max(160).nullable().optional(),
+  format: z.enum(['post', 'story', 'reel']).nullable().optional(),
+  hook: z.string().trim().max(500).nullable().optional(),
 });
 
 const LitoThreadsQuerySchema = z.object({
@@ -106,6 +108,36 @@ function toFormatLabel(format: 'post' | 'story' | 'reel'): 'Post' | 'Story' | 'R
   if (format === 'story') return 'Story';
   if (format === 'reel') return 'Reel';
   return 'Post';
+}
+
+function truncateForTitle(value: string, maxLength = 92): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function buildGeneralThreadTitle(now = new Date()): string {
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  return `LITO — Consulta · ${day}/${month} ${hour}:${minute}`;
+}
+
+function buildRecommendationThreadTitle(params: {
+  format?: 'post' | 'story' | 'reel' | null;
+  hook?: string | null;
+}): string {
+  const formatLabel = toFormatLabel(params.format || 'post');
+  const hook = truncateForTitle(params.hook || '', 96);
+  if (!hook) return `LITO — ${formatLabel}: Recomanació`;
+  return `LITO — ${formatLabel}: ${hook}`;
+}
+
+function sanitizeThreadTitle(value: string): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= 160) return compact;
+  return compact.slice(0, 159).trimEnd();
 }
 
 function buildRecommendationIntroMessage(seed: { hook: string; idea: string; format: 'post' | 'story' | 'reel' }): string {
@@ -235,10 +267,11 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
 
     const recommendationId = payload.recommendation_id ?? null;
+    let recommendationSeed: RecommendationSeedRow | null = null;
     if (recommendationId) {
       const { data: recommendationData, error: recommendationErr } = await admin
         .from('recommendation_log')
-        .select('id')
+        .select('id, generated_copy, format')
         .eq('id', recommendationId)
         .eq('biz_id', payload.biz_id)
         .maybeSingle();
@@ -248,29 +281,56 @@ export async function POST(request: Request) {
           requestId,
         );
       }
+      recommendationSeed = recommendationData as RecommendationSeedRow;
     }
 
     if (recommendationId) {
-      const { data: existingData } = await admin
+      const { data: existingOpenData } = await admin
         .from('lito_threads')
         .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
         .eq('biz_id', payload.biz_id)
         .eq('recommendation_id', recommendationId)
+        .eq('status', 'open')
         .maybeSingle();
 
-      if (existingData) {
+      if (existingOpenData) {
         await ensureRecommendationKickoffMessage({
           admin,
           bizId: payload.biz_id,
           recommendationId,
-          threadId: (existingData as LitoThreadRow).id,
+          threadId: (existingOpenData as LitoThreadRow).id,
           requestId,
           log,
         });
         return withStandardHeaders(
           NextResponse.json({
             ok: true,
-            thread: existingData as LitoThreadRow,
+            thread: existingOpenData as LitoThreadRow,
+            request_id: requestId,
+          }),
+          requestId,
+        );
+      }
+
+      const { data: existingAnyData } = await admin
+        .from('lito_threads')
+        .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
+        .eq('biz_id', payload.biz_id)
+        .eq('recommendation_id', recommendationId)
+        .maybeSingle();
+      if (existingAnyData) {
+        await ensureRecommendationKickoffMessage({
+          admin,
+          bizId: payload.biz_id,
+          recommendationId,
+          threadId: (existingAnyData as LitoThreadRow).id,
+          requestId,
+          log,
+        });
+        return withStandardHeaders(
+          NextResponse.json({
+            ok: true,
+            thread: existingAnyData as LitoThreadRow,
             request_id: requestId,
           }),
           requestId,
@@ -278,11 +338,28 @@ export async function POST(request: Request) {
       }
     }
 
+    const parsedSeedTemplate = recommendationSeed
+      ? parseSeedTemplate(recommendationSeed.generated_copy)
+      : null;
+    const resolvedRecommendationFormat = payload.format
+      || parsedSeedTemplate?.format
+      || (recommendationSeed?.format === 'story' || recommendationSeed?.format === 'reel'
+        ? recommendationSeed.format
+        : 'post');
+    const resolvedRecommendationHook = payload.hook
+      || parsedSeedTemplate?.hook
+      || null;
+
     const title = payload.title
-      ? payload.title
+      ? sanitizeThreadTitle(payload.title)
       : recommendationId
-        ? 'LITO — Recomanació'
-        : 'LITO — Consultes';
+        ? sanitizeThreadTitle(
+            buildRecommendationThreadTitle({
+              format: resolvedRecommendationFormat,
+              hook: resolvedRecommendationHook,
+            }),
+          )
+        : sanitizeThreadTitle(buildGeneralThreadTitle());
 
     const { data: insertedData, error: insertErr } = await admin
       .from('lito_threads')
