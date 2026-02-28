@@ -589,11 +589,11 @@ export default function LitoChatView() {
         response: Response;
         payload: { messages?: LitoThreadMessage[]; error?: string; message?: string };
       }> => {
-        const response = await fetch('/api/lito/messages', {
+        const response = await fetch(`/api/lito/threads/${targetThreadId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
           body: JSON.stringify({
-            thread_id: targetThreadId,
             content: normalized,
           }),
         });
