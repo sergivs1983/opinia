@@ -740,6 +740,17 @@
       "messages": {
         "quotaExceeded": "Has agotado la cuota mensual. Puedes escribir manualmente o ampliar el plan.",
         "managerRequired": "Requiere manager"
+      },
+      "launcher": {
+        "tooltipActive": "LITO activo",
+        "tooltipInactive": "Activa LITO Copy en Configuración",
+        "drawerTitle": "LITO Copilot",
+        "drawerSubtitle": "Pasa de recomendación a acción.",
+        "bannerTitle": "Activa LITO Copy",
+        "bannerMissingKey": "Falta configurar la clave de IA.",
+        "bannerPaused": "Función desactivada por el manager.",
+        "goToSettings": "Ir a Configuración",
+        "ownerManagerOnly": "Solo Owner/Manager"
       }
     },
     "layout": {

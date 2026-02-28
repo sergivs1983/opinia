@@ -740,6 +740,17 @@
       "messages": {
         "quotaExceeded": "Has esgotat la quota del mes. Pots escriure manualment o ampliar el pla.",
         "managerRequired": "Cal manager"
+      },
+      "launcher": {
+        "tooltipActive": "LITO actiu",
+        "tooltipInactive": "Activa LITO Copy a Configuració",
+        "drawerTitle": "LITO Copilot",
+        "drawerSubtitle": "Passa de recomanació a acció.",
+        "bannerTitle": "Activa LITO Copy",
+        "bannerMissingKey": "Falta configurar la clau d’IA.",
+        "bannerPaused": "Funció desactivada pel manager.",
+        "goToSettings": "Anar a Configuració",
+        "ownerManagerOnly": "Només Owner/Manager"
       }
     },
     "layout": {

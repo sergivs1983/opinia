@@ -8,6 +8,7 @@ import Divider from '@/components/ui/Divider';
 import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import PaywallModal, { type PaywallAction, type PaywallTriggerReason } from '@/components/pricing/PaywallModal';
+import LitoLauncher from '@/components/lito/LitoLauncher';
 import { useToast } from '@/components/ui/Toast';
 import { useT } from '@/components/i18n/I18nContext';
 import { ringAccent } from '@/components/ui/glass';
@@ -1445,6 +1446,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         onClose={() => setPaywallOpen(false)}
         onAction={handlePaywallAction}
       />
+
+      <LitoLauncher />
     </div>
   );
 }

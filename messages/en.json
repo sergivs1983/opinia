@@ -740,6 +740,17 @@
       "messages": {
         "quotaExceeded": "You have reached the monthly quota. You can write manually or upgrade your plan.",
         "managerRequired": "Manager required"
+      },
+      "launcher": {
+        "tooltipActive": "LITO active",
+        "tooltipInactive": "Enable LITO Copy in Settings",
+        "drawerTitle": "LITO Copilot",
+        "drawerSubtitle": "Move from recommendation to action.",
+        "bannerTitle": "Enable LITO Copy",
+        "bannerMissingKey": "The AI key is not configured.",
+        "bannerPaused": "Feature disabled by the manager.",
+        "goToSettings": "Go to Settings",
+        "ownerManagerOnly": "Owner/Manager only"
       }
     },
     "layout": {
