@@ -17,6 +17,7 @@ type BusinessRow = {
 type ReviewRow = {
   id: string;
   rating: number | null;
+  source: string | null;
   created_at: string;
   language_detected: string | null;
 };
@@ -27,9 +28,18 @@ type ReviewTopicRow = {
   polarity: string | null;
 };
 
+/** Accepted review sources that map to provider='google_business' */
+const GOOGLE_SOURCES = ['google', 'google_business'] as const;
+
 const BodySchema = z.object({
   biz_id: z.string().uuid(),
   provider: z.literal('google_business').default('google_business'),
+  /** Anchor date YYYY-MM-DD. Defaults to UTC yesterday. */
+  day: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'day must be YYYY-MM-DD')
+    .optional(),
+  /** How many days back to process, anchored at `day`. Default 1. */
   range_days: z.number().int().min(1).max(60).optional(),
 });
 
@@ -44,6 +54,26 @@ function toDayIso(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
+}
+
+/** UTC yesterday as YYYY-MM-DD */
+function utcYesterdayIso(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1))
+    .toISOString()
+    .slice(0, 10);
+}
+
+/** Generate all YYYY-MM-DD strings in [since, anchor] inclusive */
+function buildDayRange(sinceIso: string, anchorIso: string): string[] {
+  const days: string[] = [];
+  const cursor = new Date(sinceIso + 'T00:00:00Z');
+  const anchor = new Date(anchorIso + 'T00:00:00Z');
+  while (cursor <= anchor) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
 }
 
 function normalizeLanguage(value: string | null | undefined): string | null {
@@ -102,11 +132,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const rangeDays = parsed.data.range_days ?? 7;
-  const since = new Date();
-  since.setUTCDate(since.getUTCDate() - (rangeDays - 1));
-  const sinceIso = since.toISOString();
+  // ── Date range ──────────────────────────────────────────────────────────────
+  const anchorDay = parsed.data.day ?? utcYesterdayIso();
+  const rangeDays = parsed.data.range_days ?? 1;
 
+  const anchorDate = new Date(anchorDay + 'T00:00:00Z');
+  const sinceDate = new Date(anchorDate);
+  sinceDate.setUTCDate(sinceDate.getUTCDate() - (rangeDays - 1));
+
+  const sinceIso = sinceDate.toISOString();
+  // Exclusive upper bound: day after anchor
+  const untilDate = new Date(anchorDate);
+  untilDate.setUTCDate(untilDate.getUTCDate() + 1);
+  const untilIso = untilDate.toISOString();
+
+  // All calendar days to upsert (even zero-review days)
+  const allDays = buildDayRange(sinceDate.toISOString().slice(0, 10), anchorDay);
+
+  // ── Load business ────────────────────────────────────────────────────────────
   const admin = createAdminClient();
 
   const { data: businessData, error: businessError } = await admin
@@ -122,11 +165,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const business = businessData as BusinessRow;
 
+  // ── Load reviews (source mapped to google_business) ──────────────────────────
   const { data: reviewsData, error: reviewsError } = await admin
     .from('reviews')
-    .select('id, rating, created_at, language_detected')
+    .select('id, rating, source, created_at, language_detected')
     .eq('biz_id', parsed.data.biz_id)
+    .in('source', GOOGLE_SOURCES)
     .gte('created_at', sinceIso)
+    .lt('created_at', untilIso)
     .order('created_at', { ascending: true })
     .limit(5000);
 
@@ -138,6 +184,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const reviews = (reviewsData || []) as ReviewRow[];
   const reviewIds = reviews.map((review) => review.id);
 
+  // ── Load topics (optional, tolerates missing table) ───────────────────────────
   let topicRows: ReviewTopicRow[] = [];
   if (reviewIds.length > 0) {
     const { data: topicsData, error: topicsError } = await admin
@@ -161,14 +208,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     topicsByReview.get(row.review_id)!.push(row);
   }
 
-  const perDay = new Map<string, {
+  // ── Aggregate per day ────────────────────────────────────────────────────────
+  type DayEntry = {
     ratingsSum: number;
     ratingsCount: number;
     newReviews: number;
     negReviews: number;
+    posReviews: number;
     langDist: Record<string, number>;
     categories: Record<string, { pos: number; neg: number; neutral: number; total: number }>;
-  }>();
+  };
+
+  const perDay = new Map<string, DayEntry>();
 
   for (const review of reviews) {
     const day = toDayIso(review.created_at);
@@ -179,6 +230,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ratingsCount: 0,
         newReviews: 0,
         negReviews: 0,
+        posReviews: 0,
         langDist: {},
         categories: {},
       });
@@ -192,6 +244,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       dayEntry.ratingsSum += rating;
       dayEntry.ratingsCount += 1;
       if (rating <= 2) dayEntry.negReviews += 1;
+      if (rating >= 4) dayEntry.posReviews += 1;
     }
 
     const lang = normalizeLanguage(review.language_detected);
@@ -212,13 +265,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // ── Build upsert rows for ALL days in range (zero-fill missing days) ─────────
   const rowsToUpsert: Array<Record<string, unknown>> = [];
-  for (const [day, entry] of perDay.entries()) {
+  const now = new Date().toISOString();
+
+  for (const day of allDays) {
+    const entry = perDay.get(day);
+
+    if (!entry) {
+      // Zero-fill: needed for inactivity signal detection
+      rowsToUpsert.push({
+        org_id: business.org_id,
+        biz_id: business.id,
+        provider: parsed.data.provider,
+        day,
+        metrics: { new_reviews: 0, avg_rating: null, neg_reviews: 0, pos_reviews: 0 },
+        categories_summary: {},
+        keywords_top: null,
+        lang_dist: {},
+        dominant_lang: null,
+        updated_at: now,
+      });
+      continue;
+    }
+
     const avgRating = entry.ratingsCount > 0 ? Number((entry.ratingsSum / entry.ratingsCount).toFixed(3)) : null;
     const metrics = {
       new_reviews: entry.newReviews,
       avg_rating: avgRating,
       neg_reviews: entry.negReviews,
+      pos_reviews: entry.posReviews,
     };
 
     const sortedTopics = Object.entries(entry.categories)
@@ -245,7 +321,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       keywords_top: keywordsTop.length > 0 ? keywordsTop : null,
       lang_dist: entry.langDist,
       dominant_lang: dominantLang,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
   }
 
@@ -265,7 +341,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ok: true,
       biz_id: business.id,
       provider: parsed.data.provider,
-      upserted: rowsToUpsert.length,
+      processed: rowsToUpsert.length,
       request_id: requestId,
     },
     requestId,
