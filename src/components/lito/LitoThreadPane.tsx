@@ -21,6 +21,7 @@ type LitoThreadPaneProps = {
   onDraftMessageChange: (value: string) => void;
   onSendMessage: () => void;
   activeRecommendation: LitoRecommendationItem | null;
+  onQuickRefine?: (mode: 'shorter' | 'premium' | 'funny') => void;
 };
 
 function formatThreadDate(value: string): string {
@@ -57,6 +58,7 @@ export default function LitoThreadPane({
   onDraftMessageChange,
   onSendMessage,
   activeRecommendation,
+  onQuickRefine,
 }: LitoThreadPaneProps) {
   const visibleMessages = sanitizedMessages(messages);
 
@@ -157,6 +159,31 @@ export default function LitoThreadPane({
                     )}
                   >
                     <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    {message.role === 'assistant' && onQuickRefine && activeRecommendation ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onQuickRefine('shorter')}
+                          className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
+                        >
+                          {t('dashboard.home.recommendations.lito.refine.shorter')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onQuickRefine('premium')}
+                          className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
+                        >
+                          {t('dashboard.home.recommendations.lito.refine.premium')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onQuickRefine('funny')}
+                          className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
+                        >
+                          {t('dashboard.home.recommendations.lito.refine.funny')}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -172,6 +199,14 @@ export default function LitoThreadPane({
               <textarea
                 value={draftMessage}
                 onChange={(event) => onDraftMessageChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    if (!sending && draftMessage.trim().length >= 2) {
+                      onSendMessage();
+                    }
+                  }
+                }}
                 rows={2}
                 placeholder={t('dashboard.home.recommendations.lito.inputPlaceholder')}
                 className="min-h-[72px] w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"

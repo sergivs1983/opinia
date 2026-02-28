@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Tabs from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
@@ -19,6 +19,7 @@ type LitoTabKey = 'copy_short' | 'copy_long' | 'hashtags' | 'shotlist' | 'image_
 type RefineMode = 'shorter' | 'premium' | 'funny';
 type FormatKey = 'post' | 'story' | 'reel';
 type PreviewChannel = 'instagram' | 'tiktok';
+type QuickRefineTrigger = { id: number; mode: RefineMode };
 
 type CopyStatusPayload = {
   enabled?: boolean;
@@ -55,6 +56,7 @@ type LitoWorkbenchPaneProps = {
   selectedFormat: FormatKey;
   onQuotaChange: (quota: LitoQuotaState | null) => void;
   onPublished: (recommendationId: string) => Promise<void>;
+  quickRefineTrigger?: QuickRefineTrigger | null;
 };
 
 const IKEA_BY_FORMAT: Record<FormatKey, string[]> = {
@@ -114,6 +116,7 @@ export default function LitoWorkbenchPane({
   selectedFormat,
   onQuotaChange,
   onPublished,
+  quickRefineTrigger,
 }: LitoWorkbenchPaneProps) {
   const { toast } = useToast();
 
@@ -141,6 +144,7 @@ export default function LitoWorkbenchPane({
   const [hasGeneratedCopy, setHasGeneratedCopy] = useState(false);
   const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
   const [previewChannel, setPreviewChannel] = useState<PreviewChannel>('instagram');
+  const lastQuickRefineHandled = useRef<number | null>(null);
 
   const recommendationTemplate = recommendation?.recommendation_template;
   const fallbackFormat = normalizedFormat(recommendation?.format || recommendationTemplate?.format);
@@ -413,6 +417,13 @@ export default function LitoWorkbenchPane({
     void loadCopyStatus();
     void loadStoredCopy();
   }, [hydrateFallbackPlan, loadCopyStatus, loadStoredCopy, recommendation?.id]);
+
+  useEffect(() => {
+    if (!quickRefineTrigger || !recommendation?.id) return;
+    if (lastQuickRefineHandled.current === quickRefineTrigger.id) return;
+    lastQuickRefineHandled.current = quickRefineTrigger.id;
+    void runRefine(quickRefineTrigger.mode);
+  }, [quickRefineTrigger, recommendation?.id, runRefine]);
 
   const tabValue = useMemo(() => {
     if (activeTab === 'copy_long') return copyLong;
