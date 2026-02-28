@@ -1271,7 +1271,12 @@ async function enrichItemsFromLogs(params: {
     ruleInfoById.set(id, { priority, vertical, template });
   }
 
-  return visibleLogs.slice(0, TARGET_WEEKLY_RECOMMENDATIONS).map((row) => {
+  // D1.4: sort signal-backed entries first so they appear at the top of the dashboard
+  const sortedVisibleLogs = [...visibleLogs].sort((a, b) =>
+    (a.source === 'signal' ? 0 : 1) - (b.source === 'signal' ? 0 : 1),
+  );
+
+  return sortedVisibleLogs.slice(0, TARGET_WEEKLY_RECOMMENDATIONS).map((row) => {
     const info = ruleInfoById.get(row.rule_id);
     const baseTemplate = info?.template || ensureTemplateOrFallback(null);
     const generatedTemplate = parseTemplateFromGeneratedCopy(row.generated_copy);
