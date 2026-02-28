@@ -103,21 +103,31 @@ if [ -n "${FLOW_D0_SESSION_COOKIE:-}" ] && [ -n "${FLOW_D0_BIZ_ID:-}" ]; then
         perform_request -X POST "${BASE}/api/recommendations/${first_id}/feedback" \
           -H "Content-Type: application/json" \
           -H "Cookie: ${FLOW_D0_SESSION_COOKIE}" \
-          -d '{"status":"dismissed"}'
+          -d '{"status":"accepted"}'
         if [ "${REQ_CODE}" != "200" ]; then
-          report_fail "feedback dismissed funcional (expected 200)"
+          report_fail "feedback accepted funcional (expected 200)"
         else
-          report_ok "feedback dismissed funcional (HTTP 200)"
+          replaced="$(extract_json_field "${REQ_BODY}" "replaced")"
+          if [ "${replaced}" != "true" ]; then
+            report_fail "feedback accepted funcional (expected replaced=true)"
+          else
+            report_ok "feedback accepted funcional (HTTP 200, replaced=true)"
+          fi
           perform_request -X GET "${BASE}/api/recommendations/weekly?biz_id=${FLOW_D0_BIZ_ID}" \
             -H "Cookie: ${FLOW_D0_SESSION_COOKIE}"
           if [ "${REQ_CODE}" != "200" ]; then
-            report_fail "weekly funcional post-dismissed (expected 200)"
+            report_fail "weekly funcional post-accepted (expected 200)"
           else
             items_count_after="$(extract_json_field "${REQ_BODY}" "items.length")"
             if [ "${items_count_after}" = "3" ]; then
-              report_ok "weekly funcional post-dismissed manté 3 recomanacions"
+              ids_after="$(extract_json_field "${REQ_BODY}" "items.0.id"),$(extract_json_field "${REQ_BODY}" "items.1.id"),$(extract_json_field "${REQ_BODY}" "items.2.id")"
+              if printf '%s' "${ids_after}" | grep -q "${first_id}"; then
+                report_fail "weekly funcional post-accepted (id anterior encara present)"
+              else
+                report_ok "weekly funcional post-accepted manté 3 i reemplaça ID"
+              fi
             else
-              report_fail "weekly funcional post-dismissed (expected 3 items)"
+              report_fail "weekly funcional post-accepted (expected 3 items)"
             fi
           fi
         fi

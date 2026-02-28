@@ -154,30 +154,30 @@ else
   exit 1
 fi
 
-# 4) POST dismissed
+# 4) POST accepted (replace)
 perform_request -X POST "${BASE}/api/recommendations/${initial_first_id}/feedback" \
   -H "Cookie: ${FLOW_D0_SESSION_COOKIE}" \
   -H "Content-Type: application/json" \
-  -d '{"status":"dismissed"}'
+  -d '{"status":"accepted"}'
 
 if [ "${REQ_CODE}" = "200" ]; then
   replaced="$(extract_json_field "${REQ_BODY}" "replaced")"
-  if [ "${replaced}" = "true" ] || [ -z "${replaced}" ]; then
-    report_ok "POST feedback dismissed (HTTP 200)"
+  if [ "${replaced}" = "true" ]; then
+    report_ok "POST feedback accepted (HTTP 200, replaced=true)"
   else
     REQ_BODY="replaced=${replaced}"
-    report_fail "POST feedback dismissed (expected replaced=true)"
+    report_fail "POST feedback accepted (expected replaced=true)"
   fi
 else
-  report_fail "POST feedback dismissed (expected 200)"
+  report_fail "POST feedback accepted (expected 200)"
 fi
 
-# 5) GET weekly (after dismiss)
+# 5) GET weekly (after accepted)
 perform_request -X GET "${BASE}/api/recommendations/weekly?biz_id=${FLOW_D0_BIZ_ID}" \
   -H "Cookie: ${FLOW_D0_SESSION_COOKIE}"
 
 if [ "${REQ_CODE}" != "200" ]; then
-  report_fail "GET weekly post-dismiss (expected 200)"
+  report_fail "GET weekly post-accepted (expected 200)"
   echo -e "${RED}${FAILURES} test(s) failed.${RESET}"
   exit 1
 fi
@@ -187,17 +187,17 @@ after_count="$(printf '%s\n' "${summary_after}" | sed -n '1p')"
 after_ids_csv="$(printf '%s\n' "${summary_after}" | sed -n '2p')"
 
 if [ "${after_count}" = "3" ]; then
-  report_ok "GET weekly post-dismiss manté 3 recomanacions"
+  report_ok "GET weekly post-accepted manté 3 recomanacions"
 else
   REQ_BODY="count=${after_count} ids=${after_ids_csv}"
-  report_fail "GET weekly post-dismiss (expected 3)"
+  report_fail "GET weekly post-accepted (expected 3)"
 fi
 
 if contains_id_in_csv "${after_ids_csv}" "${initial_first_id}"; then
-  REQ_BODY="dismissed_id=${initial_first_id} after_ids=${after_ids_csv}"
-  report_fail "replace real (dismissed id encara present)"
+  REQ_BODY="accepted_id=${initial_first_id} after_ids=${after_ids_csv}"
+  report_fail "replace real (accepted id encara present)"
 else
-  report_ok "replace real (dismissed id substituït)"
+  report_ok "replace real (accepted id substituït)"
 fi
 
 echo ""

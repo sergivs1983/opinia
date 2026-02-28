@@ -40,6 +40,40 @@ type AssetSignedUrlPayload = {
   signedUrl?: string;
 };
 
+type RecommendationStatus = 'shown' | 'accepted' | 'dismissed' | 'published';
+
+type WeeklyRecommendationItem = {
+  id: string;
+  rule_id: string;
+  status: RecommendationStatus;
+  format: string;
+  hook: string;
+  idea: string;
+  cta: string;
+};
+
+type WeeklyRecommendationsPayload = {
+  week_start?: string;
+  items?: WeeklyRecommendationItem[];
+  error?: string;
+  message?: string;
+  request_id?: string;
+};
+
+type RecommendationFeedbackPayload = {
+  error?: string;
+  message?: string;
+  replaced?: boolean;
+  new_recommendation?: Partial<WeeklyRecommendationItem> & {
+    recommendation_template?: {
+      format?: string;
+      hook?: string;
+      idea?: string;
+      cta?: string;
+    };
+  };
+};
+
 const DISMISSED_SOCIAL_MAGIC_REVIEWS_KEY = 'opinia.home.dismissedSocialMagicReviews';
 
 function pickProposalReply(rows: ReplyDraftRow[]): ReplyDraftRow | null {
@@ -73,6 +107,9 @@ export default function DashboardPage() {
   const [successAssetUrl, setSuccessAssetUrl] = useState<string | null>(null);
   const [successAssetLoading, setSuccessAssetLoading] = useState(false);
   const [dismissedSocialMagicReviewIds, setDismissedSocialMagicReviewIds] = useState<string[]>([]);
+  const [weeklyRecommendations, setWeeklyRecommendations] = useState<WeeklyRecommendationItem[]>([]);
+  const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
+  const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -139,6 +176,39 @@ export default function DashboardPage() {
     if (!queue.length) return;
     void loadDraftReplies(queue.map((review) => review.id));
   }, [queue, loadDraftReplies]);
+
+  useEffect(() => {
+    if (!biz?.id) {
+      setWeeklyRecommendations([]);
+      setWeeklyRecommendationsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setWeeklyRecommendationsLoading(true);
+
+    void fetch(`/api/recommendations/weekly?biz_id=${biz.id}`)
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as WeeklyRecommendationsPayload;
+        if (!response.ok || payload.error) {
+          throw new Error(payload.message || t('dashboard.home.recommendations.loadError'));
+        }
+        if (cancelled) return;
+        setWeeklyRecommendations(payload.items || []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setWeeklyRecommendations([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setWeeklyRecommendationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [biz?.id, t]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -282,6 +352,70 @@ export default function DashboardPage() {
     [draftsByReview, openSuccessModal, refetch, t, toast],
   );
 
+  const handleRecommendationFeedback = useCallback(
+    async (recommendationId: string, status: Exclude<RecommendationStatus, 'shown'>) => {
+      setWeeklyRecommendationActionById((previous) => ({ ...previous, [recommendationId]: true }));
+      try {
+        const response = await fetch(`/api/recommendations/${recommendationId}/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+
+        const payload = (await response.json().catch(() => ({}))) as RecommendationFeedbackPayload;
+
+        if (!response.ok || payload.error) {
+          throw new Error(payload.message || t('dashboard.home.recommendations.feedbackError'));
+        }
+
+        const shouldReplace = status === 'dismissed' || status === 'accepted';
+        if (!shouldReplace) {
+          setWeeklyRecommendations((previous) => (
+            previous.map((item) => (item.id === recommendationId ? { ...item, status } : item))
+          ));
+          return;
+        }
+
+        const template = payload.new_recommendation?.recommendation_template;
+        const replacement = payload.replaced && payload.new_recommendation?.id
+          ? {
+            id: payload.new_recommendation.id,
+            rule_id: payload.new_recommendation.rule_id || '',
+            status: payload.new_recommendation.status || 'shown',
+            format: payload.new_recommendation.format || template?.format || 'post',
+            hook: payload.new_recommendation.hook || template?.hook || '',
+            idea: payload.new_recommendation.idea || template?.idea || '',
+            cta: payload.new_recommendation.cta || template?.cta || '',
+          } satisfies WeeklyRecommendationItem
+          : null;
+
+        setWeeklyRecommendations((previous) => {
+          const withoutCurrent = previous.filter((item) => item.id !== recommendationId);
+          if (!replacement || withoutCurrent.some((item) => item.id === replacement.id)) return withoutCurrent;
+          return [...withoutCurrent, replacement];
+        });
+
+        if ((!payload.replaced || !replacement) && biz?.id) {
+          void fetch(`/api/recommendations/weekly?biz_id=${biz.id}`)
+            .then(async (reloadResponse) => {
+              const reloadPayload = (await reloadResponse.json().catch(() => ({}))) as WeeklyRecommendationsPayload;
+              if (!reloadResponse.ok || reloadPayload.error) return;
+              setWeeklyRecommendations(reloadPayload.items || []);
+            })
+            .catch(() => {});
+        }
+      } catch (feedbackError) {
+        const message = feedbackError instanceof Error
+          ? feedbackError.message
+          : t('dashboard.home.recommendations.feedbackError');
+        toast(message, 'error');
+      } finally {
+        setWeeklyRecommendationActionById((previous) => ({ ...previous, [recommendationId]: false }));
+      }
+    },
+    [biz?.id, t, toast],
+  );
+
   if (!biz) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -339,6 +473,64 @@ export default function DashboardPage() {
             </p>
           )}
         </header>
+
+        <GlassCard variant="strong" className="p-4 md:p-5" data-testid="dashboard-weekly-recommendations">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className={cn('text-base font-semibold', textMain)}>
+                {t('dashboard.home.recommendations.title')}
+              </h2>
+              <p className={cn('mt-1 text-xs', textSub)}>
+                {t('dashboard.home.recommendations.subtitle')}
+              </p>
+            </div>
+          </div>
+
+          {weeklyRecommendationsLoading ? (
+            <div className="space-y-2">
+              <div className="h-16 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+              <div className="h-16 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+              <div className="h-16 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+            </div>
+          ) : weeklyRecommendations.length > 0 ? (
+            <div className="space-y-2.5">
+              {weeklyRecommendations.slice(0, 3).map((item) => {
+                const actionPending = Boolean(weeklyRecommendationActionById[item.id]);
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-white/10 bg-white/6 p-3 transition-all duration-200 ease-premium hover:border-white/15 hover:bg-white/8"
+                  >
+                    <p className={cn('text-xs uppercase tracking-wide text-white/55')}>{item.format}</p>
+                    <p className={cn('mt-1 text-sm font-semibold text-white/90')}>{item.hook}</p>
+                    <p className={cn('mt-1 text-sm text-white/72')}>{item.idea}</p>
+                    <p className={cn('mt-1 text-xs text-emerald-300/85')}>{item.cta}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        className="h-8 px-3 text-xs"
+                        disabled={actionPending}
+                        onClick={() => void handleRecommendationFeedback(item.id, 'accepted')}
+                      >
+                        {t('dashboard.home.recommendations.actions.done')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-8 px-3 text-xs text-white/70 hover:text-white/90"
+                        disabled={actionPending}
+                        onClick={() => void handleRecommendationFeedback(item.id, 'dismissed')}
+                      >
+                        {t('dashboard.home.recommendations.actions.dismiss')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className={cn('text-sm', textSub)}>{t('dashboard.home.recommendations.empty')}</p>
+          )}
+        </GlassCard>
 
         {pendingCount === 0 ? (
           <div className="flex min-h-[55vh] items-center justify-center">

@@ -108,7 +108,7 @@ export async function POST(
       );
     }
 
-    if (body.status !== 'dismissed') {
+    if (body.status === 'published') {
       return withHeaders(
         NextResponse.json({
           ok: true,
@@ -119,7 +119,7 @@ export async function POST(
       );
     }
 
-    const { data: businessData, error: businessError } = await supabase
+    const { data: businessData, error: businessError } = await admin
       .from('businesses')
       .select('id, org_id, type')
       .eq('id', logRow.biz_id)
@@ -134,7 +134,7 @@ export async function POST(
     const business = businessData as BusinessLookupRow;
     const vertical = mapBusinessTypeToVertical(business.type);
 
-    const { data: visibleBeforeData, error: visibleBeforeError } = await supabase
+    const { data: visibleBeforeData, error: visibleBeforeError } = await admin
       .from('recommendation_log')
       .select('id')
       .eq('biz_id', business.id)
@@ -160,7 +160,7 @@ export async function POST(
     );
 
     const { items } = await ensureAndGetWeeklyRecommendations({
-      readClient: supabase,
+      readClient: admin,
       writeClient: admin,
       bizId: business.id,
       orgId: business.org_id,
@@ -199,10 +199,16 @@ export async function POST(
 function toReplacementPayload(item: WeeklyRecommendationItem) {
   return {
     id: item.id,
+    rule_id: item.rule_id,
     week_start: item.week_start,
+    generated_at: item.generated_at,
     status: item.status,
     priority: item.priority,
     vertical: item.vertical,
+    format: item.format,
+    hook: item.hook,
+    idea: item.idea,
+    cta: item.cta,
     recommendation_template: item.recommendation_template,
   };
 }
