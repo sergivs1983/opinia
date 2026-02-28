@@ -93,7 +93,8 @@
     "status": "Estat",
     "logout": "Tancar sessió",
     "switchOrg": "Canviar organització",
-    "switchBiz": "Canviar negoci"
+    "switchBiz": "Canviar negoci",
+    "plans": "Plans"
   },
   "landing": {
     "hero": "Respostes professionals amb IA per al teu negoci",
@@ -912,6 +913,41 @@
       "messages": {
         "quotaExceeded": "Has esgotat la quota del mes. Pots escriure manualment o ampliar el pla.",
         "managerRequired": "Cal manager"
+      },
+      "voice": {
+        "widgetTitle": "Accions per confirmar (Voice)",
+        "widgetPending": "{count} drafts pendents de revisar",
+        "widgetEmpty": "Sense drafts pendents ara mateix.",
+        "openSheet": "Obrir Voice",
+        "sheetTitle": "LITO Voice",
+        "sheetSubtitle": "Parla o enganxa el transcript per generar drafts d'accio.",
+        "languageLabel": "Idioma transcript",
+        "holdToTalk": "Prem i mantingues per parlar (push-to-talk).",
+        "manualOnly": "El dictat del navegador no esta disponible. Pots enganxar el transcript manualment.",
+        "pushToTalk": "Mantenir per parlar",
+        "recording": "Gravant...",
+        "recordingHint": "Deixa anar el boto per aturar.",
+        "recordingIdle": "Mode manual o dictat curt.",
+        "transcriptPlaceholder": "Ex: avui tanquem a les 18h i volem una story avisant clients.",
+        "generateActions": "Generar accions",
+        "generatedActionsTitle": "Drafts de Voice",
+        "viewDraft": "Veure draft",
+        "hideDraft": "Amagar",
+        "editDraft": "Editar",
+        "confirmAction": "Confirmar accio",
+        "cancelAction": "Cancel·lar",
+        "submitReview": "Enviar a revisio",
+        "unavailable": "LITO Voice no esta disponible ara mateix.",
+        "prepareError": "No s'ha pogut preparar LITO Voice.",
+        "speechUnsupported": "Aquest navegador no suporta dictat directe.",
+        "transcriptRequired": "Afegeix un transcript minim abans de generar accions.",
+        "transcribeError": "No s'han pogut generar accions de Voice.",
+        "transcribeSuccess": "Accions de Voice generades correctament.",
+        "actionError": "No s'ha pogut actualitzar l'accio.",
+        "actionSuccess": "Accio actualitzada.",
+        "editValidation": "El resum ha de tenir com a minim 3 caracters.",
+        "editError": "No s'ha pogut desar l'edicio del draft.",
+        "editSuccess": "Draft actualitzat."
       },
       "launcher": {
         "tooltipActive": "LITO actiu",
@@ -1845,6 +1881,19 @@
       "thread": {
         "defaultTitle": "Consulta"
       }
+    }
+  },
+  "billing": {
+    "entitlement": {
+      "quota_exceeded_title": "Quota mensual esgotada",
+      "feature_locked_title": "Funció bloquejada pel pla",
+      "limit_reached_title": "Límit del pla assolit",
+      "quota_exceeded_msg": "Has esgotat els Drafts LITO d'aquest mes ({used}/{limit}).",
+      "quota_exceeded_msg_simple": "Has esgotat els Drafts LITO d'aquest mes.",
+      "feature_locked_msg": "Aquesta funció és del pla Business.",
+      "limit_reached_msg": "Has arribat al límit de locals/usuaris del teu pla.",
+      "close": "Tancar",
+      "view_plans": "Veure plans"
     }
   }
 }

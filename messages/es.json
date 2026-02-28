@@ -93,7 +93,8 @@
     "status": "Estado",
     "logout": "Cerrar sesión",
     "switchOrg": "Cambiar organización",
-    "switchBiz": "Cambiar negocio"
+    "switchBiz": "Cambiar negocio",
+    "plans": "Planes"
   },
   "landing": {
     "hero": "Respuestas profesionales con IA para tu negocio",
@@ -912,6 +913,41 @@
       "messages": {
         "quotaExceeded": "Has agotado la cuota mensual. Puedes escribir manualmente o ampliar el plan.",
         "managerRequired": "Requiere manager"
+      },
+      "voice": {
+        "widgetTitle": "Acciones por confirmar (Voice)",
+        "widgetPending": "{count} borradores pendientes de revisar",
+        "widgetEmpty": "Sin borradores pendientes ahora mismo.",
+        "openSheet": "Abrir Voice",
+        "sheetTitle": "LITO Voice",
+        "sheetSubtitle": "Habla o pega el transcript para generar borradores de accion.",
+        "languageLabel": "Idioma del transcript",
+        "holdToTalk": "Mantén pulsado para hablar (push-to-talk).",
+        "manualOnly": "El dictado del navegador no está disponible. Puedes pegar el transcript manualmente.",
+        "pushToTalk": "Mantener para hablar",
+        "recording": "Grabando...",
+        "recordingHint": "Suelta el botón para detener.",
+        "recordingIdle": "Modo manual o dictado corto.",
+        "transcriptPlaceholder": "Ej: hoy cerramos a las 18h y queremos una story avisando a clientes.",
+        "generateActions": "Generar acciones",
+        "generatedActionsTitle": "Borradores de Voice",
+        "viewDraft": "Ver borrador",
+        "hideDraft": "Ocultar",
+        "editDraft": "Editar",
+        "confirmAction": "Confirmar acción",
+        "cancelAction": "Cancelar",
+        "submitReview": "Enviar a revisión",
+        "unavailable": "LITO Voice no está disponible ahora mismo.",
+        "prepareError": "No se pudo preparar LITO Voice.",
+        "speechUnsupported": "Este navegador no soporta dictado directo.",
+        "transcriptRequired": "Añade un transcript mínimo antes de generar acciones.",
+        "transcribeError": "No se pudieron generar acciones de Voice.",
+        "transcribeSuccess": "Acciones de Voice generadas correctamente.",
+        "actionError": "No se pudo actualizar la acción.",
+        "actionSuccess": "Acción actualizada.",
+        "editValidation": "El resumen debe tener al menos 3 caracteres.",
+        "editError": "No se pudo guardar la edición del borrador.",
+        "editSuccess": "Borrador actualizado."
       },
       "launcher": {
         "tooltipActive": "LITO activo",
@@ -1845,6 +1881,19 @@
       "thread": {
         "defaultTitle": "Consulta"
       }
+    }
+  },
+  "billing": {
+    "entitlement": {
+      "quota_exceeded_title": "Cuota mensual agotada",
+      "feature_locked_title": "Función bloqueada por el plan",
+      "limit_reached_title": "Límite del plan alcanzado",
+      "quota_exceeded_msg": "Has agotado los Drafts LITO de este mes ({used}/{limit}).",
+      "quota_exceeded_msg_simple": "Has agotado los Drafts LITO de este mes.",
+      "feature_locked_msg": "Esta función es del plan Business.",
+      "limit_reached_msg": "Has llegado al límite de locales/usuarios de tu plan.",
+      "close": "Cerrar",
+      "view_plans": "Ver planes"
     }
   }
 }

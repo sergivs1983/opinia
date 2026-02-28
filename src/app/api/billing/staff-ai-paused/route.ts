@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { getAcceptedOrgMembership } from '@/lib/authz';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
 
@@ -54,7 +55,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const { error: updateErr } = await supabase
+    // Use admin client to bypass RLS — managers also need write access but the
+    // org_update policy only covers owner role (session-scoped RLS restriction).
+    const admin = createAdminClient();
+    const { error: updateErr } = await admin
       .from('organizations')
       .update({ lito_staff_ai_paused: body.paused })
       .eq('id', body.org_id);

@@ -221,3 +221,27 @@ export function canUseLitoCopy(input: {
 
   return { allowed: true };
 }
+
+// ---------------------------------------------------------------------------
+// Convenience helpers
+// ---------------------------------------------------------------------------
+
+/** Returns true when the staff panic toggle is active for the given org row. */
+export function isStaffPaused(org: { lito_staff_ai_paused?: boolean | null }): boolean {
+  return Boolean(org.lito_staff_ai_paused);
+}
+
+/** Returns the signals_level from an OrgEntitlements record. */
+export function getSignalsLevel(ent: OrgEntitlements): SignalsLevel {
+  return ent.signals_level;
+}
+
+/** Returns the location and seat limits from an OrgEntitlements record. */
+export function getLimits(ent: OrgEntitlements): { locations_limit: number; seats_limit: number } {
+  return { locations_limit: ent.locations_limit, seats_limit: ent.seats_limit };
+}
+
+/** Returns the monthly Drafts LITO limit from an OrgEntitlements record. */
+export function getDraftLimit(ent: OrgEntitlements): number {
+  return ent.lito_drafts_limit;
+}

@@ -93,7 +93,8 @@
     "status": "Status",
     "logout": "Log out",
     "switchOrg": "Switch organization",
-    "switchBiz": "Switch business"
+    "switchBiz": "Switch business",
+    "plans": "Plans"
   },
   "landing": {
     "hero": "Professional AI-powered review responses for your business",
@@ -910,6 +911,41 @@
       "messages": {
         "quotaExceeded": "You have reached the monthly quota. You can write manually or upgrade your plan.",
         "managerRequired": "Manager required"
+      },
+      "voice": {
+        "widgetTitle": "Actions to confirm (Voice)",
+        "widgetPending": "{count} drafts pending review",
+        "widgetEmpty": "No pending drafts right now.",
+        "openSheet": "Open Voice",
+        "sheetTitle": "LITO Voice",
+        "sheetSubtitle": "Speak or paste a transcript to generate action drafts.",
+        "languageLabel": "Transcript language",
+        "holdToTalk": "Press and hold to talk (push-to-talk).",
+        "manualOnly": "Browser dictation is not available. You can paste the transcript manually.",
+        "pushToTalk": "Hold to talk",
+        "recording": "Recording...",
+        "recordingHint": "Release to stop recording.",
+        "recordingIdle": "Manual mode or short dictation.",
+        "transcriptPlaceholder": "Example: today we close at 6pm and we need a story to notify clients.",
+        "generateActions": "Generate actions",
+        "generatedActionsTitle": "Voice drafts",
+        "viewDraft": "View draft",
+        "hideDraft": "Hide",
+        "editDraft": "Edit",
+        "confirmAction": "Confirm action",
+        "cancelAction": "Cancel",
+        "submitReview": "Send for review",
+        "unavailable": "LITO Voice is not available right now.",
+        "prepareError": "Could not prepare LITO Voice.",
+        "speechUnsupported": "This browser does not support direct dictation.",
+        "transcriptRequired": "Add a minimum transcript before generating actions.",
+        "transcribeError": "Could not generate Voice actions.",
+        "transcribeSuccess": "Voice actions generated successfully.",
+        "actionError": "Could not update the action.",
+        "actionSuccess": "Action updated.",
+        "editValidation": "Summary must have at least 3 characters.",
+        "editError": "Could not save draft edits.",
+        "editSuccess": "Draft updated."
       },
       "launcher": {
         "tooltipActive": "LITO active",
@@ -1843,6 +1879,19 @@
       "thread": {
         "defaultTitle": "Consultation"
       }
+    }
+  },
+  "billing": {
+    "entitlement": {
+      "quota_exceeded_title": "Monthly quota exhausted",
+      "feature_locked_title": "Feature locked by plan",
+      "limit_reached_title": "Plan limit reached",
+      "quota_exceeded_msg": "You have used all your LITO Drafts for this month ({used}/{limit}).",
+      "quota_exceeded_msg_simple": "You have used all your LITO Drafts for this month.",
+      "feature_locked_msg": "This feature is available on the Business plan.",
+      "limit_reached_msg": "You have reached the locations/seats limit for your plan.",
+      "close": "Close",
+      "view_plans": "View plans"
     }
   }
 }

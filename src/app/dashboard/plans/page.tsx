@@ -181,9 +181,12 @@ export default function DashboardPlansPage() {
                     Pla actiu
                   </span>
                 ) : (
-                  <Link href="/dashboard/admin">
-                    <Button size="sm" variant="secondary">Seleccionar</Button>
-                  </Link>
+                  <a
+                    href="mailto:hello@opinia.app?subject=Canvi%20de%20pla"
+                    className="inline-flex h-8 items-center rounded-lg border border-white/20 bg-white/8 px-3 text-xs font-medium text-white/80 transition hover:bg-white/14"
+                  >
+                    Contactar
+                  </a>
                 )}
               </div>
             </GlassCard>
