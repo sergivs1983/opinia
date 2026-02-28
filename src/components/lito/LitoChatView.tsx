@@ -10,6 +10,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useToast } from '@/components/ui/Toast';
 import { emitLitoCopyUpdated, isLitoCopyUpdatedEvent, LITO_COPY_UPDATED_EVENT } from '@/components/lito/copy-sync';
 import { buildFallbackRecommendation } from '@/components/lito/recommendation-fallback';
+import { getIkeaChecklist, type RecommendationChannel } from '@/lib/recommendations/howto';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type {
@@ -177,6 +178,7 @@ export default function LitoChatView() {
   const [copyLoading, setCopyLoading] = useState(false);
   const [copyAction, setCopyAction] = useState<'generate' | QuickRefineMode | null>(null);
   const [quickRefinePrompt, setQuickRefinePrompt] = useState('');
+  const [ikeaChannel, setIkeaChannel] = useState<RecommendationChannel>('instagram');
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [renamingLoading, setRenamingLoading] = useState(false);
@@ -197,6 +199,18 @@ export default function LitoChatView() {
       defaultTitle: t('dashboard.home.recommendations.lito.defaultTitle'),
     });
   }, [activeThread, t, weeklyRecommendations]);
+  const ikeaChecklist = useMemo(() => {
+    if (!activeRecommendation) return null;
+    return getIkeaChecklist({
+      format: activeRecommendation.format,
+      channel: ikeaChannel,
+      vertical: activeRecommendation.vertical || null,
+      hook: activeRecommendation.hook || activeRecommendation.recommendation_template?.hook || null,
+      idea: activeRecommendation.idea || activeRecommendation.recommendation_template?.idea || null,
+      cta: activeRecommendation.cta || activeRecommendation.recommendation_template?.cta || null,
+      t,
+    });
+  }, [activeRecommendation, ikeaChannel, t]);
 
   const commandCenterHref = useMemo(() => {
     if (!biz?.id) return '/dashboard/lito';
@@ -421,6 +435,16 @@ export default function LitoChatView() {
     }
   }, [t, toast]);
 
+  const handleCopyIkeaChecklist = useCallback(async () => {
+    if (!ikeaChecklist?.copyText?.trim()) return;
+    try {
+      await navigator.clipboard.writeText(ikeaChecklist.copyText);
+      toast(t('dashboard.litoPage.ikea.copiedToast'), 'success');
+    } catch {
+      toast(t('dashboard.litoPage.ikea.copyError'), 'error');
+    }
+  }, [ikeaChecklist, t, toast]);
+
   const openOrCreateThread = useCallback(async (options: {
     recommendationId?: string | null;
     title?: string | null;
@@ -625,6 +649,10 @@ export default function LitoChatView() {
   useEffect(() => {
     void loadStoredCopy();
   }, [loadStoredCopy]);
+
+  useEffect(() => {
+    setIkeaChannel('instagram');
+  }, [activeRecommendation?.id]);
 
   useEffect(() => {
     if (!biz?.id || !activeThread?.recommendation_id) return;
@@ -934,6 +962,49 @@ export default function LitoChatView() {
                   {t('dashboard.litoPage.workbench.previewEmpty')}
                 </p>
               )}
+            </div>
+          ) : null}
+
+          {activeRecommendation && ikeaChecklist ? (
+            <div className="mb-3 rounded-xl border border-white/10 bg-white/6 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+                  {t('dashboard.litoPage.ikea.title')}
+                </p>
+                <div className="inline-flex rounded-full border border-white/15 bg-white/5 p-0.5">
+                  {(['instagram', 'tiktok'] as RecommendationChannel[]).map((channel) => (
+                    <button
+                      key={`chat-ikea-channel-${channel}`}
+                      type="button"
+                      onClick={() => setIkeaChannel(channel)}
+                      className={cn(
+                        'rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors',
+                        ikeaChannel === channel
+                          ? 'bg-white/15 text-white'
+                          : 'text-white/65 hover:bg-white/10 hover:text-white/90',
+                      )}
+                    >
+                      {t(`dashboard.litoPage.ikea.channel.${channel}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <ol className="list-decimal space-y-1 pl-4 text-sm text-white/88">
+                {ikeaChecklist.steps.map((step, index) => (
+                  <li key={`chat-ikea-step-${index}`}>{step}</li>
+                ))}
+              </ol>
+              <p className={cn('mt-3 text-xs font-medium text-white/65')}>{t('dashboard.litoPage.ikea.sectionNotes')}</p>
+              <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-white/78">
+                {ikeaChecklist.notes.map((note, index) => (
+                  <li key={`chat-ikea-note-${index}`}>{note}</li>
+                ))}
+              </ul>
+              <div className="mt-3 flex justify-end">
+                <Button size="sm" variant="secondary" className="h-7 px-2.5 text-xs" onClick={() => void handleCopyIkeaChecklist()}>
+                  {t('dashboard.litoPage.ikea.copyChecklist')}
+                </Button>
+              </div>
             </div>
           ) : null}
 
