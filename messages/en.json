@@ -720,7 +720,7 @@
         "newThread": "New thread",
         "emptyThreads": "No threads for this business yet.",
         "assignmentTitle": "Brief",
-        "generalThreadTitle": "LITO — Questions",
+        "generalThreadTitle": "New conversation",
         "recommendationThreadTitle": "LITO — Recommendation"
       },
       "chat": {
@@ -730,6 +730,12 @@
         "threadLabel": "Thread",
         "newThread": "New thread",
         "emptyThreads": "No threads available",
+        "emptyPreview": "No messages yet",
+        "rename": "Rename",
+        "renameSave": "Save",
+        "renameCancel": "Cancel",
+        "renamePlaceholder": "Thread name",
+        "renameError": "Could not rename the thread.",
         "quickPrompts": {
           "shorter": "Make it shorter while keeping the main message.",
           "premium": "Give it a more premium tone without losing clarity.",

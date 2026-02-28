@@ -61,6 +61,8 @@ export type LitoThreadItem = {
   status: 'open' | 'closed';
   created_at: string;
   updated_at: string;
+  messages_count?: number;
+  last_message_preview?: string;
 };
 
 export type LitoThreadMessage = {

@@ -105,6 +105,32 @@ function formatThreadDate(value: string): string {
   });
 }
 
+function formatThreadAgo(value: string): string {
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return '';
+  const diffMs = Date.now() - parsed;
+  if (!Number.isFinite(diffMs) || diffMs < 0) return formatThreadDate(value);
+
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return 'fa uns segons';
+  if (diffMinutes < 60) return `fa ${diffMinutes} min`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `fa ${diffHours} h`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `fa ${diffDays} d`;
+
+  return formatThreadDate(value);
+}
+
+function buildThreadPreview(thread: LitoThreadItem): string {
+  const preview = typeof thread.last_message_preview === 'string'
+    ? thread.last_message_preview.replace(/\s+/g, ' ').trim()
+    : '';
+  return preview;
+}
+
 function resolveQuickRefineModeFromText(value: string): QuickRefineMode | null {
   const text = value.toLowerCase();
   if (
@@ -150,6 +176,9 @@ export default function LitoChatView() {
   const [copyLoading, setCopyLoading] = useState(false);
   const [copyAction, setCopyAction] = useState<'generate' | QuickRefineMode | null>(null);
   const [quickRefinePrompt, setQuickRefinePrompt] = useState('');
+  const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renamingLoading, setRenamingLoading] = useState(false);
 
   const bootstrapRef = useRef<string | null>(null);
   const queryBizId = searchParams.get('biz_id');
@@ -431,6 +460,58 @@ export default function LitoChatView() {
     });
   }, [openOrCreateThread]);
 
+  const startRenaming = useCallback((thread: LitoThreadItem) => {
+    setRenamingThreadId(thread.id);
+    setRenameDraft(thread.title);
+  }, []);
+
+  const cancelRenaming = useCallback(() => {
+    setRenamingThreadId(null);
+    setRenameDraft('');
+  }, []);
+
+  const saveRenaming = useCallback(async () => {
+    if (!renamingThreadId) return;
+    const nextTitle = renameDraft.trim();
+    if (nextTitle.length < 3 || nextTitle.length > 80) {
+      toast(t('dashboard.litoPage.chat.renameError'), 'warning');
+      return;
+    }
+
+    setRenamingLoading(true);
+    try {
+      const response = await fetch(`/api/lito/threads/${renamingThreadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: nextTitle }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as ThreadCreatePayload;
+      if (!response.ok || payload.error || !payload.thread) {
+        throw new Error(payload.message || t('dashboard.litoPage.chat.renameError'));
+      }
+
+      setThreads((previous) => previous.map((thread) => (
+        thread.id === renamingThreadId
+          ? { ...thread, title: payload.thread!.title, updated_at: payload.thread!.updated_at }
+          : thread
+      )));
+      if (activeThreadId === renamingThreadId) {
+        setActiveThread((previous) => (
+          previous
+            ? { ...previous, title: payload.thread!.title, updated_at: payload.thread!.updated_at }
+            : previous
+        ));
+      }
+      setRenamingThreadId(null);
+      setRenameDraft('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.chat.renameError');
+      toast(message, 'error');
+    } finally {
+      setRenamingLoading(false);
+    }
+  }, [activeThreadId, renameDraft, renamingThreadId, t, toast]);
+
   const sendMessage = useCallback(async (content: string) => {
     if (!activeThreadId || content.trim().length < 2) return;
     setSending(true);
@@ -604,40 +685,109 @@ export default function LitoChatView() {
       </header>
 
       <section className="flex min-h-[72vh] flex-col rounded-2xl border border-white/10 bg-zinc-900/45 backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-4 py-3">
-          <label className={cn('text-xs font-medium', textSub)} htmlFor="lito-thread-select">
-            {t('dashboard.litoPage.chat.threadLabel')}
-          </label>
-          <select
-            id="lito-thread-select"
-            value={activeThreadId || ''}
-            onChange={(event) => {
-              const nextId = event.target.value || null;
-              setActiveThreadId(nextId);
-              const thread = threads.find((item) => item.id === nextId);
-              replaceQuery({
-                bizId: biz.id,
-                recommendationId: thread?.recommendation_id || null,
-                threadId: nextId,
-              });
-            }}
-            className="h-8 min-w-[240px] rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs text-white outline-none transition-colors duration-200 ease-premium hover:border-white/20 focus:border-emerald-300/35"
-          >
-            {threadsLoading ? (
-              <option value="">{t('common.loading')}</option>
-            ) : threads.length > 0 ? (
-              threads.map((thread) => (
-                <option key={thread.id} value={thread.id} className="bg-zinc-900 text-white">
-                  {`${thread.title} · ${formatThreadDate(thread.updated_at || thread.created_at)}`}
-                </option>
-              ))
-            ) : (
-              <option value="">{t('dashboard.litoPage.chat.emptyThreads')}</option>
-            )}
-          </select>
-          <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void openGeneralThread()}>
-            {t('dashboard.litoPage.chat.newThread')}
-          </Button>
+        <div className="border-b border-white/10 px-4 py-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <label className={cn('text-xs font-medium', textSub)}>
+              {t('dashboard.litoPage.chat.threadLabel')}
+            </label>
+            <Button size="sm" variant="secondary" className="h-8 px-3 text-xs" onClick={() => void openGeneralThread()}>
+              {t('dashboard.litoPage.chat.newThread')}
+            </Button>
+          </div>
+
+          {threadsLoading ? (
+            <div className="space-y-2">
+              <div className="h-12 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+              <div className="h-12 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+            </div>
+          ) : threads.length > 0 ? (
+            <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
+              {threads.map((thread) => {
+                const isActive = activeThreadId === thread.id;
+                const isRenaming = renamingThreadId === thread.id;
+                const preview = buildThreadPreview(thread);
+                const timestamp = formatThreadAgo(thread.updated_at || thread.created_at);
+                return (
+                  <div
+                    key={thread.id}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 transition-all duration-200 ease-premium',
+                      isActive
+                        ? 'border-emerald-300/45 bg-emerald-500/12'
+                        : 'border-white/10 bg-white/6 hover:border-white/20 hover:bg-white/10',
+                    )}
+                  >
+                    {isRenaming ? (
+                      <div className="space-y-2">
+                        <input
+                          value={renameDraft}
+                          onChange={(event) => setRenameDraft(event.target.value)}
+                          maxLength={80}
+                          className="h-8 w-full rounded-lg border border-white/12 bg-black/35 px-2.5 text-xs text-white outline-none transition-colors duration-200 ease-premium focus:border-emerald-300/35"
+                          placeholder={t('dashboard.litoPage.chat.renamePlaceholder')}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 px-2.5 text-[11px]"
+                            loading={renamingLoading}
+                            disabled={renamingLoading}
+                            onClick={() => void saveRenaming()}
+                          >
+                            {t('dashboard.litoPage.chat.renameSave')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2.5 text-[11px]"
+                            disabled={renamingLoading}
+                            onClick={cancelRenaming}
+                          >
+                            {t('dashboard.litoPage.chat.renameCancel')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextId = thread.id;
+                            setActiveThreadId(nextId);
+                            replaceQuery({
+                              bizId: biz.id,
+                              recommendationId: thread.recommendation_id || null,
+                              threadId: nextId,
+                            });
+                          }}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <p className="truncate text-sm font-semibold text-white/92">{thread.title}</p>
+                          <p className={cn('mt-1 truncate text-xs', textSub)}>
+                            {preview || t('dashboard.litoPage.chat.emptyPreview')}
+                          </p>
+                        </button>
+                        <div className="flex shrink-0 items-start gap-2">
+                          <span className={cn('pt-0.5 text-[11px]', textSub)}>{timestamp}</span>
+                          <button
+                            type="button"
+                            className="rounded-md border border-white/15 bg-white/6 px-2 py-1 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+                            onClick={() => startRenaming(thread)}
+                          >
+                            {t('dashboard.litoPage.chat.rename')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className={cn('rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-xs', textSub)}>
+              {t('dashboard.litoPage.chat.emptyThreads')}
+            </p>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3">

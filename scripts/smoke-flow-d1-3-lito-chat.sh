@@ -93,6 +93,23 @@ try {
 JS
 }
 
+thread_title_by_id() {
+  local json="$1"
+  local thread_id="$2"
+  JSON_INPUT="$json" THREAD_ID="$thread_id" node - <<'JS'
+const input = process.env.JSON_INPUT || '';
+const threadId = process.env.THREAD_ID || '';
+try {
+  const data = JSON.parse(input);
+  const items = Array.isArray(data.threads) ? data.threads : [];
+  const found = items.find((item) => item && item.id === threadId);
+  process.stdout.write(typeof found?.title === 'string' ? found.title : '');
+} catch {
+  process.stdout.write('');
+}
+JS
+}
+
 echo "Flow D1.3 LITO Chat smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
@@ -172,6 +189,27 @@ if [ -n "${LITO_SESSION_COOKIE}" ] && [ -n "${LITO_BIZ_ID}" ]; then
       else
         REQ_CODE="parse"
         report_fail "message id missing"
+      fi
+
+      perform_request "${BASE}/api/lito/threads?biz_id=${LITO_BIZ_ID}&limit=20" \
+        -H "${COOKIE_HEADER}"
+      if [ "${REQ_CODE}" = "200" ]; then
+        report_ok "list threads after first user message (HTTP 200)"
+      else
+        report_fail "list threads after first user message (expected 200)"
+      fi
+
+      THREAD_TITLE="$(thread_title_by_id "${REQ_BODY}" "${THREAD_ID}")"
+      if [ -z "${THREAD_TITLE}" ]; then
+        REQ_CODE="parse"
+        REQ_BODY="thread_id=${THREAD_ID}"
+        report_fail "auto title thread lookup"
+      elif printf '%s' "${THREAD_TITLE}" | grep -Eiq '^(LITO — Consultes|LITO — Consultas|LITO — Questions|Nova conversa|Nueva conversación|New conversation)$'; then
+        REQ_CODE="title"
+        REQ_BODY="${THREAD_TITLE}"
+        report_fail "auto title should not remain placeholder"
+      else
+        report_ok "auto title applied (${THREAD_TITLE})"
       fi
     fi
   fi

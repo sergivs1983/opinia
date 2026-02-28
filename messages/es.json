@@ -720,7 +720,7 @@
         "newThread": "Nuevo hilo",
         "emptyThreads": "Aún no hay hilos para este negocio.",
         "assignmentTitle": "Encargo",
-        "generalThreadTitle": "LITO — Consultas",
+        "generalThreadTitle": "Nueva conversación",
         "recommendationThreadTitle": "LITO — Recomendación"
       },
       "chat": {
@@ -730,6 +730,12 @@
         "threadLabel": "Hilo",
         "newThread": "Nuevo hilo",
         "emptyThreads": "Sin hilos disponibles",
+        "emptyPreview": "Sin mensajes todavía",
+        "rename": "Renombrar",
+        "renameSave": "Guardar",
+        "renameCancel": "Cancelar",
+        "renamePlaceholder": "Nombre del hilo",
+        "renameError": "No se pudo renombrar el hilo.",
         "quickPrompts": {
           "shorter": "Hazlo más corto manteniendo el mensaje principal.",
           "premium": "Dale un tono más premium sin perder claridad.",

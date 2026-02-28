@@ -720,7 +720,7 @@
         "newThread": "Nou fil",
         "emptyThreads": "Encara no hi ha fils per aquest negoci.",
         "assignmentTitle": "Encàrrec",
-        "generalThreadTitle": "LITO — Consultes",
+        "generalThreadTitle": "Nova conversa",
         "recommendationThreadTitle": "LITO — Recomanació"
       },
       "chat": {
@@ -730,6 +730,12 @@
         "threadLabel": "Fil",
         "newThread": "Nou fil",
         "emptyThreads": "Sense fils disponibles",
+        "emptyPreview": "Sense missatges encara",
+        "rename": "Renombrar",
+        "renameSave": "Desar",
+        "renameCancel": "Cancel·lar",
+        "renamePlaceholder": "Nom del fil",
+        "renameError": "No s'ha pogut renombrar el fil.",
         "quickPrompts": {
           "shorter": "Fes-ho més curt mantenint el missatge principal.",
           "premium": "Dona-li un to més premium sense perdre claredat.",
