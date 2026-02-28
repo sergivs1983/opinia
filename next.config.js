@@ -38,7 +38,12 @@ const nextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
-        { source: '/api/_internal/:path*', destination: '/api/cron/worker/:path*' },
+        { source: '/api/_internal/google/publish', destination: '/api/cron/worker/google/publish' },
+        { source: '/api/_internal/tripadvisor/sync', destination: '/api/cron/worker/tripadvisor/sync' },
+        { source: '/api/_internal/tripadvisor/publish', destination: '/api/cron/worker/tripadvisor/publish' },
+        { source: '/api/_internal/booking/sync', destination: '/api/cron/worker/booking/sync' },
+        { source: '/api/_internal/booking/publish', destination: '/api/cron/worker/booking/publish' },
+        { source: '/api/_internal/rules/run', destination: '/api/internal/rules/run' },
       ],
     };
   },
