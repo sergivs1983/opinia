@@ -40,6 +40,18 @@ type LitoThreadRow = {
   updated_at: string;
 };
 
+type LitoThreadListItem = LitoThreadRow & {
+  messages_count: number;
+  last_message_preview: string;
+};
+
+type LitoMessageListRow = {
+  thread_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at: string;
+};
+
 type RecommendationSeedRow = {
   id: string;
   generated_copy: unknown;
@@ -72,7 +84,7 @@ function normalizeThreadRows(rows: Array<Record<string, unknown>>): LitoThreadRo
     .map((row) => {
       const id = typeof row.id === 'string' ? row.id : null;
       const bizId = typeof row.biz_id === 'string' ? row.biz_id : null;
-      const title = typeof row.title === 'string' ? row.title : 'LITO — Consultes';
+      const title = typeof row.title === 'string' ? row.title : 'Nova conversa';
       const createdAt = typeof row.created_at === 'string' ? row.created_at : new Date(0).toISOString();
       const updatedAt = typeof row.updated_at === 'string' ? row.updated_at : createdAt;
       if (!id || !bizId) return null;
@@ -87,6 +99,34 @@ function normalizeThreadRows(rows: Array<Record<string, unknown>>): LitoThreadRo
       } as LitoThreadRow;
     })
     .filter((row): row is LitoThreadRow => Boolean(row));
+}
+
+function sanitizePreview(value: string): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (!compact) return '';
+  if (compact.length <= 120) return compact;
+  return `${compact.slice(0, 119).trimEnd()}…`;
+}
+
+function buildThreadList(rows: LitoThreadRow[], messagesRows: LitoMessageListRow[]): LitoThreadListItem[] {
+  const countsByThread = new Map<string, number>();
+  const previewByThread = new Map<string, string>();
+
+  for (const row of messagesRows) {
+    const threadId = row.thread_id;
+    if (!threadId) continue;
+    countsByThread.set(threadId, (countsByThread.get(threadId) || 0) + 1);
+
+    if (!previewByThread.has(threadId) && row.role !== 'system') {
+      previewByThread.set(threadId, sanitizePreview(row.content || ''));
+    }
+  }
+
+  return rows.map((thread) => ({
+    ...thread,
+    messages_count: countsByThread.get(thread.id) || 0,
+    last_message_preview: previewByThread.get(thread.id) || '',
+  }));
 }
 
 function parseSeedTemplate(raw: unknown): { hook: string; idea: string; format: 'post' | 'story' | 'reel' } | null {
@@ -117,11 +157,8 @@ function truncateForTitle(value: string, maxLength = 92): string {
 }
 
 function buildGeneralThreadTitle(now = new Date()): string {
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const hour = String(now.getHours()).padStart(2, '0');
-  const minute = String(now.getMinutes()).padStart(2, '0');
-  return `LITO — Consulta · ${day}/${month} ${hour}:${minute}`;
+  void now;
+  return 'Nova conversa';
 }
 
 function buildRecommendationThreadTitle(params: {
@@ -510,10 +547,52 @@ export async function GET(request: Request) {
       );
     }
 
+    const normalizedThreads = normalizeThreadRows((data || []) as Array<Record<string, unknown>>);
+    if (normalizedThreads.length === 0) {
+      return withStandardHeaders(
+        NextResponse.json({
+          ok: true,
+          threads: [],
+          request_id: requestId,
+        }),
+        requestId,
+      );
+    }
+
+    const threadIds = normalizedThreads.map((thread) => thread.id);
+    const { data: messagesData, error: messagesErr } = await admin
+      .from('lito_messages')
+      .select('thread_id, role, content, created_at')
+      .in('thread_id', threadIds)
+      .order('created_at', { ascending: false });
+
+    if (messagesErr) {
+      if (isSchemaDependencyError(messagesErr)) {
+        log.warn('lito_threads_messages_schema_fallback', {
+          error_code: messagesErr.code || null,
+          error: messagesErr.message || null,
+        });
+        return withStandardHeaders(
+          NextResponse.json({
+            ok: true,
+            threads: buildThreadList(normalizedThreads, []),
+            request_id: requestId,
+          }),
+          requestId,
+        );
+      }
+
+      log.error('lito_threads_messages_list_failed', { error_code: messagesErr.code || null, error: messagesErr.message || null });
+      return withStandardHeaders(
+        NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
+        requestId,
+      );
+    }
+
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
-        threads: normalizeThreadRows((data || []) as Array<Record<string, unknown>>),
+        threads: buildThreadList(normalizedThreads, (messagesData || []) as LitoMessageListRow[]),
         request_id: requestId,
       }),
       requestId,

@@ -279,7 +279,9 @@ export async function GET(
       );
     }
 
-    const { count: existingUserMessagesCount, error: countErr } = await supabase
+    const admin = createAdminClient();
+
+    const { count: existingUserMessagesCount, error: countErr } = await admin
       .from('lito_messages')
       .select('id', { count: 'exact', head: true })
       .eq('thread_id', thread.id)
@@ -433,15 +435,16 @@ export async function POST(
       );
     }
 
+    const admin = createAdminClient();
+
     // Count user messages that existed before this insert (for title auto-update)
-    const { count: existingUserMessagesCount } = await supabase
+    const { count: existingUserMessagesCount } = await admin
       .from('lito_messages')
       .select('id', { count: 'exact', head: true })
       .eq('thread_id', thread.id)
       .eq('role', 'user')
       .neq('id', (userMessageData as { id: string }).id);
 
-    const admin = createAdminClient();
     const threadUpdates: Record<string, string> = {
       updated_at: new Date().toISOString(),
     };
