@@ -4,8 +4,10 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { bumpDailyMetric } from '@/lib/metrics';
+import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import {
   validateBody,
   validateQuery,
@@ -61,19 +63,6 @@ type LinkedEntityRow = {
 function toIsoString(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
-}
-
-async function ensureBusinessAccess(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  businessId: string,
-): Promise<boolean> {
-  const { data: businessAccess, error: businessAccessError } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('id', businessId)
-    .single();
-
-  return !businessAccessError && !!businessAccess;
 }
 
 async function validateLinkedEntity(args: {
@@ -163,12 +152,19 @@ export async function GET(request: Request) {
     const rl = await rateLimitStandard(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
 
-    const hasAccess = await ensureBusinessAccess(supabase, businessId);
-    if (!hasAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }));
+    const admin = createAdminClient();
+    const access = await hasAcceptedBusinessMembership({
+      supabase: admin,
+      userId: user.id,
+      businessId,
+    });
+    if (!access.allowed) {
+      return withResponseRequestId(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      );
     }
 
-    let plannerQuery = supabase
+    let plannerQuery = admin
       .from('content_planner_items')
       .select('id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
       .eq('business_id', businessId)
@@ -235,13 +231,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const hasAccess = await ensureBusinessAccess(supabase, payload.businessId);
-    if (!hasAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }));
+    const admin = createAdminClient();
+    const access = await hasAcceptedBusinessMembership({
+      supabase: admin,
+      userId: user.id,
+      businessId: payload.businessId,
+    });
+    if (!access.allowed) {
+      return withResponseRequestId(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      );
     }
 
     const linkedStatus = await validateLinkedEntity({
-      supabase,
+      supabase: admin,
       itemType: payload.itemType,
       suggestionId: payload.suggestionId,
       assetId: payload.assetId,
@@ -266,7 +269,7 @@ export async function POST(request: Request) {
     const title = payload.title.trim();
     const notes = payload.notes ? payload.notes.trim() : null;
 
-    const { data: existingRows, error: existingError } = await supabase
+    const { data: existingRows, error: existingError } = await admin
       .from('content_planner_items')
       .select('id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
       .eq('business_id', payload.businessId)
@@ -294,7 +297,7 @@ export async function POST(request: Request) {
     const assetId = payload.itemType === 'asset' ? payload.assetId || null : null;
     const textPostId = payload.itemType === 'text' ? payload.textPostId || null : null;
 
-    const { data: insertedData, error: insertError } = await supabase
+    const { data: insertedData, error: insertError } = await admin
       .from('content_planner_items')
       .insert({
         business_id: payload.businessId,
