@@ -11,6 +11,7 @@ FAILURES=0
 
 REQ_CODE=""
 REQ_BODY=""
+LOGIN_CODE=""
 
 trim_spaces() {
   printf '%s' "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//'
@@ -46,6 +47,22 @@ perform_request() {
   resp="$(curl -sS -w $'\n%{http_code}' --max-time 25 "$@" 2>/dev/null || true)"
   REQ_CODE="$(printf '%s\n' "$resp" | tail -n 1)"
   REQ_BODY="$(printf '%s\n' "$resp" | sed '$d')"
+}
+
+wait_for_login_ready() {
+  local tries=30
+  local code=""
+  while [ "$tries" -gt 0 ]; do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${BASE}/login" 2>/dev/null || true)"
+    if [ "${code}" = "200" ]; then
+      LOGIN_CODE="${code}"
+      return 0
+    fi
+    tries=$((tries - 1))
+    sleep 1
+  done
+  LOGIN_CODE="${code:-000}"
+  return 1
 }
 
 report_ok() {
@@ -96,7 +113,13 @@ JS
 echo "Flow D1.6 LITO chat send smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
-check_status "Preflight /login" "200" "${BASE}/login"
+if wait_for_login_ready; then
+  report_ok "Preflight /login (HTTP ${LOGIN_CODE})"
+else
+  REQ_CODE="${LOGIN_CODE}"
+  REQ_BODY=""
+  report_fail "Preflight /login (expected 200)"
+fi
 
 echo ""
 echo "1) Auth guards"
@@ -171,4 +194,3 @@ fi
 
 echo "${FAILURES} test(s) failed."
 exit 1
-
