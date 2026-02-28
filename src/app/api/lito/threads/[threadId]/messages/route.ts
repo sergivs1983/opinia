@@ -481,7 +481,7 @@ export async function GET(
       });
     }
 
-    const { data: messagesData, error: messagesErr } = await supabase
+    const { data: messagesData, error: messagesErr } = await admin
       .from('lito_messages')
       .select('id, thread_id, role, content, meta, created_at')
       .eq('thread_id', thread.id)
@@ -559,7 +559,9 @@ export async function POST(
       );
     }
 
-    const { data: userMessageData, error: userMessageErr } = await supabase
+    const admin = createAdminClient();
+
+    const { data: userMessageData, error: userMessageErr } = await admin
       .from('lito_messages')
       .insert({
         thread_id: thread.id,
@@ -615,7 +617,7 @@ export async function POST(
       }
     }
 
-    const { data: assistantMessageData, error: assistantMessageErr } = await supabase
+    const { data: assistantMessageData, error: assistantMessageErr } = await admin
       .from('lito_messages')
       .insert({
         thread_id: thread.id,
@@ -637,8 +639,6 @@ export async function POST(
         requestId,
       );
     }
-
-    const admin = createAdminClient();
 
     // Count user messages that existed before this insert (for title auto-update)
     const { count: existingUserMessagesCount } = await admin
