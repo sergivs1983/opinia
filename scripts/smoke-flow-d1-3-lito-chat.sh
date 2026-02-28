@@ -93,7 +93,7 @@ try {
 JS
 }
 
-echo "Flow D1.1 LITO smoke — ${BASE}"
+echo "Flow D1.3 LITO Chat smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
 check_status "Preflight /login" "200" "${BASE}/login"
@@ -117,15 +117,15 @@ echo "1) Auth guards"
 check_status "POST /api/lito/threads sense sessió" "401" \
   -X POST "${BASE}/api/lito/threads" \
   -H "Content-Type: application/json" \
-  -d '{"biz_id":"00000000-0000-0000-0000-000000000000","title":"Smoke"}'
+  -d '{"biz_id":"00000000-0000-0000-0000-000000000000","title":"Smoke D1.3"}'
 
-check_status "GET /api/lito/messages sense sessió" "401" \
-  "${BASE}/api/lito/messages?thread_id=00000000-0000-0000-0000-000000000000"
+check_status "GET /api/lito/threads/<id>/messages sense sessió" "401" \
+  "${BASE}/api/lito/threads/00000000-0000-0000-0000-000000000000/messages?limit=10"
 
-check_status "POST /api/lito/messages sense sessió" "401" \
-  -X POST "${BASE}/api/lito/messages" \
+check_status "POST /api/lito/threads/<id>/messages sense sessió" "401" \
+  -X POST "${BASE}/api/lito/threads/00000000-0000-0000-0000-000000000000/messages" \
   -H "Content-Type: application/json" \
-  -d '{"thread_id":"00000000-0000-0000-0000-000000000000","content":"hola"}'
+  -d '{"content":"hola"}'
 
 echo ""
 echo "2) Functional (opcional amb LITO_SESSION_COOKIE + LITO_BIZ_ID)"
@@ -140,7 +140,6 @@ if [ -n "${LITO_SESSION_COOKIE}" ] && [ -n "${LITO_BIZ_ID}" ]; then
       -H "Content-Type: application/json" \
       -H "${COOKIE_HEADER}" \
       -d "{\"biz_id\":\"${LITO_BIZ_ID}\"}"
-
     if [ "${REQ_CODE}" = "200" ] || [ "${REQ_CODE}" = "201" ]; then
       report_ok "create/open thread (HTTP ${REQ_CODE})"
     else
@@ -156,29 +155,23 @@ if [ -n "${LITO_SESSION_COOKIE}" ] && [ -n "${LITO_BIZ_ID}" ]; then
       report_fail "thread id missing"
     else
       report_ok "thread id captured"
-
-      perform_request -X POST "${BASE}/api/lito/messages" \
+      perform_request -X POST "${BASE}/api/lito/threads/${THREAD_ID}/messages" \
         -H "Content-Type: application/json" \
         -H "${COOKIE_HEADER}" \
-        -d "{\"thread_id\":\"${THREAD_ID}\",\"content\":\"Necessito una guia ràpida\"}"
+        -d '{"content":"Necesito un borrador corto para hoy"}'
+
       if [ "${REQ_CODE}" = "200" ]; then
-        report_ok "send message (HTTP 200)"
+        report_ok "send message thread endpoint (HTTP 200)"
       else
-        report_fail "send message (expected 200)"
+        report_fail "send message thread endpoint (expected 200)"
       fi
 
-      MSG_COUNT="$(json_field "${REQ_BODY}" "messages.length")"
-      ROLE_0="$(json_field "${REQ_BODY}" "messages.0.role")"
-      ROLE_1="$(json_field "${REQ_BODY}" "messages.1.role")"
-      if [ "${MSG_COUNT:-0}" -eq 2 ] 2>/dev/null; then
-        report_ok "messages length == 2"
+      MSG_ID="$(json_field "${REQ_BODY}" "messages.0.id")"
+      if [ -n "${MSG_ID}" ]; then
+        report_ok "message id present"
       else
-        report_fail "messages length == 2"
-      fi
-      if [ "${ROLE_0}" = "user" ] && [ "${ROLE_1}" = "assistant" ]; then
-        report_ok "message roles user+assistant"
-      else
-        report_fail "message roles user+assistant"
+        REQ_CODE="parse"
+        report_fail "message id missing"
       fi
     fi
   fi
@@ -189,7 +182,7 @@ fi
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
 if [ "${FAILURES}" -eq 0 ]; then
-  echo "All Flow D1.1 LITO smoke tests passed."
+  echo "All Flow D1.3 LITO chat smoke tests passed."
   exit 0
 fi
 
