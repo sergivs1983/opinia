@@ -736,6 +736,12 @@
           "funny": "Fes-ho més proper i amb to més humà."
         }
       },
+      "command": {
+        "threadPreviewTitle": "Mini thread",
+        "openChat": "Obrir xat",
+        "noThreads": "Sense fils",
+        "emptyPreview": "Encara no hi ha missatges en aquest fil."
+      },
       "workbench": {
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomanació o obre un fil general.",

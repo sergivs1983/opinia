@@ -736,6 +736,12 @@
           "funny": "Make it warmer and more human."
         }
       },
+      "command": {
+        "threadPreviewTitle": "Mini thread",
+        "openChat": "Open chat",
+        "noThreads": "No threads",
+        "emptyPreview": "No messages in this thread yet."
+      },
       "workbench": {
         "title": "Workbench",
         "emptyTitle": "Select a recommendation or open a general thread.",

@@ -736,6 +736,12 @@
           "funny": "Hazlo más cercano y con un tono más humano."
         }
       },
+      "command": {
+        "threadPreviewTitle": "Mini hilo",
+        "openChat": "Abrir chat",
+        "noThreads": "Sin hilos",
+        "emptyPreview": "Aún no hay mensajes en este hilo."
+      },
       "workbench": {
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomendación o abre un hilo general.",
