@@ -141,7 +141,7 @@ begin
   from public.organizations o
   where o.id = new.org_id;
 
-  role_text := lower(coalesce(new.role::text, ''));
+  role_text := coalesce(new.role::text, '');
 
   if coalesce(org_plan, 'starter_49') = 'starter_49' and role_text = 'admin' then
     raise exception using

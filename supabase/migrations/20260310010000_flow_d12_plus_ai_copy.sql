@@ -120,7 +120,7 @@ begin
   end if;
 
   v_uid := auth.uid();
-  v_role := lower(coalesce(current_setting('request.jwt.claim.role', true), ''));
+  v_role := coalesce(current_setting('request.jwt.claim.role', true), '');
 
   if v_uid is null and v_role <> 'service_role' then
     return jsonb_build_object(

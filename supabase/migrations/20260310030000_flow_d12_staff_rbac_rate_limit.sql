@@ -55,11 +55,11 @@ alter table public.lito_copy_jobs
   add column if not exists role text null;
 
 update public.lito_copy_jobs
-set role = 'responder'
+set role = 'staff'
 where role is null;
 
 alter table public.lito_copy_jobs
-  alter column role set default 'responder';
+  alter column role set default 'staff';
 
 alter table public.lito_copy_jobs
   alter column role set not null;
@@ -74,7 +74,7 @@ begin
   ) then
     alter table public.lito_copy_jobs
       add constraint lito_copy_jobs_role_check
-      check (lower(role) in ('owner', 'admin', 'manager', 'responder', 'staff'));
+      check (role in ('owner', 'manager', 'staff'));
   end if;
 end $$;
 

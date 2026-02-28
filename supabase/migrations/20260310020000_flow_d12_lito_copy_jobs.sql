@@ -74,7 +74,7 @@ create policy "lito_copy_jobs_select_authenticated_scope"
       where m.org_id = lito_copy_jobs.org_id
         and m.user_id = auth.uid()
         and m.accepted_at is not null
-        and lower(m.role) in ('owner', 'admin')
+        and m.role in ('owner'::public.member_role, 'manager'::public.member_role)
     )
   );
 

@@ -89,6 +89,8 @@ create table if not exists public.ai_quotas_monthly (
 create index if not exists idx_ai_quotas_monthly_month
   on public.ai_quotas_monthly (month_start desc);
 
+drop function if exists public.consume_draft_quota(uuid, date, integer);
+
 create or replace function public.consume_draft_quota(
   p_org_id uuid,
   p_month_start date default (date_trunc('month', now())::date),
@@ -122,7 +124,7 @@ begin
     where m.org_id = p_org_id
       and m.user_id = v_uid
       and m.accepted_at is not null
-      and lower(m.role) in ('owner', 'admin', 'manager', 'responder')
+      and m.role in ('owner'::public.member_role, 'manager'::public.member_role, 'staff'::public.member_role)
   ) then
     raise exception 'not_allowed' using errcode = '42501';
   end if;
@@ -227,7 +229,7 @@ create policy "biz_insights_daily_select_member_scope"
       where m.org_id = biz_insights_daily.org_id
         and m.user_id = auth.uid()
         and m.accepted_at is not null
-        and lower(m.role) in ('owner', 'admin')
+        and m.role in ('owner'::public.member_role, 'manager'::public.member_role)
     )
   );
 
@@ -321,7 +323,7 @@ create policy "recommendation_log_select_user_biz_scope"
       where m.org_id = recommendation_log.org_id
         and m.user_id = auth.uid()
         and m.accepted_at is not null
-        and lower(m.role) in ('owner', 'admin')
+        and m.role in ('owner'::public.member_role, 'manager'::public.member_role)
     )
   );
 
@@ -345,7 +347,7 @@ create policy "recommendation_log_update_user_biz_scope"
       where m.org_id = recommendation_log.org_id
         and m.user_id = auth.uid()
         and m.accepted_at is not null
-        and lower(m.role) in ('owner', 'admin')
+        and m.role in ('owner'::public.member_role, 'manager'::public.member_role)
     )
   )
   with check (
@@ -363,7 +365,7 @@ create policy "recommendation_log_update_user_biz_scope"
       where m.org_id = recommendation_log.org_id
         and m.user_id = auth.uid()
         and m.accepted_at is not null
-        and lower(m.role) in ('owner', 'admin')
+        and m.role in ('owner'::public.member_role, 'manager'::public.member_role)
     )
   );
 
