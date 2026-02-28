@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   ensureAndGetWeeklyRecommendations,
@@ -34,6 +34,7 @@ type BusinessLookupRow = {
   id: string;
   org_id: string;
   type: string | null;
+  default_language: string | null;
 };
 
 export async function POST(
@@ -80,7 +81,7 @@ export async function POST(
     }
 
     const logRow = logRowData as RecommendationLogLookupRow;
-    const access = await hasAcceptedBusinessMembership({
+    const access = await getAcceptedBusinessMembershipContext({
       supabase,
       userId: user.id,
       businessId: logRow.biz_id,
@@ -88,6 +89,20 @@ export async function POST(
     if (!access.allowed) {
       return withHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      );
+    }
+    const memberRole = access.role || 'responder';
+
+    if (body.status === 'published' && memberRole === 'staff') {
+      return withHeaders(
+        NextResponse.json(
+          {
+            error: 'forbidden',
+            message: "No tens permís per marcar aquesta recomanació com a publicada.",
+            request_id: requestId,
+          },
+          { status: 403 },
+        ),
       );
     }
 
@@ -121,7 +136,7 @@ export async function POST(
 
     const { data: businessData, error: businessError } = await admin
       .from('businesses')
-      .select('id, org_id, type')
+      .select('id, org_id, type, default_language')
       .eq('id', logRow.biz_id)
       .single();
 
@@ -166,6 +181,7 @@ export async function POST(
       orgId: business.org_id,
       vertical,
       weekStart: logRow.week_start,
+      businessDefaultLanguage: business.default_language,
     });
 
     const newRecommendation = items.find((item) => !visibleBeforeIds.has(item.id)) || null;
@@ -209,6 +225,9 @@ function toReplacementPayload(item: WeeklyRecommendationItem) {
     hook: item.hook,
     idea: item.idea,
     cta: item.cta,
+    how_to: item.how_to,
+    signal_meta: item.signal_meta,
+    language: item.language,
     recommendation_template: item.recommendation_template,
   };
 }

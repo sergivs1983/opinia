@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
 import {
   acquireLitoCopyJob,
   buildIdempotencyKey,
@@ -23,6 +23,7 @@ import {
   type LitoGeneratedCopy,
 } from '@/lib/ai/lito-copy';
 import { consumeQuota } from '@/lib/ai/quota';
+import { consumeStaffDailyAction } from '@/lib/ai/staff-rate-limit';
 import { getAIProviderState } from '@/lib/ai/provider';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
@@ -244,11 +245,11 @@ export async function POST(request: Request) {
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof GenerateBodySchema>;
 
-    const access = await hasAcceptedBusinessMembership({
+    const access = await getAcceptedBusinessMembershipContext({
       supabase,
       userId: user.id,
       businessId: payload.biz_id,
-      allowedRoles: ['owner', 'admin', 'manager', 'responder'],
+      allowedRoles: ['owner', 'admin', 'manager', 'responder', 'staff'],
     });
     if (!access.allowed) {
       return withStandardHeaders(
@@ -256,6 +257,7 @@ export async function POST(request: Request) {
         requestId,
       );
     }
+    const memberRole = access.role || 'responder';
 
     const admin = createAdminClient();
     const [{ data: recommendationData, error: recommendationErr }, { data: businessData, error: businessErr }] = await Promise.all([
@@ -324,6 +326,8 @@ export async function POST(request: Request) {
       orgId: recommendation.org_id,
       bizId: recommendation.biz_id,
       recommendationId: recommendation.id,
+      userId: user.id,
+      role: memberRole,
       action: 'generate',
       idempotencyKey,
     });
@@ -374,6 +378,43 @@ export async function POST(request: Request) {
 
     jobId = jobAcquire.jobId;
     const activeJobId = jobAcquire.jobId;
+
+    if (memberRole === 'staff') {
+      const staffLimit = await consumeStaffDailyAction({
+        admin,
+        userId: user.id,
+        limit: 10,
+      });
+      if (!staffLimit.ok) {
+        await markLitoCopyJobFailed({
+          admin,
+          jobId: activeJobId,
+          error: staffLimit.reason,
+        });
+        if (staffLimit.reason === 'staff_daily_limit') {
+          return withStandardHeaders(
+            NextResponse.json(
+              {
+                error: 'staff_daily_limit',
+                message: "Has arribat al límit diari d'accions de LITO.",
+                limit: staffLimit.limit,
+                used: staffLimit.used,
+                request_id: requestId,
+              },
+              { status: 429 },
+            ),
+            requestId,
+          );
+        }
+        return withStandardHeaders(
+          NextResponse.json(
+            { error: 'internal', message: "No s'ha pogut validar el límit diari.", request_id: requestId },
+            { status: 500 },
+          ),
+          requestId,
+        );
+      }
+    }
 
     if (!providerState.available) {
       await markLitoCopyJobFailed({

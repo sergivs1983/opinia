@@ -96,6 +96,7 @@ type WeeklyRecommendationItem = {
 type WeeklyRecommendationsPayload = {
   week_start?: string;
   items?: WeeklyRecommendationItem[];
+  viewer_role?: 'owner' | 'admin' | 'manager' | 'responder' | 'staff' | null;
   error?: string;
   message?: string;
   request_id?: string;
@@ -171,6 +172,7 @@ export default function DashboardPage() {
   const [weeklyRecommendations, setWeeklyRecommendations] = useState<WeeklyRecommendationItem[]>([]);
   const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
   const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
+  const [weeklyViewerRole, setWeeklyViewerRole] = useState<'owner' | 'admin' | 'manager' | 'responder' | 'staff' | null>(null);
   const [litoOpen, setLitoOpen] = useState(false);
   const [litoRecommendation, setLitoRecommendation] = useState<WeeklyRecommendationItem | null>(null);
 
@@ -257,6 +259,7 @@ export default function DashboardPage() {
           throw new Error(payload.message || t('dashboard.home.recommendations.loadError'));
         }
         if (cancelled) return;
+        setWeeklyViewerRole(payload.viewer_role || null);
         setWeeklyRecommendations(
           (payload.items || [])
             .map((item) => normalizeRecommendationItem(item))
@@ -265,6 +268,7 @@ export default function DashboardPage() {
       })
       .catch(() => {
         if (cancelled) return;
+        setWeeklyViewerRole(null);
         setWeeklyRecommendations([]);
       })
       .finally(() => {
@@ -666,6 +670,8 @@ export default function DashboardPage() {
         businessName={biz?.name || null}
         recommendation={litoRecommendation}
         onMarkPublished={handleMarkRecommendationPublished}
+        publishing={Boolean(litoRecommendation?.id && weeklyRecommendationActionById[litoRecommendation.id])}
+        canMarkPublished={weeklyViewerRole !== 'staff'}
       />
 
       <PublishSuccessModal

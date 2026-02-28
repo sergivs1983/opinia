@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   ensureAndGetWeeklyRecommendations,
@@ -23,6 +23,7 @@ type BusinessRow = {
   id: string;
   org_id: string;
   type: string | null;
+  default_language: string | null;
 };
 
 export async function GET(request: Request) {
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const access = await hasAcceptedBusinessMembership({
+    const access = await getAcceptedBusinessMembershipContext({
       supabase,
       userId: user.id,
       businessId: payload.biz_id,
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
-      .select('id, org_id, type')
+      .select('id, org_id, type, default_language')
       .eq('id', payload.biz_id)
       .single();
 
@@ -86,12 +87,14 @@ export async function GET(request: Request) {
       orgId: business.org_id,
       vertical,
       weekStart,
+      businessDefaultLanguage: business.default_language,
     });
 
     return withHeaders(
       NextResponse.json({
         week_start: weekStart,
         items,
+        viewer_role: access.role || null,
         request_id: requestId,
       }),
     );

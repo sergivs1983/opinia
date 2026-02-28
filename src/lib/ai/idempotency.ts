@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { MemberRole } from '@/types/database';
 
 export type LitoCopyAction = 'generate' | 'refine';
 
@@ -61,6 +62,8 @@ export async function acquireLitoCopyJob(params: {
   orgId: string;
   bizId: string;
   recommendationId: string;
+  userId: string;
+  role: MemberRole;
   action: LitoCopyAction;
   idempotencyKey: string;
   retryAfterMs?: number;
@@ -74,6 +77,8 @@ export async function acquireLitoCopyJob(params: {
       org_id: params.orgId,
       biz_id: params.bizId,
       recommendation_id: params.recommendationId,
+      user_id: params.userId,
+      role: params.role,
       action: params.action,
       idempotency_key: params.idempotencyKey,
       status: 'running',

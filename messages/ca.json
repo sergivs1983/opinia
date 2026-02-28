@@ -649,7 +649,8 @@
             "translateEn": "Passar a EN"
           },
           "inFlightToast": "LITO està generant el copy… (uns segons)",
-          "pollTimeout": "No hem rebut el copy encara. Torna-ho a provar."
+          "pollTimeout": "No hem rebut el copy encara. Torna-ho a provar.",
+          "staffDraftOnly": "Aquest text queda en esborrany. Envia'l a un manager si cal aprovació."
         },
         "errors": {
           "howtoLoadFailed": "No s'ha pogut carregar la guia."

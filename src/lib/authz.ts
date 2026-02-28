@@ -47,6 +47,13 @@ type BusinessAssignmentRow = {
   is_active: boolean;
 };
 
+type BusinessMembershipContext = {
+  allowed: boolean;
+  orgId: string | null;
+  role: MemberRole | null;
+  normalizedRole: CanonicalMemberRole | null;
+};
+
 function isMissingBusinessMembershipTable(error: unknown): boolean {
   const message = ((error as { message?: string })?.message || '').toLowerCase();
   return message.includes('business_memberships')
@@ -62,6 +69,15 @@ function parseAdminEmails(raw: string | undefined): Set<string> {
       .map((entry) => entry.trim().toLowerCase())
       .filter(Boolean),
   );
+}
+
+function normalizeRawMemberRole(role: string | null | undefined): MemberRole {
+  const normalized = (role || '').trim().toLowerCase();
+  if (normalized === 'owner') return 'owner';
+  if (normalized === 'admin') return 'admin';
+  if (normalized === 'manager') return 'manager';
+  if (normalized === 'staff') return 'staff';
+  return 'responder';
 }
 
 export function isAdminViewer({ user }: AdminViewerInput): boolean {
@@ -128,6 +144,25 @@ export async function hasAcceptedBusinessMembership({
   businessId,
   allowedRoles,
 }: BusinessMembershipCheckInput): Promise<{ allowed: boolean; orgId: string | null }> {
+  const context = await getAcceptedBusinessMembershipContext({
+    supabase,
+    userId,
+    businessId,
+    allowedRoles,
+  });
+
+  return {
+    allowed: context.allowed,
+    orgId: context.orgId,
+  };
+}
+
+export async function getAcceptedBusinessMembershipContext({
+  supabase,
+  userId,
+  businessId,
+  allowedRoles,
+}: BusinessMembershipCheckInput): Promise<BusinessMembershipContext> {
   const { data: businessData, error: businessError } = await supabase
     .from('businesses')
     .select('id, org_id')
@@ -135,7 +170,7 @@ export async function hasAcceptedBusinessMembership({
     .single();
 
   if (businessError || !businessData) {
-    return { allowed: false, orgId: null };
+    return { allowed: false, orgId: null, role: null, normalizedRole: null };
   }
 
   const business = businessData as BusinessOrgRow;
@@ -149,15 +184,22 @@ export async function hasAcceptedBusinessMembership({
     .maybeSingle();
 
   if (orgMembershipError || !orgMembershipData) {
-    return { allowed: false, orgId: business.org_id };
+    return { allowed: false, orgId: business.org_id, role: null, normalizedRole: null };
   }
 
-  const orgRole = normalizeMemberRole((orgMembershipData as OrgMembershipRow).role);
-  const isOrgAdminRole = orgRole === 'owner' || orgRole === 'admin';
+  const orgMembership = orgMembershipData as OrgMembershipRow;
+  const orgRoleRaw = normalizeRawMemberRole(orgMembership.role);
+  const orgRole = normalizeMemberRole(orgRoleRaw);
+  const isOrgAdminRole = orgRoleRaw === 'owner' || orgRoleRaw === 'admin';
 
   if (!allowedRoles || allowedRoles.length === 0) {
     if (isOrgAdminRole) {
-      return { allowed: true, orgId: business.org_id };
+      return {
+        allowed: true,
+        orgId: business.org_id,
+        role: orgRoleRaw,
+        normalizedRole: orgRole,
+      };
     }
 
     const { data: assignmentData, error: assignmentError } = await supabase
@@ -172,17 +214,41 @@ export async function hasAcceptedBusinessMembership({
 
     if (assignmentError) {
       if (isMissingBusinessMembershipTable(assignmentError)) {
-        return { allowed: true, orgId: business.org_id };
+        return {
+          allowed: true,
+          orgId: business.org_id,
+          role: orgRoleRaw,
+          normalizedRole: orgRole,
+        };
       }
-      return { allowed: false, orgId: business.org_id };
+      return { allowed: false, orgId: business.org_id, role: null, normalizedRole: null };
     }
 
-    return { allowed: Boolean(assignmentData), orgId: business.org_id };
+    const assignment = assignmentData as BusinessAssignmentRow | null;
+    if (!assignment) {
+      return { allowed: false, orgId: business.org_id, role: null, normalizedRole: null };
+    }
+
+    const roleOverrideRaw = assignment.role_override ? normalizeRawMemberRole(assignment.role_override) : null;
+    const effectiveRoleRaw = roleOverrideRaw || orgRoleRaw;
+    const effectiveRole = normalizeMemberRole(effectiveRoleRaw);
+
+    return {
+      allowed: true,
+      orgId: business.org_id,
+      role: effectiveRoleRaw,
+      normalizedRole: effectiveRole,
+    };
   }
 
   const normalizedAllowedRoles = allowedRoles.map((role) => normalizeMemberRole(role));
   if (isOrgAdminRole && normalizedAllowedRoles.includes(orgRole)) {
-    return { allowed: true, orgId: business.org_id };
+    return {
+      allowed: true,
+      orgId: business.org_id,
+      role: orgRoleRaw,
+      normalizedRole: orgRole,
+    };
   }
 
   const { data: assignmentData, error: assignmentError } = await supabase
@@ -198,21 +264,30 @@ export async function hasAcceptedBusinessMembership({
   if (assignmentError) {
     if (isMissingBusinessMembershipTable(assignmentError)) {
       const fallbackAllowed = normalizedAllowedRoles.includes(orgRole);
-      return { allowed: fallbackAllowed, orgId: business.org_id };
+      return {
+        allowed: fallbackAllowed,
+        orgId: business.org_id,
+        role: fallbackAllowed ? orgRoleRaw : null,
+        normalizedRole: fallbackAllowed ? orgRole : null,
+      };
     }
-    return { allowed: false, orgId: business.org_id };
+    return { allowed: false, orgId: business.org_id, role: null, normalizedRole: null };
   }
 
   const assignment = assignmentData as BusinessAssignmentRow | null;
   if (!assignment) {
-    return { allowed: false, orgId: business.org_id };
+    return { allowed: false, orgId: business.org_id, role: null, normalizedRole: null };
   }
 
-  const effectiveRole = normalizeMemberRole(assignment.role_override || orgRole);
+  const roleOverrideRaw = assignment.role_override ? normalizeRawMemberRole(assignment.role_override) : null;
+  const effectiveRoleRaw = roleOverrideRaw || orgRoleRaw;
+  const effectiveRole = normalizeMemberRole(effectiveRoleRaw);
   const hasMembership = normalizedAllowedRoles.includes(effectiveRole);
 
   return {
     allowed: hasMembership,
     orgId: business.org_id,
+    role: hasMembership ? effectiveRoleRaw : null,
+    normalizedRole: hasMembership ? effectiveRole : null,
   };
 }

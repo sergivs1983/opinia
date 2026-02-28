@@ -89,6 +89,7 @@ type LitoAssistDrawerProps = {
   recommendation?: RecommendationInput | null;
   onMarkPublished?: (recommendationId: string) => Promise<void> | void;
   publishing?: boolean;
+  canMarkPublished?: boolean;
 };
 
 function normalizedFormat(value: string | undefined): 'post' | 'story' | 'reel' {
@@ -104,6 +105,7 @@ export default function LitoAssistDrawer({
   recommendation,
   onMarkPublished,
   publishing = false,
+  canMarkPublished = true,
 }: LitoAssistDrawerProps) {
   const t = useT();
   const { toast } = useToast();
@@ -610,7 +612,9 @@ export default function LitoAssistDrawer({
           <footer className="border-t border-white/10 px-5 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className={cn('text-xs', textSub)}>
-                {t('dashboard.home.recommendations.lito.footerHint')}
+                {canMarkPublished
+                  ? t('dashboard.home.recommendations.lito.footerHint')
+                  : t('dashboard.home.recommendations.lito.staffDraftOnly')}
               </p>
               <Button
                 size="sm"
@@ -619,7 +623,7 @@ export default function LitoAssistDrawer({
                   if (!recommendation?.id || !onMarkPublished) return;
                   void onMarkPublished(recommendation.id);
                 }}
-                disabled={!recommendation?.id || !onMarkPublished}
+                disabled={!recommendation?.id || !onMarkPublished || !canMarkPublished}
               >
                 {t('dashboard.home.recommendations.lito.actions.markPublished')}
               </Button>
