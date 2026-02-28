@@ -38,6 +38,12 @@ type LitoThreadRow = {
   updated_at: string;
 };
 
+type RecommendationSeedRow = {
+  id: string;
+  generated_copy: unknown;
+  format: string | null;
+};
+
 const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
@@ -79,6 +85,117 @@ function normalizeThreadRows(rows: Array<Record<string, unknown>>): LitoThreadRo
       } as LitoThreadRow;
     })
     .filter((row): row is LitoThreadRow => Boolean(row));
+}
+
+function parseSeedTemplate(raw: unknown): { hook: string; idea: string; format: 'post' | 'story' | 'reel' } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const hook = typeof obj.hook === 'string' ? obj.hook.trim() : '';
+  const idea = typeof obj.idea === 'string' ? obj.idea.trim() : '';
+  const formatRaw = typeof obj.format === 'string' ? obj.format.toLowerCase().trim() : 'post';
+  const format = formatRaw === 'story' || formatRaw === 'reel' ? formatRaw : 'post';
+  if (!hook && !idea) return null;
+  return {
+    hook: hook || 'Hi ha una oportunitat clara aquesta setmana.',
+    idea: idea || 'Podem convertir-la en una peça fàcil d’executar.',
+    format,
+  };
+}
+
+function toFormatLabel(format: 'post' | 'story' | 'reel'): 'Post' | 'Story' | 'Reel' {
+  if (format === 'story') return 'Story';
+  if (format === 'reel') return 'Reel';
+  return 'Post';
+}
+
+function buildRecommendationIntroMessage(seed: { hook: string; idea: string; format: 'post' | 'story' | 'reel' }): string {
+  return [
+    `He detectat una oportunitat aquesta setmana: ${seed.hook}`,
+    seed.idea,
+    '',
+    `Vols que la convertim en un ${toFormatLabel(seed.format)}, una Story o un Reel?`,
+  ].join('\n');
+}
+
+async function ensureRecommendationKickoffMessage(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  bizId: string;
+  recommendationId: string;
+  threadId: string;
+  requestId: string;
+  log: ReturnType<typeof createLogger>;
+}): Promise<void> {
+  const { data: existingMessagesData, error: existingMessagesErr } = await params.admin
+    .from('lito_messages')
+    .select('id')
+    .eq('thread_id', params.threadId)
+    .limit(1);
+
+  if (existingMessagesErr) {
+    params.log.warn('lito_thread_seed_messages_probe_failed', {
+      request_id: params.requestId,
+      thread_id: params.threadId,
+      error_code: existingMessagesErr.code || null,
+      error: existingMessagesErr.message || null,
+    });
+    return;
+  }
+
+  if ((existingMessagesData || []).length > 0) return;
+
+  const { data: recommendationData, error: recommendationErr } = await params.admin
+    .from('recommendation_log')
+    .select('id, generated_copy, format')
+    .eq('id', params.recommendationId)
+    .eq('biz_id', params.bizId)
+    .maybeSingle();
+
+  if (recommendationErr || !recommendationData) {
+    params.log.warn('lito_thread_seed_recommendation_lookup_failed', {
+      request_id: params.requestId,
+      thread_id: params.threadId,
+      recommendation_id: params.recommendationId,
+      error_code: recommendationErr?.code || null,
+      error: recommendationErr?.message || null,
+    });
+    return;
+  }
+
+  const recommendation = recommendationData as RecommendationSeedRow;
+  const parsed = parseSeedTemplate(recommendation.generated_copy);
+  const formatFromColumn = recommendation.format === 'story' || recommendation.format === 'reel'
+    ? recommendation.format
+    : 'post';
+
+  const seed = parsed || {
+    hook: 'Hi ha una oportunitat aquesta setmana per explicar una cosa que el client valora.',
+    idea: 'Et proposo una peça curta i accionable per publicar avui mateix.',
+    format: formatFromColumn,
+  };
+
+  const introMessage = buildRecommendationIntroMessage(seed);
+  const { error: insertErr } = await params.admin
+    .from('lito_messages')
+    .insert({
+      thread_id: params.threadId,
+      role: 'assistant',
+      content: introMessage,
+      meta: {
+        type: 'recommendation_intro',
+        recommendation_id: params.recommendationId,
+        suggested_format: seed.format,
+      },
+    });
+
+  if (insertErr) {
+    params.log.warn('lito_thread_seed_message_insert_failed', {
+      request_id: params.requestId,
+      thread_id: params.threadId,
+      recommendation_id: params.recommendationId,
+      error_code: insertErr.code || null,
+      error: insertErr.message || null,
+    });
+  }
 }
 
 export async function POST(request: Request) {
@@ -142,6 +259,14 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (existingData) {
+        await ensureRecommendationKickoffMessage({
+          admin,
+          bizId: payload.biz_id,
+          recommendationId,
+          threadId: (existingData as LitoThreadRow).id,
+          requestId,
+          log,
+        });
         return withStandardHeaders(
           NextResponse.json({
             ok: true,
@@ -180,6 +305,14 @@ export async function POST(request: Request) {
           .maybeSingle();
 
         if (conflictData) {
+          await ensureRecommendationKickoffMessage({
+            admin,
+            bizId: payload.biz_id,
+            recommendationId,
+            threadId: (conflictData as LitoThreadRow).id,
+            requestId,
+            log,
+          });
           return withStandardHeaders(
             NextResponse.json({
               ok: true,
@@ -200,6 +333,17 @@ export async function POST(request: Request) {
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
         requestId,
       );
+    }
+
+    if (recommendationId) {
+      await ensureRecommendationKickoffMessage({
+        admin,
+        bizId: payload.biz_id,
+        recommendationId,
+        threadId: (insertedData as LitoThreadRow).id,
+        requestId,
+        log,
+      });
     }
 
     return withStandardHeaders(
