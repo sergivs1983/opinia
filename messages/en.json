@@ -723,6 +723,19 @@
         "generalThreadTitle": "LITO — Questions",
         "recommendationThreadTitle": "LITO — Recommendation"
       },
+      "chat": {
+        "title": "LITO Chat",
+        "subtitle": "Direct conversation with LITO, without distractions.",
+        "openCommandCenter": "Open command center",
+        "threadLabel": "Thread",
+        "newThread": "New thread",
+        "emptyThreads": "No threads available",
+        "quickPrompts": {
+          "shorter": "Make it shorter while keeping the main message.",
+          "premium": "Give it a more premium tone without losing clarity.",
+          "funny": "Make it warmer and more human."
+        }
+      },
       "workbench": {
         "title": "Workbench",
         "emptyTitle": "Select a recommendation or open a general thread.",

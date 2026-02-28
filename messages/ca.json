@@ -723,6 +723,19 @@
         "generalThreadTitle": "LITO — Consultes",
         "recommendationThreadTitle": "LITO — Recomanació"
       },
+      "chat": {
+        "title": "LITO Chat",
+        "subtitle": "Conversa directa amb LITO, sense distraccions.",
+        "openCommandCenter": "Obrir sala de comandaments",
+        "threadLabel": "Fil",
+        "newThread": "Nou fil",
+        "emptyThreads": "Sense fils disponibles",
+        "quickPrompts": {
+          "shorter": "Fes-ho més curt mantenint el missatge principal.",
+          "premium": "Dona-li un to més premium sense perdre claredat.",
+          "funny": "Fes-ho més proper i amb to més humà."
+        }
+      },
       "workbench": {
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomanació o obre un fil general.",

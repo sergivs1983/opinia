@@ -723,6 +723,19 @@
         "generalThreadTitle": "LITO — Consultas",
         "recommendationThreadTitle": "LITO — Recomendación"
       },
+      "chat": {
+        "title": "LITO Chat",
+        "subtitle": "Conversación directa con LITO, sin distracciones.",
+        "openCommandCenter": "Abrir sala de mandos",
+        "threadLabel": "Hilo",
+        "newThread": "Nuevo hilo",
+        "emptyThreads": "Sin hilos disponibles",
+        "quickPrompts": {
+          "shorter": "Hazlo más corto manteniendo el mensaje principal.",
+          "premium": "Dale un tono más premium sin perder claridad.",
+          "funny": "Hazlo más cercano y con un tono más humano."
+        }
+      },
       "workbench": {
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomendación o abre un hilo general.",
