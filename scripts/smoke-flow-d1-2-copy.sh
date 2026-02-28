@@ -6,6 +6,8 @@ FLOW_D12_BIZ_ID="${FLOW_D12_BIZ_ID:-}"
 FLOW_D12_RECOMMENDATION_ID="${FLOW_D12_RECOMMENDATION_ID:-}"
 FLOW_D12_SESSION_COOKIE="${FLOW_D12_SESSION_COOKIE:-}"
 FLOW_D12_ORG_ID="${FLOW_D12_ORG_ID:-}"
+FLOW_D12_STAFF_COOKIE="${FLOW_D12_STAFF_COOKIE:-}"
+FLOW_D12_EXPECT_STAFF_PAUSED="${FLOW_D12_EXPECT_STAFF_PAUSED:-0}"
 
 PASS="PASS"
 FAIL="FAIL"
@@ -338,6 +340,35 @@ if [ -n "${FLOW_D12_SESSION_COOKIE}" ] && [ -n "${FLOW_D12_BIZ_ID}" ] && [ -n "$
   fi
 else
   report_ok "functional SKIP (defineix FLOW_D12_SESSION_COOKIE + FLOW_D12_BIZ_ID + FLOW_D12_RECOMMENDATION_ID)"
+fi
+
+echo ""
+echo "3) Staff paused guard (opcional)"
+if [ "${FLOW_D12_EXPECT_STAFF_PAUSED}" = "1" ] && [ -n "${FLOW_D12_STAFF_COOKIE}" ] && [ -n "${FLOW_D12_BIZ_ID}" ] && [ -n "${FLOW_D12_RECOMMENDATION_ID}" ]; then
+  STAFF_COOKIE_HEADER="$(normalize_cookie_header "${FLOW_D12_STAFF_COOKIE}" || true)"
+  if [ -z "${STAFF_COOKIE_HEADER}" ]; then
+    REQ_CODE="cookie"
+    REQ_BODY="FLOW_D12_STAFF_COOKIE invàlida"
+    report_fail "staff paused guard (cookie invàlida)"
+  else
+    perform_request -X POST "${BASE}/api/lito/copy/generate" \
+      -H "Content-Type: application/json" \
+      -H "${STAFF_COOKIE_HEADER}" \
+      -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\"}"
+    if [ "${REQ_CODE}" = "403" ]; then
+      err_code="$(json_field "${REQ_BODY}" "error")"
+      err_reason="$(json_field "${REQ_BODY}" "reason")"
+      if [ "${err_code}" = "feature_locked" ] && [ "${err_reason}" = "paused" ]; then
+        report_ok "staff paused guard (403 feature_locked reason=paused)"
+      else
+        report_fail "staff paused guard (403 però payload incorrecte)"
+      fi
+    else
+      report_fail "staff paused guard (expected 403)"
+    fi
+  fi
+else
+  report_ok "staff paused guard SKIP (defineix FLOW_D12_EXPECT_STAFF_PAUSED=1 + FLOW_D12_STAFF_COOKIE)"
 fi
 
 echo ""
