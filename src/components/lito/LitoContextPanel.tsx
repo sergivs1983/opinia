@@ -123,11 +123,20 @@ export default function LitoContextPanel({
                     : 'border-white/8 bg-white/4 hover:border-white/15 hover:bg-white/8',
                 )}
               >
-                <p className="text-[11px] uppercase tracking-wide text-white/55">{item.format}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] uppercase tracking-wide text-white/55">{item.format}</p>
+                  {item.source === 'signal' && (
+                    <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                      Per Que?
+                    </span>
+                  )}
+                </div>
                 <p className={cn('mt-0.5 text-sm font-medium text-white/90')}>{item.hook}</p>
                 <p className={cn('mt-1 text-xs', textSub)}>{buildSignalReason(item)}</p>
                 <p className="mt-1 text-[11px] font-medium text-emerald-200/90">
-                  {t('dashboard.litoPage.openWithLito')}
+                  {item.source === 'signal'
+                    ? 'Veure amb LITO'
+                    : t('dashboard.litoPage.openWithLito')}
                 </p>
               </button>
             );

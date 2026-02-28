@@ -42,6 +42,8 @@ export type LitoRecommendationItem = {
   id: string;
   rule_id: string;
   status: LitoRecommendationStatus;
+  /** D1.4: 'signal' = backed by a real data signal; 'evergreen' = generic content idea */
+  source?: 'signal' | 'evergreen';
   vertical?: string;
   format: string;
   hook: string;

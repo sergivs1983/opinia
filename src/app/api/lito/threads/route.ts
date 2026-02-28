@@ -56,6 +56,10 @@ type RecommendationSeedRow = {
   id: string;
   generated_copy: unknown;
   format: string | null;
+  /** D1.4: 'signal' | 'evergreen' — drives signal-aware kickoff message */
+  source?: string | null;
+  /** D1.4: RecommendationSignalMeta jsonb — keyword, neg_reviews, avg_rating, … */
+  signal?: unknown;
 };
 
 const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
@@ -186,6 +190,42 @@ function buildRecommendationIntroMessage(seed: { hook: string; idea: string; for
   ].join('\n');
 }
 
+/**
+ * D1.4: Signal-aware kickoff message.
+ * Reads keyword / neg_reviews / avg_rating from RecommendationSignalMeta jsonb
+ * and builds a personalised opening message for the chat thread.
+ */
+function buildSignalAwareIntroMessage(
+  seed: { hook: string; format: 'post' | 'story' | 'reel' },
+  signalMeta: Record<string, unknown>,
+): string {
+  const keyMentions = Number(signalMeta.keyword_mentions ?? 0);
+  const negReviews = Number(signalMeta.neg_reviews ?? 0);
+  const avgRating = typeof signalMeta.avg_rating === 'number' || typeof signalMeta.avg_rating === 'string'
+    ? Number(signalMeta.avg_rating)
+    : null;
+
+  let reasonLine: string;
+  if (signalMeta.keyword && keyMentions > 0) {
+    reasonLine = `He detectat ${keyMentions} mencions de "${signalMeta.keyword}" en les ressenyes d'aquesta setmana.`;
+  } else if (negReviews > 0) {
+    reasonLine = `He detectat ${negReviews} ressenyes negatives recentment.`;
+  } else if (avgRating !== null && Number.isFinite(avgRating)) {
+    reasonLine = `Valoració mitjana de ${avgRating.toFixed(1)}★ aquesta setmana.`;
+  } else {
+    reasonLine = "He detectat una oportunitat important aquesta setmana.";
+  }
+
+  const formatLabel = seed.format === 'story' ? 'Story' : seed.format === 'reel' ? 'Reel' : 'Post';
+  return [
+    reasonLine,
+    '',
+    `T'he preparat una proposta: ${seed.hook}`,
+    '',
+    `Vols que la convertim en un ${formatLabel}, una Story o un Reel?`,
+  ].join('\n');
+}
+
 async function ensureRecommendationKickoffMessage(params: {
   admin: ReturnType<typeof createAdminClient>;
   bizId: string;
@@ -214,7 +254,7 @@ async function ensureRecommendationKickoffMessage(params: {
 
   const { data: recommendationData, error: recommendationErr } = await params.admin
     .from('recommendation_log')
-    .select('id, generated_copy, format')
+    .select('id, generated_copy, format, source, signal')
     .eq('id', params.recommendationId)
     .eq('biz_id', params.bizId)
     .maybeSingle();
@@ -242,7 +282,15 @@ async function ensureRecommendationKickoffMessage(params: {
     format: formatFromColumn,
   };
 
-  const introMessage = buildRecommendationIntroMessage(seed);
+  // D1.4: if signal-backed, use a personalised signal-aware opening message
+  const signalMeta = recommendation.source === 'signal' && recommendation.signal !== null
+    && typeof recommendation.signal === 'object'
+    ? (recommendation.signal as Record<string, unknown>)
+    : null;
+  const introMessage = signalMeta
+    ? buildSignalAwareIntroMessage(seed, signalMeta)
+    : buildRecommendationIntroMessage(seed);
+
   const { error: insertErr } = await params.admin
     .from('lito_messages')
     .insert({

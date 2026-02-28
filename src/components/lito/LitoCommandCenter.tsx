@@ -89,6 +89,7 @@ function normalizeRecommendationItem(
     id: item.id,
     rule_id: item.rule_id || '',
     status: item.status || 'shown',
+    source: item.source === 'signal' ? 'signal' : item.source === 'evergreen' ? 'evergreen' : undefined,
     vertical: item.vertical || undefined,
     format: item.format || template?.format || 'post',
     hook: item.hook || template?.hook || '',
