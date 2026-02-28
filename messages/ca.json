@@ -579,7 +579,8 @@
           "dismiss": "No m'interessa",
           "talkLito": "Parla amb LITO",
           "showHowTo": "Com fer-ho",
-          "hideHowTo": "Tancar guia"
+          "hideHowTo": "Tancar guia",
+          "generateLito": "✨ Generar Text i Idees"
         },
         "lito": {
           "title": "Parla amb LITO",
@@ -600,7 +601,43 @@
           "chatTitle": "Xat contextual",
           "emptyChat": "Fes una pregunta a LITO per adaptar aquesta recomanació al teu canal.",
           "inputPlaceholder": "Escriu a LITO...",
-          "send": "Enviar"
+          "send": "Enviar",
+          "ikeaTitle": "Generar amb LITO",
+          "defaultTitle": "Recomanació setmanal",
+          "generating": "LITO està preparant un pla pas a pas…",
+          "objective": "Objectiu",
+          "stepsTitle": "Pas a pas",
+          "directorNotes": "Director's Notes",
+          "copyShort": "Copy curt",
+          "copyLong": "Copy llarg",
+          "hashtags": "Hashtags",
+          "remainingQuota": "Quota disponible aquest mes: {count}",
+          "footerHint": "Quan estigui publicat, marca-ho com fet.",
+          "generateError": "No s'ha pogut generar el pla amb LITO.",
+          "refineError": "No s'ha pogut retocar el copy ara mateix.",
+          "copySuccess": "Copy copiat al porta-retalls.",
+          "copyError": "No s'ha pogut copiar el text.",
+          "fallbackSteps": {
+            "step1": "Defineix el hook principal:",
+            "step2": "Explica la idea en 1-2 frases:",
+            "step3": "Tanca amb una crida a l'acció:"
+          },
+          "fallbackDirector": {
+            "notes1": "Prioritza una idea per peça, no tres alhora.",
+            "notes2": "Usa imatges reals del negoci per generar confiança.",
+            "notes3": "Publica en l'horari amb més activitat del teu públic."
+          },
+          "actions": {
+            "copy": "Copiar",
+            "markPublished": "✅ Fet! Ja ho he publicat"
+          },
+          "refine": {
+            "shorter": "Més curt",
+            "funny": "Més proper",
+            "formal": "Més formal",
+            "translateEs": "Passar a ES",
+            "translateEn": "Passar a EN"
+          }
         },
         "errors": {
           "howtoLoadFailed": "No s'ha pogut carregar la guia."

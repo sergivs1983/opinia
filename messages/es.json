@@ -579,7 +579,8 @@
           "dismiss": "No me interesa",
           "talkLito": "Hablar con LITO",
           "showHowTo": "Cómo hacerlo",
-          "hideHowTo": "Cerrar guía"
+          "hideHowTo": "Cerrar guía",
+          "generateLito": "✨ Generar texto e ideas"
         },
         "lito": {
           "title": "Hablar con LITO",
@@ -600,7 +601,43 @@
           "chatTitle": "Chat contextual",
           "emptyChat": "Haz una pregunta a LITO para adaptar esta recomendación a tu canal.",
           "inputPlaceholder": "Escribe a LITO...",
-          "send": "Enviar"
+          "send": "Enviar",
+          "ikeaTitle": "Generar con LITO",
+          "defaultTitle": "Recomendación semanal",
+          "generating": "LITO está preparando un plan paso a paso…",
+          "objective": "Objetivo",
+          "stepsTitle": "Paso a paso",
+          "directorNotes": "Director's Notes",
+          "copyShort": "Copy corto",
+          "copyLong": "Copy largo",
+          "hashtags": "Hashtags",
+          "remainingQuota": "Cuota disponible este mes: {count}",
+          "footerHint": "Cuando lo publiques, márcalo como hecho.",
+          "generateError": "No se pudo generar el plan con LITO.",
+          "refineError": "No se pudo retocar el copy ahora mismo.",
+          "copySuccess": "Copy copiado al portapapeles.",
+          "copyError": "No se pudo copiar el texto.",
+          "fallbackSteps": {
+            "step1": "Define el hook principal:",
+            "step2": "Explica la idea en 1-2 frases:",
+            "step3": "Cierra con una llamada a la acción:"
+          },
+          "fallbackDirector": {
+            "notes1": "Prioriza una sola idea por pieza.",
+            "notes2": "Usa imágenes reales del negocio para reforzar confianza.",
+            "notes3": "Publica en la franja con más actividad de tu audiencia."
+          },
+          "actions": {
+            "copy": "Copiar",
+            "markPublished": "✅ Hecho, ya lo publiqué"
+          },
+          "refine": {
+            "shorter": "Más corto",
+            "funny": "Más cercano",
+            "formal": "Más formal",
+            "translateEs": "Pasar a ES",
+            "translateEn": "Pasar a EN"
+          }
         },
         "errors": {
           "howtoLoadFailed": "No se pudo cargar la guía."

@@ -8,29 +8,12 @@ import { useToast } from '@/components/ui/Toast';
 import { useT } from '@/components/i18n/I18nContext';
 import { textMain, textSub } from '@/components/ui/glass';
 
-type LitoRole = 'user' | 'assistant' | 'system';
-
-type LitoMessage = {
-  id: string;
-  role: LitoRole;
-  content: string;
-  created_at: string;
-  meta?: unknown;
-};
-
 type RecommendationHowTo = {
   why?: string;
   steps?: string[];
   checklist?: string[];
   assets_needed?: string[];
   time_estimate_min?: number;
-  example_caption?: string;
-};
-
-type RecommendationLanguage = {
-  base_lang?: string;
-  suggested_lang?: string | null;
-  confidence?: 'high' | 'medium' | 'low';
 };
 
 type RecommendationTemplate = {
@@ -40,7 +23,6 @@ type RecommendationTemplate = {
   cta?: string;
   assets_needed?: string[];
   how_to?: RecommendationHowTo;
-  language?: RecommendationLanguage;
 };
 
 type RecommendationInput = {
@@ -51,103 +33,172 @@ type RecommendationInput = {
   cta?: string;
   format?: string;
   how_to?: RecommendationHowTo;
-  language?: RecommendationLanguage;
   recommendation_template?: RecommendationTemplate;
 };
 
-type LitoThreadResponse = {
+type GeneratePayload = {
   ok?: boolean;
-  thread?: {
-    id: string;
-    title: string;
-    recommendation_id?: string | null;
-  };
-  messages?: LitoMessage[];
-  business?: {
-    name?: string;
-    type?: string | null;
-    default_language?: string | null;
-  } | null;
-  language?: {
-    base_lang?: string | null;
-    suggested_lang?: string | null;
-  };
+  steps?: string[];
+  director_notes?: string[];
+  copy_short?: string;
+  copy_long?: string;
+  hashtags?: string[];
+  assets_needed?: string[];
+  remaining?: number;
   error?: string;
   message?: string;
 };
 
-type LitoMessageResponse = {
-  ok?: boolean;
-  messages?: LitoMessage[];
-  error?: string;
-  message?: string;
-};
+type RefineMode = 'shorter' | 'funny' | 'formal' | 'translate_es' | 'translate_en';
+type LitoTabKey = 'howto' | 'copy' | 'assets';
 
 type LitoAssistDrawerProps = {
   open: boolean;
   onClose: () => void;
   bizId: string | null;
   businessName?: string | null;
-  threadId: string | null;
   recommendation?: RecommendationInput | null;
+  onMarkPublished?: (recommendationId: string) => Promise<void> | void;
+  publishing?: boolean;
 };
-
-type LitoTabKey = 'howto' | 'copy' | 'assets';
 
 export default function LitoAssistDrawer({
   open,
   onClose,
   bizId,
   businessName,
-  threadId,
   recommendation,
+  onMarkPublished,
+  publishing = false,
 }: LitoAssistDrawerProps) {
   const t = useT();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<LitoTabKey>('howto');
-  const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [messages, setMessages] = useState<LitoMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [baseLang, setBaseLang] = useState<string | null>(null);
-  const [suggestedLang, setSuggestedLang] = useState<string | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState(false);
+  const [refineLoading, setRefineLoading] = useState<RefineMode | null>(null);
+  const [steps, setSteps] = useState<string[]>([]);
+  const [directorNotes, setDirectorNotes] = useState<string[]>([]);
+  const [assets, setAssets] = useState<string[]>([]);
+  const [copyShort, setCopyShort] = useState('');
+  const [copyLong, setCopyLong] = useState('');
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [assetsDone, setAssetsDone] = useState<Record<string, boolean>>({});
+  const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
 
-  const howTo = recommendation?.how_to || recommendation?.recommendation_template?.how_to;
-  const assets = useMemo(() => {
-    const source = recommendation?.recommendation_template?.assets_needed
+  const recommendationTemplate = recommendation?.recommendation_template;
+  const formatLabel = recommendation?.format || recommendationTemplate?.format || 'post';
+  const hookTitle = recommendation?.hook || recommendationTemplate?.hook || t('dashboard.home.recommendations.lito.defaultTitle');
+  const ideaText = recommendation?.idea || recommendationTemplate?.idea || '';
+  const ctaText = recommendation?.cta || recommendationTemplate?.cta || '';
+  const localHowTo = recommendation?.how_to || recommendationTemplate?.how_to;
+
+  const baseAssets = useMemo(() => {
+    const source = recommendationTemplate?.assets_needed
       || recommendation?.how_to?.assets_needed
       || [];
     return source.filter((asset): asset is string => typeof asset === 'string' && asset.trim().length > 0);
-  }, [recommendation?.how_to?.assets_needed, recommendation?.recommendation_template?.assets_needed]);
+  }, [recommendation?.how_to?.assets_needed, recommendationTemplate?.assets_needed]);
 
-  const availableBusinessName = businessName || '';
-  const verticalLabel = recommendation?.vertical || 'general';
+  const copyCombined = useMemo(() => {
+    const tags = hashtags.length ? `\n\n${hashtags.join(' ')}` : '';
+    return `${copyLong || copyShort}${tags}`.trim();
+  }, [copyLong, copyShort, hashtags]);
 
-  const loadThread = useCallback(async () => {
-    if (!threadId || !open) return;
-    setLoading(true);
+  const hydrateFallbackPlan = useCallback(() => {
+    const fallbackSteps = localHowTo?.steps?.length
+      ? localHowTo.steps
+      : [
+          `${t('dashboard.home.recommendations.lito.fallbackSteps.step1')} ${hookTitle}`,
+          `${t('dashboard.home.recommendations.lito.fallbackSteps.step2')} ${ideaText}`.trim(),
+          `${t('dashboard.home.recommendations.lito.fallbackSteps.step3')} ${ctaText}`.trim(),
+        ].filter(Boolean);
+    const fallbackAssets = localHowTo?.assets_needed?.length
+      ? localHowTo.assets_needed
+      : baseAssets;
+
+    setSteps(fallbackSteps.slice(0, 9));
+    setDirectorNotes([
+      t('dashboard.home.recommendations.lito.fallbackDirector.notes1'),
+      t('dashboard.home.recommendations.lito.fallbackDirector.notes2'),
+      t('dashboard.home.recommendations.lito.fallbackDirector.notes3'),
+    ]);
+    setAssets(fallbackAssets.slice(0, 12));
+    setCopyShort(`${hookTitle}. ${ctaText}`.trim());
+    setCopyLong([hookTitle, '', ideaText, '', ctaText].filter(Boolean).join('\n'));
+    setHashtags(['#OpinIA', '#NegociLocal']);
+    setRemaining(null);
+  }, [baseAssets, ctaText, hookTitle, ideaText, localHowTo?.assets_needed, localHowTo?.steps, t]);
+
+  const runGenerate = useCallback(async () => {
+    if (!bizId || !recommendation?.id) return;
+    setLoadingPlan(true);
     try {
-      const response = await fetch(`/api/lito/threads/${threadId}`);
-      const payload = (await response.json().catch(() => ({}))) as LitoThreadResponse;
-      if (!response.ok || payload.error || !payload.thread) {
-        throw new Error(payload.message || t('dashboard.home.recommendations.lito.loadError'));
+      const response = await fetch('/api/lito/copy/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: bizId,
+          recommendation_id: recommendation.id,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as GeneratePayload;
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || t('dashboard.home.recommendations.lito.generateError'));
       }
-      setMessages(payload.messages || []);
-      setBaseLang(payload.language?.base_lang || payload.business?.default_language || 'ca');
-      setSuggestedLang(payload.language?.suggested_lang || null);
+      setSteps((payload.steps || []).slice(0, 12));
+      setDirectorNotes((payload.director_notes || []).slice(0, 12));
+      setAssets((payload.assets_needed || []).slice(0, 12));
+      setCopyShort(payload.copy_short || '');
+      setCopyLong(payload.copy_long || '');
+      setHashtags((payload.hashtags || []).slice(0, 12));
+      setRemaining(typeof payload.remaining === 'number' ? payload.remaining : null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.loadError');
+      hydrateFallbackPlan();
+      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.generateError');
       toast(message, 'error');
     } finally {
-      setLoading(false);
+      setLoadingPlan(false);
     }
-  }, [open, t, threadId, toast]);
+  }, [bizId, hydrateFallbackPlan, recommendation?.id, t, toast]);
+
+  const runRefine = useCallback(async (mode: RefineMode) => {
+    if (!bizId || !recommendation?.id) return;
+    setRefineLoading(mode);
+    try {
+      const response = await fetch('/api/lito/copy/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: bizId,
+          recommendation_id: recommendation.id,
+          mode,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as GeneratePayload;
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || t('dashboard.home.recommendations.lito.refineError'));
+      }
+      setCopyShort(payload.copy_short || '');
+      setCopyLong(payload.copy_long || '');
+      setHashtags((payload.hashtags || []).slice(0, 12));
+      setRemaining(typeof payload.remaining === 'number' ? payload.remaining : null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.refineError');
+      toast(message, 'error');
+    } finally {
+      setRefineLoading(null);
+    }
+  }, [bizId, recommendation?.id, t, toast]);
 
   useEffect(() => {
     if (!open) return;
-    void loadThread();
-  }, [loadThread, open]);
+    setActiveTab('howto');
+    setAssetsDone({});
+    setStepsDone({});
+    hydrateFallbackPlan();
+    void runGenerate();
+  }, [hydrateFallbackPlan, open, runGenerate]);
 
   useEffect(() => {
     if (!open) return;
@@ -157,34 +208,6 @@ export default function LitoAssistDrawer({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose, open]);
-
-  const sendMessage = useCallback(async () => {
-    if (!threadId || sending) return;
-    const trimmed = input.trim();
-    if (!trimmed) return;
-
-    setSending(true);
-    try {
-      const response = await fetch(`/api/lito/threads/${threadId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: trimmed }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as LitoMessageResponse;
-      if (!response.ok || payload.error) {
-        throw new Error(payload.message || t('dashboard.home.recommendations.lito.sendError'));
-      }
-      if (payload.messages?.length) {
-        setMessages((previous) => [...previous, ...payload.messages!]);
-      }
-      setInput('');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.sendError');
-      toast(message, 'error');
-    } finally {
-      setSending(false);
-    }
-  }, [input, sending, t, threadId, toast]);
 
   if (!open) return null;
 
@@ -201,11 +224,17 @@ export default function LitoAssistDrawer({
           <header className="border-b border-white/10 px-5 py-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className={cn('text-lg font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.title')}</p>
+                <p className={cn('text-lg font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.ikeaTitle')}</p>
                 <p className={cn('mt-1 text-xs', textSub)}>
-                  {availableBusinessName || t('common.appName')}
-                  {bizId ? ` · ${verticalLabel}` : ''}
+                  {businessName || t('common.appName')}
+                  {bizId ? ` · ${formatLabel}` : ''}
                 </p>
+                <p className="mt-2 text-sm text-white/85">{hookTitle}</p>
+                {remaining !== null ? (
+                  <p className="mt-1 text-xs text-emerald-300/85">
+                    {t('dashboard.home.recommendations.lito.remainingQuota', { count: remaining })}
+                  </p>
+                ) : null}
               </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
                 {t('common.close')}
@@ -226,129 +255,163 @@ export default function LitoAssistDrawer({
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            {loading ? (
+            {loadingPlan ? (
               <div className="space-y-3">
+                <p className={cn('text-sm', textSub)}>{t('dashboard.home.recommendations.lito.generating')}</p>
                 <div className="h-16 animate-pulse rounded-xl border border-white/10 bg-white/6" />
                 <div className="h-16 animate-pulse rounded-xl border border-white/10 bg-white/6" />
               </div>
-            ) : (
-              <>
-                {activeTab === 'howto' && (
-                  <div className="space-y-3 rounded-xl border border-white/10 bg-white/6 p-3">
-                    <p className={cn('text-sm font-semibold', textMain)}>
-                      {howTo?.why || t('dashboard.home.recommendations.lito.noHowTo')}
-                    </p>
-                    {howTo?.steps?.length ? (
-                      <ol className="list-decimal space-y-1 pl-5 text-sm text-white/80">
-                        {howTo.steps.map((step, index) => (
-                          <li key={`howto-step-${index}`}>{step}</li>
-                        ))}
-                      </ol>
-                    ) : null}
-                    {howTo?.checklist?.length ? (
-                      <ul className="space-y-1 text-sm text-white/75">
-                        {howTo.checklist.map((entry, index) => (
-                          <li key={`howto-check-${index}`} className="flex items-start gap-2">
-                            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-300/90" />
-                            <span>{entry}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    <p className="text-xs text-white/65">
-                      {t('dashboard.home.recommendations.lito.languageHint', {
-                        base: baseLang || 'ca',
-                        suggested: suggestedLang || baseLang || 'ca',
-                      })}
-                    </p>
-                  </div>
-                )}
+            ) : null}
 
-                {activeTab === 'copy' && (
-                  <div className="rounded-xl border border-white/10 bg-white/6 p-4 text-sm text-white/82">
-                    <p className={cn('font-medium', textMain)}>
-                      {t('dashboard.home.recommendations.lito.copyLockedTitle')}
-                    </p>
-                    <p className="mt-2 text-white/72">{t('dashboard.home.recommendations.lito.copyLockedSubtitle')}</p>
-                    <Button variant="secondary" size="sm" className="mt-3">
-                      {t('dashboard.home.recommendations.lito.copyLockedCta')}
-                    </Button>
-                  </div>
-                )}
-
-                {activeTab === 'assets' && (
-                  <div className="space-y-2 rounded-xl border border-white/10 bg-white/6 p-3">
-                    {assets.length > 0 ? (
-                      assets.map((asset, index) => {
-                        const key = `${index}-${asset}`;
-                        const checked = Boolean(assetsDone[key]);
-                        return (
-                          <label key={key} className="flex items-center gap-2 text-sm text-white/85">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => setAssetsDone((previous) => ({ ...previous, [key]: !checked }))}
-                              className="h-4 w-4 rounded border-white/25 bg-transparent accent-emerald-400"
-                            />
-                            <span className={checked ? 'text-white/55 line-through' : ''}>{asset}</span>
-                          </label>
-                        );
-                      })
-                    ) : (
-                      <p className="text-sm text-white/70">{t('dashboard.home.recommendations.lito.noAssets')}</p>
-                    )}
-                  </div>
-                )}
-
-                <section className="mt-4 space-y-2">
-                  <p className={cn('text-xs uppercase tracking-wide text-white/55')}>{t('dashboard.home.recommendations.lito.chatTitle')}</p>
-                  <div className="space-y-2">
-                    {messages.length === 0 ? (
-                      <p className={cn('rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm', textSub)}>
-                        {t('dashboard.home.recommendations.lito.emptyChat')}
-                      </p>
-                    ) : (
-                      messages.map((message) => {
-                        const isUser = message.role === 'user';
-                        return (
-                          <div
-                            key={message.id}
-                            className={cn(
-                              'max-w-[92%] rounded-xl border px-3 py-2 text-sm whitespace-pre-wrap',
-                              isUser
-                                ? 'ml-auto border-emerald-300/35 bg-emerald-400/15 text-white'
-                                : 'mr-auto border-white/10 bg-white/6 text-white/82',
-                            )}
-                          >
-                            {message.content}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+            {!loadingPlan && activeTab === 'howto' ? (
+              <div className="space-y-3">
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.objective')}</p>
+                  <p className={cn('mt-1 text-sm text-white/85')}>{ideaText || ctaText || hookTitle}</p>
                 </section>
-              </>
-            )}
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.stepsTitle')}</p>
+                  <ul className="mt-2 space-y-2">
+                    {steps.map((step, index) => {
+                      const key = `${index}:${step}`;
+                      const checked = Boolean(stepsDone[key]);
+                      return (
+                        <li key={key} className="flex items-start gap-2 text-sm text-white/82">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => setStepsDone((previous) => ({ ...previous, [key]: !checked }))}
+                            className="mt-0.5 h-4 w-4 rounded border-white/25 bg-transparent accent-emerald-400"
+                          />
+                          <span className={checked ? 'line-through text-white/55' : ''}>{step}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.directorNotes')}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/78">
+                    {directorNotes.map((note, index) => (
+                      <li key={`note-${index}`}>{note}</li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+            ) : null}
+
+            {!loadingPlan && activeTab === 'copy' ? (
+              <div className="space-y-3">
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.copyShort')}</p>
+                  <textarea
+                    value={copyShort}
+                    onChange={(event) => setCopyShort(event.target.value)}
+                    rows={3}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
+                  />
+                </section>
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.copyLong')}</p>
+                  <textarea
+                    value={copyLong}
+                    onChange={(event) => setCopyLong(event.target.value)}
+                    rows={6}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
+                  />
+                </section>
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.hashtags')}</p>
+                  <input
+                    value={hashtags.join(' ')}
+                    onChange={(event) => {
+                      const values = event.target.value
+                        .split(/\s+/)
+                        .map((value) => value.trim())
+                        .filter(Boolean)
+                        .slice(0, 12);
+                      setHashtags(values);
+                    }}
+                    className="mt-2 h-10 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
+                  />
+                </section>
+                <section className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      if (!copyCombined) return;
+                      try {
+                        await navigator.clipboard.writeText(copyCombined);
+                        toast(t('dashboard.home.recommendations.lito.copySuccess'), 'success');
+                      } catch {
+                        toast(t('dashboard.home.recommendations.lito.copyError'), 'error');
+                      }
+                    }}
+                  >
+                    {t('dashboard.home.recommendations.lito.actions.copy')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine('shorter')}>
+                    {t('dashboard.home.recommendations.lito.refine.shorter')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine('funny')}>
+                    {t('dashboard.home.recommendations.lito.refine.funny')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine('formal')}>
+                    {t('dashboard.home.recommendations.lito.refine.formal')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine('translate_es')}>
+                    {t('dashboard.home.recommendations.lito.refine.translateEs')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine('translate_en')}>
+                    {t('dashboard.home.recommendations.lito.refine.translateEn')}
+                  </Button>
+                </section>
+              </div>
+            ) : null}
+
+            {!loadingPlan && activeTab === 'assets' ? (
+              <div className="space-y-2 rounded-xl border border-white/10 bg-white/6 p-3">
+                {assets.length > 0 ? (
+                  assets.map((asset, index) => {
+                    const key = `${index}-${asset}`;
+                    const checked = Boolean(assetsDone[key]);
+                    return (
+                      <label key={key} className="flex items-center gap-2 text-sm text-white/85">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setAssetsDone((previous) => ({ ...previous, [key]: !checked }))}
+                          className="h-4 w-4 rounded border-white/25 bg-transparent accent-emerald-400"
+                        />
+                        <span className={checked ? 'text-white/55 line-through' : ''}>{asset}</span>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-white/70">{t('dashboard.home.recommendations.lito.noAssets')}</p>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <footer className="border-t border-white/10 px-5 py-3">
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void sendMessage();
-              }}
-              className="flex items-center gap-2"
-            >
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder={t('dashboard.home.recommendations.lito.inputPlaceholder')}
-                className="h-10 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none transition-all duration-200 ease-premium placeholder:text-white/45 focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/25"
-              />
-              <Button type="submit" size="sm" loading={sending} disabled={!threadId || sending || !input.trim()}>
-                {t('dashboard.home.recommendations.lito.send')}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={cn('text-xs', textSub)}>
+                {t('dashboard.home.recommendations.lito.footerHint')}
+              </p>
+              <Button
+                size="sm"
+                loading={publishing}
+                onClick={() => {
+                  if (!recommendation?.id || !onMarkPublished) return;
+                  void onMarkPublished(recommendation.id);
+                }}
+                disabled={!recommendation?.id || !onMarkPublished}
+              >
+                {t('dashboard.home.recommendations.lito.actions.markPublished')}
               </Button>
-            </form>
+            </div>
           </footer>
         </div>
       </aside>

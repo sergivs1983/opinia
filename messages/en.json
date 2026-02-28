@@ -579,7 +579,8 @@
           "dismiss": "Not interested",
           "talkLito": "Talk to LITO",
           "showHowTo": "How to do it",
-          "hideHowTo": "Close guide"
+          "hideHowTo": "Close guide",
+          "generateLito": "✨ Generate Copy & Ideas"
         },
         "lito": {
           "title": "Talk to LITO",
@@ -600,7 +601,43 @@
           "chatTitle": "Contextual chat",
           "emptyChat": "Ask LITO to adapt this recommendation to your channel.",
           "inputPlaceholder": "Write to LITO...",
-          "send": "Send"
+          "send": "Send",
+          "ikeaTitle": "Generate with LITO",
+          "defaultTitle": "Weekly recommendation",
+          "generating": "LITO is preparing a step-by-step plan…",
+          "objective": "Objective",
+          "stepsTitle": "Step by step",
+          "directorNotes": "Director's Notes",
+          "copyShort": "Short copy",
+          "copyLong": "Long copy",
+          "hashtags": "Hashtags",
+          "remainingQuota": "Monthly quota left: {count}",
+          "footerHint": "When you publish it, mark it as done.",
+          "generateError": "Could not generate the plan with LITO.",
+          "refineError": "Could not refine the copy right now.",
+          "copySuccess": "Copy saved to clipboard.",
+          "copyError": "Could not copy text.",
+          "fallbackSteps": {
+            "step1": "Define the main hook:",
+            "step2": "Explain the idea in 1-2 lines:",
+            "step3": "Close with a clear call to action:"
+          },
+          "fallbackDirector": {
+            "notes1": "Keep one core idea per piece.",
+            "notes2": "Use real business visuals to build trust.",
+            "notes3": "Post during your audience peak window."
+          },
+          "actions": {
+            "copy": "Copy",
+            "markPublished": "✅ Done! I already published it"
+          },
+          "refine": {
+            "shorter": "Shorter",
+            "funny": "Friendlier",
+            "formal": "More formal",
+            "translateEs": "Translate ES",
+            "translateEn": "Translate EN"
+          }
         },
         "errors": {
           "howtoLoadFailed": "Could not load the guide."
