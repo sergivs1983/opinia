@@ -14,6 +14,7 @@ import Button from '@/components/ui/Button';
 import GlassCard from '@/components/ui/GlassCard';
 import ActionReviewCard from '@/components/home/ActionReviewCard';
 import PublishSuccessModal from '@/components/home/PublishSuccessModal';
+import LitoAssistDrawer from '@/components/lito/LitoAssistDrawer';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type { Reply, Review } from '@/types/database';
@@ -42,14 +43,54 @@ type AssetSignedUrlPayload = {
 
 type RecommendationStatus = 'shown' | 'accepted' | 'dismissed' | 'published';
 
+type RecommendationHowTo = {
+  why?: string;
+  steps?: string[];
+  checklist?: string[];
+  assets_needed?: string[];
+  time_estimate_min?: number;
+  example_caption?: string;
+};
+
+type RecommendationSignalMeta = {
+  keyword?: string;
+  keyword_mentions?: number;
+  avg_rating?: number;
+  neg_reviews?: number;
+  dominant_lang?: string;
+  confidence?: 'high' | 'medium' | 'low';
+};
+
+type RecommendationLanguageMeta = {
+  base_lang?: string;
+  suggested_lang?: string;
+  confidence?: 'high' | 'medium' | 'low';
+};
+
+type RecommendationTemplatePayload = {
+  format?: string;
+  hook?: string;
+  idea?: string;
+  cta?: string;
+  assets_needed?: string[];
+  how_to?: RecommendationHowTo;
+  signal?: RecommendationSignalMeta;
+  language?: RecommendationLanguageMeta;
+};
+
 type WeeklyRecommendationItem = {
   id: string;
   rule_id: string;
   status: RecommendationStatus;
+  vertical?: string;
   format: string;
   hook: string;
   idea: string;
   cta: string;
+  how_to?: RecommendationHowTo;
+  signal_meta?: RecommendationSignalMeta;
+  language?: RecommendationLanguageMeta;
+  recommendation_template?: RecommendationTemplatePayload;
 };
 
 type WeeklyRecommendationsPayload = {
@@ -65,13 +106,20 @@ type RecommendationFeedbackPayload = {
   message?: string;
   replaced?: boolean;
   new_recommendation?: Partial<WeeklyRecommendationItem> & {
-    recommendation_template?: {
-      format?: string;
-      hook?: string;
-      idea?: string;
-      cta?: string;
-    };
+    recommendation_template?: RecommendationTemplatePayload;
   };
+};
+
+type LitoThreadCreatePayload = {
+  ok?: boolean;
+  thread?: {
+    id?: string;
+  };
+  thread_id?: string;
+  created?: boolean;
+  error?: string;
+  message?: string;
+  request_id?: string;
 };
 
 const DISMISSED_SOCIAL_MAGIC_REVIEWS_KEY = 'opinia.home.dismissedSocialMagicReviews';
@@ -86,6 +134,31 @@ function pickProposalReply(rows: ReplyDraftRow[]): ReplyDraftRow | null {
     || rows[0]
     || null
   );
+}
+
+function normalizeRecommendationItem(
+  item: Partial<WeeklyRecommendationItem> & { recommendation_template?: RecommendationTemplatePayload },
+): WeeklyRecommendationItem | null {
+  if (!item.id) return null;
+  const template = item.recommendation_template;
+  const howTo = item.how_to || template?.how_to;
+  const signalMeta = item.signal_meta || template?.signal;
+  const language = item.language || template?.language;
+
+  return {
+    id: item.id,
+    rule_id: item.rule_id || '',
+    status: item.status || 'shown',
+    vertical: item.vertical || undefined,
+    format: item.format || template?.format || 'post',
+    hook: item.hook || template?.hook || '',
+    idea: item.idea || template?.idea || '',
+    cta: item.cta || template?.cta || '',
+    how_to: howTo,
+    signal_meta: signalMeta,
+    language,
+    recommendation_template: template,
+  };
 }
 
 export default function DashboardPage() {
@@ -110,6 +183,10 @@ export default function DashboardPage() {
   const [weeklyRecommendations, setWeeklyRecommendations] = useState<WeeklyRecommendationItem[]>([]);
   const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
   const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
+  const [openingLitoByRecommendation, setOpeningLitoByRecommendation] = useState<Record<string, boolean>>({});
+  const [litoOpen, setLitoOpen] = useState(false);
+  const [litoThreadId, setLitoThreadId] = useState<string | null>(null);
+  const [litoRecommendation, setLitoRecommendation] = useState<WeeklyRecommendationItem | null>(null);
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -194,7 +271,11 @@ export default function DashboardPage() {
           throw new Error(payload.message || t('dashboard.home.recommendations.loadError'));
         }
         if (cancelled) return;
-        setWeeklyRecommendations(payload.items || []);
+        setWeeklyRecommendations(
+          (payload.items || [])
+            .map((item) => normalizeRecommendationItem(item))
+            .filter((item): item is WeeklyRecommendationItem => Boolean(item)),
+        );
       })
       .catch(() => {
         if (cancelled) return;
@@ -376,17 +457,8 @@ export default function DashboardPage() {
           return;
         }
 
-        const template = payload.new_recommendation?.recommendation_template;
-        const replacement = payload.replaced && payload.new_recommendation?.id
-          ? {
-            id: payload.new_recommendation.id,
-            rule_id: payload.new_recommendation.rule_id || '',
-            status: payload.new_recommendation.status || 'shown',
-            format: payload.new_recommendation.format || template?.format || 'post',
-            hook: payload.new_recommendation.hook || template?.hook || '',
-            idea: payload.new_recommendation.idea || template?.idea || '',
-            cta: payload.new_recommendation.cta || template?.cta || '',
-          } satisfies WeeklyRecommendationItem
+        const replacement = payload.replaced && payload.new_recommendation
+          ? normalizeRecommendationItem(payload.new_recommendation)
           : null;
 
         setWeeklyRecommendations((previous) => {
@@ -400,7 +472,11 @@ export default function DashboardPage() {
             .then(async (reloadResponse) => {
               const reloadPayload = (await reloadResponse.json().catch(() => ({}))) as WeeklyRecommendationsPayload;
               if (!reloadResponse.ok || reloadPayload.error) return;
-              setWeeklyRecommendations(reloadPayload.items || []);
+              setWeeklyRecommendations(
+                (reloadPayload.items || [])
+                  .map((item) => normalizeRecommendationItem(item))
+                  .filter((item): item is WeeklyRecommendationItem => Boolean(item)),
+              );
             })
             .catch(() => {});
         }
@@ -415,6 +491,34 @@ export default function DashboardPage() {
     },
     [biz?.id, t, toast],
   );
+
+  const handleOpenLito = useCallback(async (recommendation: WeeklyRecommendationItem) => {
+    if (!biz?.id) return;
+    setOpeningLitoByRecommendation((previous) => ({ ...previous, [recommendation.id]: true }));
+    try {
+      const response = await fetch('/api/lito/threads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: biz.id,
+          recommendation_id: recommendation.id,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as LitoThreadCreatePayload;
+      const threadId = payload.thread?.id || payload.thread_id;
+      if (!response.ok || payload.error || !threadId) {
+        throw new Error(payload.message || t('dashboard.home.recommendations.lito.openError'));
+      }
+      setLitoThreadId(threadId);
+      setLitoRecommendation(recommendation);
+      setLitoOpen(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.openError');
+      toast(message, 'error');
+    } finally {
+      setOpeningLitoByRecommendation((previous) => ({ ...previous, [recommendation.id]: false }));
+    }
+  }, [biz?.id, t, toast]);
 
   if (!biz) {
     return (
@@ -496,6 +600,8 @@ export default function DashboardPage() {
             <div className="space-y-2.5">
               {weeklyRecommendations.slice(0, 3).map((item) => {
                 const actionPending = Boolean(weeklyRecommendationActionById[item.id]);
+                const openingLito = Boolean(openingLitoByRecommendation[item.id]);
+
                 return (
                   <div
                     key={item.id}
@@ -521,6 +627,15 @@ export default function DashboardPage() {
                         onClick={() => void handleRecommendationFeedback(item.id, 'dismissed')}
                       >
                         {t('dashboard.home.recommendations.actions.dismiss')}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="h-8 px-3 text-xs"
+                        loading={openingLito}
+                        disabled={actionPending || openingLito}
+                        onClick={() => void handleOpenLito(item)}
+                      >
+                        {t('dashboard.home.recommendations.actions.talkLito')}
                       </Button>
                     </div>
                   </div>
@@ -576,6 +691,15 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <LitoAssistDrawer
+        open={litoOpen}
+        onClose={() => setLitoOpen(false)}
+        bizId={biz?.id || null}
+        businessName={biz?.name || null}
+        threadId={litoThreadId}
+        recommendation={litoRecommendation}
+      />
 
       <PublishSuccessModal
         open={successModalOpen}

@@ -568,6 +568,74 @@
         "approveError": "Could not publish the reply.",
         "generateError": "Could not regenerate the proposal."
       },
+      "recommendations": {
+        "title": "Recommendations of the week",
+        "subtitle": "Quick ideas to keep your profile active without repeating content.",
+        "empty": "There are no new recommendations this week.",
+        "loadError": "Could not load recommendations.",
+        "feedbackError": "Could not save the action.",
+        "actions": {
+          "done": "Mark as done",
+          "dismiss": "Not interested",
+          "talkLito": "Talk to LITO",
+          "showHowTo": "How to do it",
+          "hideHowTo": "Close guide"
+        },
+        "lito": {
+          "title": "Talk to LITO",
+          "openError": "Could not open LITO right now.",
+          "loadError": "Could not load the LITO thread.",
+          "sendError": "Could not send the message to LITO.",
+          "tabs": {
+            "howTo": "Step by step",
+            "copy": "Copy",
+            "assets": "Assets"
+          },
+          "noHowTo": "This recommendation does not have a detailed guide yet.",
+          "languageHint": "Base language: {base} · Suggested: {suggested}",
+          "copyLockedTitle": "Assisted copy available in D1.2",
+          "copyLockedSubtitle": "You will be able to generate and refine captions with LITO while keeping your brand tone.",
+          "copyLockedCta": "Available in D1.2",
+          "noAssets": "There are no specific assets for this recommendation.",
+          "chatTitle": "Contextual chat",
+          "emptyChat": "Ask LITO to adapt this recommendation to your channel.",
+          "inputPlaceholder": "Write to LITO...",
+          "send": "Send"
+        },
+        "errors": {
+          "howtoLoadFailed": "Could not load the guide."
+        },
+        "howto": {
+          "title": "How to do it",
+          "objective": "Objective",
+          "eta": "Estimated time",
+          "checklist": "Step-by-step checklist",
+          "script": "Short script",
+          "shotlist": "Shotlist",
+          "pitfalls": "Common mistakes to avoid",
+          "copy": "Copy",
+          "close": "Close",
+          "finalCta": "When you publish it, mark it as done."
+        },
+        "howTo": {
+          "whyTitle": "Why now",
+          "stepsTitle": "Steps",
+          "checklistTitle": "Checklist",
+          "assetsTitle": "Assets needed",
+          "timeTitle": "Estimated time",
+          "timeValue": "{minutes} min",
+          "exampleTitle": "Caption example",
+          "languageTitle": "Recommended language",
+          "languageValue": "Base: {base} · Suggested: {suggested} ({confidence})",
+          "whyKeyword": "{count} reviews mention {keyword}",
+          "whyNegatives": "{count} negative reviews this week",
+          "confidence": {
+            "high": "high confidence",
+            "medium": "medium confidence",
+            "low": "low confidence"
+          }
+        }
+      },
       "successModal": {
         "title": "Reply published successfully!",
         "subtitle": "This review can attract new customers.",

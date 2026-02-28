@@ -568,6 +568,74 @@
         "approveError": "No s'ha pogut publicar la resposta.",
         "generateError": "No s'ha pogut regenerar la proposta."
       },
+      "recommendations": {
+        "title": "Recomanacions de la setmana",
+        "subtitle": "Idees ràpides per mantenir el perfil actiu sense repetir contingut.",
+        "empty": "Aquesta setmana no hi ha recomanacions noves.",
+        "loadError": "No s'han pogut carregar les recomanacions.",
+        "feedbackError": "No s'ha pogut desar l'acció.",
+        "actions": {
+          "done": "Marcar com feta",
+          "dismiss": "No m'interessa",
+          "talkLito": "Parla amb LITO",
+          "showHowTo": "Com fer-ho",
+          "hideHowTo": "Tancar guia"
+        },
+        "lito": {
+          "title": "Parla amb LITO",
+          "openError": "No s'ha pogut obrir LITO ara mateix.",
+          "loadError": "No s'ha pogut carregar el fil de LITO.",
+          "sendError": "No s'ha pogut enviar el missatge a LITO.",
+          "tabs": {
+            "howTo": "Pas a pas",
+            "copy": "Copy",
+            "assets": "Assets"
+          },
+          "noHowTo": "Aquesta recomanació encara no té guia detallada.",
+          "languageHint": "Idioma base: {base} · Recomanat: {suggested}",
+          "copyLockedTitle": "Copy assistit disponible a D1.2",
+          "copyLockedSubtitle": "Podràs generar i refinar captions amb LITO mantenint el to del negoci.",
+          "copyLockedCta": "Disponible a D1.2",
+          "noAssets": "No hi ha assets específics per aquesta recomanació.",
+          "chatTitle": "Xat contextual",
+          "emptyChat": "Fes una pregunta a LITO per adaptar aquesta recomanació al teu canal.",
+          "inputPlaceholder": "Escriu a LITO...",
+          "send": "Enviar"
+        },
+        "errors": {
+          "howtoLoadFailed": "No s'ha pogut carregar la guia."
+        },
+        "howto": {
+          "title": "Com fer-ho",
+          "objective": "Objectiu",
+          "eta": "Temps estimat",
+          "checklist": "Checklist pas a pas",
+          "script": "Guió curt",
+          "shotlist": "Shotlist",
+          "pitfalls": "Errors comuns a evitar",
+          "copy": "Copiar",
+          "close": "Tancar",
+          "finalCta": "Quan ho publiquis, marca-ho com feta."
+        },
+        "howTo": {
+          "whyTitle": "Per què ara",
+          "stepsTitle": "Passos",
+          "checklistTitle": "Checklist",
+          "assetsTitle": "Assets necessaris",
+          "timeTitle": "Temps estimat",
+          "timeValue": "{minutes} min",
+          "exampleTitle": "Exemple de text",
+          "languageTitle": "Idioma recomanat",
+          "languageValue": "Base: {base} · Recomanat: {suggested} ({confidence})",
+          "whyKeyword": "{count} ressenyes mencionen {keyword}",
+          "whyNegatives": "{count} ressenyes negatives aquesta setmana",
+          "confidence": {
+            "high": "confiança alta",
+            "medium": "confiança mitjana",
+            "low": "confiança baixa"
+          }
+        }
+      },
       "successModal": {
         "title": "Resposta publicada amb èxit!",
         "subtitle": "Aquesta ressenya pot atraure nous clients.",

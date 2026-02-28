@@ -568,6 +568,74 @@
         "approveError": "No se pudo publicar la respuesta.",
         "generateError": "No se pudo regenerar la propuesta."
       },
+      "recommendations": {
+        "title": "Recomendaciones de la semana",
+        "subtitle": "Ideas rápidas para mantener el perfil activo sin repetir contenido.",
+        "empty": "Esta semana no hay recomendaciones nuevas.",
+        "loadError": "No se pudieron cargar las recomendaciones.",
+        "feedbackError": "No se pudo guardar la acción.",
+        "actions": {
+          "done": "Marcar como hecha",
+          "dismiss": "No me interesa",
+          "talkLito": "Hablar con LITO",
+          "showHowTo": "Cómo hacerlo",
+          "hideHowTo": "Cerrar guía"
+        },
+        "lito": {
+          "title": "Hablar con LITO",
+          "openError": "No se pudo abrir LITO ahora mismo.",
+          "loadError": "No se pudo cargar el hilo de LITO.",
+          "sendError": "No se pudo enviar el mensaje a LITO.",
+          "tabs": {
+            "howTo": "Paso a paso",
+            "copy": "Copy",
+            "assets": "Assets"
+          },
+          "noHowTo": "Esta recomendación todavía no tiene una guía detallada.",
+          "languageHint": "Idioma base: {base} · Recomendado: {suggested}",
+          "copyLockedTitle": "Copy asistido disponible en D1.2",
+          "copyLockedSubtitle": "Podrás generar y refinar captions con LITO manteniendo el tono del negocio.",
+          "copyLockedCta": "Disponible en D1.2",
+          "noAssets": "No hay assets específicos para esta recomendación.",
+          "chatTitle": "Chat contextual",
+          "emptyChat": "Haz una pregunta a LITO para adaptar esta recomendación a tu canal.",
+          "inputPlaceholder": "Escribe a LITO...",
+          "send": "Enviar"
+        },
+        "errors": {
+          "howtoLoadFailed": "No se pudo cargar la guía."
+        },
+        "howto": {
+          "title": "Cómo hacerlo",
+          "objective": "Objetivo",
+          "eta": "Tiempo estimado",
+          "checklist": "Checklist paso a paso",
+          "script": "Guion corto",
+          "shotlist": "Shotlist",
+          "pitfalls": "Errores comunes a evitar",
+          "copy": "Copiar",
+          "close": "Cerrar",
+          "finalCta": "Cuando lo publiques, márcalo como hecho."
+        },
+        "howTo": {
+          "whyTitle": "Por qué ahora",
+          "stepsTitle": "Pasos",
+          "checklistTitle": "Checklist",
+          "assetsTitle": "Assets necesarios",
+          "timeTitle": "Tiempo estimado",
+          "timeValue": "{minutes} min",
+          "exampleTitle": "Ejemplo de texto",
+          "languageTitle": "Idioma recomendado",
+          "languageValue": "Base: {base} · Recomendado: {suggested} ({confidence})",
+          "whyKeyword": "{count} reseñas mencionan {keyword}",
+          "whyNegatives": "{count} reseñas negativas esta semana",
+          "confidence": {
+            "high": "confianza alta",
+            "medium": "confianza media",
+            "low": "confianza baja"
+          }
+        }
+      },
       "successModal": {
         "title": "¡Respuesta publicada con éxito!",
         "subtitle": "Esta reseña puede atraer nuevos clientes.",
