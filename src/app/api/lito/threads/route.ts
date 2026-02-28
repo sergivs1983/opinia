@@ -46,6 +46,41 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   return response;
 }
 
+function isSchemaDependencyError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  const code = (error?.code || '').toUpperCase();
+  const message = (error?.message || '').toLowerCase();
+  return (
+    code === '42703'
+    || code === '42P01'
+    || code === 'PGRST204'
+    || code === 'PGRST205'
+    || message.includes('schema cache')
+    || (message.includes('column') && message.includes('does not exist'))
+  );
+}
+
+function normalizeThreadRows(rows: Array<Record<string, unknown>>): LitoThreadRow[] {
+  return rows
+    .map((row) => {
+      const id = typeof row.id === 'string' ? row.id : null;
+      const bizId = typeof row.biz_id === 'string' ? row.biz_id : null;
+      const title = typeof row.title === 'string' ? row.title : 'LITO — Consultes';
+      const createdAt = typeof row.created_at === 'string' ? row.created_at : new Date(0).toISOString();
+      const updatedAt = typeof row.updated_at === 'string' ? row.updated_at : createdAt;
+      if (!id || !bizId) return null;
+      return {
+        id,
+        biz_id: bizId,
+        recommendation_id: typeof row.recommendation_id === 'string' ? row.recommendation_id : null,
+        title,
+        status: row.status === 'closed' ? 'closed' : 'open',
+        created_at: createdAt,
+        updated_at: updatedAt,
+      } as LitoThreadRow;
+    })
+    .filter((row): row is LitoThreadRow => Boolean(row));
+}
+
 export async function POST(request: Request) {
   const requestId = getRequestIdFromHeaders(request.headers);
   const log = createLogger({ request_id: requestId, route: 'POST /api/lito/threads' });
@@ -224,7 +259,8 @@ export async function GET(request: Request) {
       );
     }
 
-    const { data, error } = await supabase
+    const admin = createAdminClient();
+    const { data, error } = await admin
       .from('lito_threads')
       .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
       .eq('biz_id', payload.biz_id)
@@ -232,6 +268,20 @@ export async function GET(request: Request) {
       .limit(limit);
 
     if (error) {
+      if (isSchemaDependencyError(error)) {
+        log.warn('lito_threads_list_schema_fallback', {
+          error_code: error.code || null,
+          error: error.message || null,
+        });
+        return withStandardHeaders(
+          NextResponse.json({
+            ok: true,
+            threads: [],
+            request_id: requestId,
+          }),
+          requestId,
+        );
+      }
       log.error('lito_threads_list_failed', { error_code: error.code || null, error: error.message || null });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
@@ -242,7 +292,7 @@ export async function GET(request: Request) {
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
-        threads: (data || []) as LitoThreadRow[],
+        threads: normalizeThreadRows((data || []) as Array<Record<string, unknown>>),
         request_id: requestId,
       }),
       requestId,
