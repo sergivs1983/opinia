@@ -48,6 +48,13 @@ try {
 JS
 }
 
+is_inflight_error() {
+  local body="$1"
+  local err
+  err="$(json_field "${body}" "error")"
+  [ "${err}" = "in_flight" ] || [ "${err}" = "retry_later" ]
+}
+
 normalize_cookie_header() {
   local raw="$1"
   raw="$(printf '%s' "${raw}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
@@ -100,23 +107,74 @@ if [ -n "${FLOW_D12_SESSION_COOKIE}" ] && [ -n "${FLOW_D12_BIZ_ID}" ] && [ -n "$
     REQ_BODY="FLOW_D12_SESSION_COOKIE invàlida"
     report_fail "cookie invàlida"
   else
-    perform_request -X POST "${BASE}/api/lito/copy/generate" \
-      -H "Content-Type: application/json" \
-      -H "${COOKIE_HEADER}" \
-      -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\"}"
-
     if has_ai_key; then
-      if [ "${REQ_CODE}" = "200" ]; then
-        shortCopy="$(json_field "${REQ_BODY}" "copy.caption_short")"
-        if [ -n "${shortCopy}" ]; then
-          report_ok "generate funcional (200 + copy.caption_short)"
+      perform_request -X POST "${BASE}/api/lito/copy/generate" \
+        -H "Content-Type: application/json" \
+        -H "${COOKIE_HEADER}" \
+        -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\"}"
+      gen_code_1="${REQ_CODE}"
+      gen_body_1="${REQ_BODY}"
+
+      perform_request -X POST "${BASE}/api/lito/copy/generate" \
+        -H "Content-Type: application/json" \
+        -H "${COOKIE_HEADER}" \
+        -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\"}"
+      gen_code_2="${REQ_CODE}"
+      gen_body_2="${REQ_BODY}"
+
+      gen_ok_1=0
+      gen_ok_2=0
+      if [ "${gen_code_1}" = "200" ] || [ "${gen_code_1}" = "409" ]; then
+        gen_ok_1=1
+      fi
+      if [ "${gen_code_2}" = "200" ] || [ "${gen_code_2}" = "409" ]; then
+        gen_ok_2=1
+      fi
+
+      if [ "${gen_ok_1}" -eq 1 ] && [ "${gen_ok_2}" -eq 1 ]; then
+        if [ "${gen_code_1}" = "409" ] && ! is_inflight_error "${gen_body_1}"; then
+          REQ_CODE="${gen_code_1}"
+          REQ_BODY="${gen_body_1}"
+          report_fail "generate idempotent (1a crida 409 sense error in_flight/retry_later)"
+        elif [ "${gen_code_2}" = "409" ] && ! is_inflight_error "${gen_body_2}"; then
+          REQ_CODE="${gen_code_2}"
+          REQ_BODY="${gen_body_2}"
+          report_fail "generate idempotent (2a crida 409 sense error in_flight/retry_later)"
+        elif [ "${gen_code_1}" != "200" ] && [ "${gen_code_2}" != "200" ]; then
+          REQ_CODE="${gen_code_2}"
+          REQ_BODY="${gen_body_2}"
+          report_fail "generate idempotent (cal almenys una resposta 200)"
+        elif [ "${gen_code_1}" = "200" ] && [ "${gen_code_2}" = "200" ]; then
+          rem_1="$(json_field "${gen_body_1}" "quota.remaining")"
+          rem_2="$(json_field "${gen_body_2}" "quota.remaining")"
+          if [ -n "${rem_1}" ] && [ -n "${rem_2}" ] && [ "${rem_1}" != "${rem_2}" ]; then
+            REQ_CODE="${gen_code_2}"
+            REQ_BODY="${gen_body_2}"
+            report_fail "generate idempotent (les dues 200 però quota.remaining difereix)"
+          else
+            report_ok "generate idempotent (doble crida retorna 200/409 sense duplicar quota)"
+          fi
         else
-          report_fail "generate funcional (copy.caption_short buit)"
+          report_ok "generate idempotent (doble crida retorna 200/409)"
         fi
       else
-        report_fail "generate funcional (expected 200)"
+        REQ_CODE="${gen_code_2}"
+        REQ_BODY="${gen_body_2}"
+        report_fail "generate idempotent (esperat 200 o 409 a les dues crides)"
+      fi
+
+      if [ "${gen_code_1}" = "200" ]; then
+        before="$(json_field "${gen_body_1}" "copy.caption_short")"
+      elif [ "${gen_code_2}" = "200" ]; then
+        before="$(json_field "${gen_body_2}" "copy.caption_short")"
+      else
+        before=""
       fi
     else
+      perform_request -X POST "${BASE}/api/lito/copy/generate" \
+        -H "Content-Type: application/json" \
+        -H "${COOKIE_HEADER}" \
+        -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\"}"
       if [ "${REQ_CODE}" = "503" ] && printf '%s' "${REQ_BODY}" | grep -q '"error":"ai_unavailable"'; then
         report_ok "generate sense AI key retorna 503 ai_unavailable"
       else
@@ -125,25 +183,85 @@ if [ -n "${FLOW_D12_SESSION_COOKIE}" ] && [ -n "${FLOW_D12_BIZ_ID}" ] && [ -n "$
     fi
 
     if has_ai_key; then
-      before="$(json_field "${REQ_BODY}" "copy.caption_short")"
+      if [ -z "${before}" ]; then
+        REQ_CODE="${gen_code_2}"
+        REQ_BODY="${gen_body_2}"
+        report_fail "generate funcional (copy.caption_short buit)"
+      fi
+
       perform_request -X POST "${BASE}/api/lito/copy/refine" \
         -H "Content-Type: application/json" \
         -H "${COOKIE_HEADER}" \
         -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\",\"mode\":\"quick\",\"quick_mode\":\"shorter\"}"
+      ref_code_1="${REQ_CODE}"
+      ref_body_1="${REQ_BODY}"
 
-      if [ "${REQ_CODE}" = "200" ]; then
-        after="$(json_field "${REQ_BODY}" "copy.caption_short")"
-        if [ -n "${after}" ]; then
-          if [ "${before}" != "${after}" ]; then
-            report_ok "refine funcional (200 + caption canviat)"
+      perform_request -X POST "${BASE}/api/lito/copy/refine" \
+        -H "Content-Type: application/json" \
+        -H "${COOKIE_HEADER}" \
+        -d "{\"biz_id\":\"${FLOW_D12_BIZ_ID}\",\"recommendation_id\":\"${FLOW_D12_RECOMMENDATION_ID}\",\"mode\":\"quick\",\"quick_mode\":\"shorter\"}"
+      ref_code_2="${REQ_CODE}"
+      ref_body_2="${REQ_BODY}"
+
+      ref_ok_1=0
+      ref_ok_2=0
+      if [ "${ref_code_1}" = "200" ] || [ "${ref_code_1}" = "409" ]; then
+        ref_ok_1=1
+      fi
+      if [ "${ref_code_2}" = "200" ] || [ "${ref_code_2}" = "409" ]; then
+        ref_ok_2=1
+      fi
+
+      if [ "${ref_ok_1}" -eq 1 ] && [ "${ref_ok_2}" -eq 1 ]; then
+        if [ "${ref_code_1}" = "409" ] && ! is_inflight_error "${ref_body_1}"; then
+          REQ_CODE="${ref_code_1}"
+          REQ_BODY="${ref_body_1}"
+          report_fail "refine idempotent (1a crida 409 sense error in_flight/retry_later)"
+        elif [ "${ref_code_2}" = "409" ] && ! is_inflight_error "${ref_body_2}"; then
+          REQ_CODE="${ref_code_2}"
+          REQ_BODY="${ref_body_2}"
+          report_fail "refine idempotent (2a crida 409 sense error in_flight/retry_later)"
+        elif [ "${ref_code_1}" != "200" ] && [ "${ref_code_2}" != "200" ]; then
+          REQ_CODE="${ref_code_2}"
+          REQ_BODY="${ref_body_2}"
+          report_fail "refine idempotent (cal almenys una resposta 200)"
+        elif [ "${ref_code_1}" = "200" ] && [ "${ref_code_2}" = "200" ]; then
+          rem_ref_1="$(json_field "${ref_body_1}" "quota.remaining")"
+          rem_ref_2="$(json_field "${ref_body_2}" "quota.remaining")"
+          if [ -n "${rem_ref_1}" ] && [ -n "${rem_ref_2}" ] && [ "${rem_ref_1}" != "${rem_ref_2}" ]; then
+            REQ_CODE="${ref_code_2}"
+            REQ_BODY="${ref_body_2}"
+            report_fail "refine idempotent (les dues 200 però quota.remaining difereix)"
           else
-            report_ok "refine funcional (200)"
+            report_ok "refine idempotent (doble crida retorna 200/409 sense duplicar quota)"
           fi
         else
-          report_fail "refine funcional (caption_short buit)"
+          report_ok "refine idempotent (doble crida retorna 200/409)"
         fi
       else
-        report_fail "refine funcional (expected 200)"
+        REQ_CODE="${ref_code_2}"
+        REQ_BODY="${ref_body_2}"
+        report_fail "refine idempotent (esperat 200 o 409 a les dues crides)"
+      fi
+
+      if [ "${ref_code_1}" = "200" ]; then
+        after="$(json_field "${ref_body_1}" "copy.caption_short")"
+      elif [ "${ref_code_2}" = "200" ]; then
+        after="$(json_field "${ref_body_2}" "copy.caption_short")"
+      else
+        after=""
+      fi
+
+      if [ -n "${after}" ]; then
+        if [ -n "${before}" ] && [ "${before}" != "${after}" ]; then
+          report_ok "refine funcional (200 + caption canviat)"
+        else
+          report_ok "refine funcional (200)"
+        fi
+      else
+        REQ_CODE="${ref_code_2}"
+        REQ_BODY="${ref_body_2}"
+        report_fail "refine funcional (caption_short buit)"
       fi
     fi
   fi
