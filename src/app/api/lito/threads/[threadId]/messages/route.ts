@@ -402,7 +402,10 @@ async function loadThreadForUser(params: {
   userId: string;
   threadId: string;
 }): Promise<{ thread: ThreadRow | null; allowed: boolean }> {
-  const { data, error } = await params.supabase
+  // Read thread with admin client to avoid false 404 from RLS drift on lito_threads.
+  // Authorization is still enforced immediately after via business membership check.
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from('lito_threads')
     .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
     .eq('id', params.threadId)
