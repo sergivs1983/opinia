@@ -64,6 +64,9 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('staff');
   const [inviting, setInviting] = useState(false);
+  const [staffAiPaused, setStaffAiPaused] = useState(false);
+  const [loadingStaffAiPaused, setLoadingStaffAiPaused] = useState(false);
+  const [savingStaffAiPaused, setSavingStaffAiPaused] = useState(false);
 
   const { members: teamMembers, seats: teamSeats, refetch: refetchTeam } = useTeamMembers(org?.id);
 
@@ -84,8 +87,10 @@ export default function SettingsPage() {
   const businessesPercentage = Math.min(100, Math.round((businessesUsed / businessesLimit) * 100));
   const businessesFull = businessesUsed >= businessesLimit;
 
-  const canManageTeamTab = roleCanManageTeam(membership?.role);
+  const normalizedRole = normalizeMemberRole(membership?.role);
+  const canManageTeamTab = roleCanManageTeam(membership?.role) || normalizedRole === 'manager';
   const canManageBusinesses = normalizeMemberRole(membership?.role) === 'owner';
+  const canToggleStaffAi = normalizedRole === 'owner' || normalizedRole === 'manager';
 
   const tabs = useMemo(() => {
     const baseTabs = [
@@ -239,6 +244,55 @@ export default function SettingsPage() {
     tone,
     topOffer,
   ]);
+
+  useEffect(() => {
+    if (!org?.id || !canToggleStaffAi) return;
+    setLoadingStaffAiPaused(true);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/admin/org-settings/lito?org_id=${org.id}`);
+        const payload = (await response.json().catch(() => ({}))) as {
+          settings?: { lito_staff_ai_paused?: boolean };
+          error?: string;
+          message?: string;
+        };
+        if (!response.ok || payload.error) {
+          throw new Error(payload.message || payload.error || t('common.error'));
+        }
+        setStaffAiPaused(Boolean(payload.settings?.lito_staff_ai_paused));
+      } catch (error) {
+        toast(error instanceof Error ? error.message : t('common.error'), 'warning');
+      } finally {
+        setLoadingStaffAiPaused(false);
+      }
+    })();
+  }, [canToggleStaffAi, org?.id, t, toast]);
+
+  const handleToggleStaffAi = useCallback(async (checked: boolean) => {
+    if (!org?.id || !canToggleStaffAi) return;
+    setStaffAiPaused(checked);
+    setSavingStaffAiPaused(true);
+    try {
+      const response = await fetch('/api/billing/staff-ai-paused', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          org_id: org.id,
+          paused: checked,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || payload.error || t('common.error'));
+      }
+      toast(checked ? 'IA pausada per staff.' : 'IA activa per staff.', 'success');
+    } catch (error) {
+      setStaffAiPaused((current) => !current);
+      toast(error instanceof Error ? error.message : t('common.error'), 'warning');
+    } finally {
+      setSavingStaffAiPaused(false);
+    }
+  }, [canToggleStaffAi, org?.id, t, toast]);
 
   if (!biz) {
     return <div className={cn('p-8 text-center', textMuted)}>{t('common.loading')}</div>;
@@ -649,6 +703,23 @@ export default function SettingsPage() {
               <h2 className={cn('text-lg font-semibold', textMain)}>{t('settings.humanized.integrations.title')}</h2>
               <p className={cn('text-sm', textSub)}>{t('settings.humanized.integrations.subtitle')}</p>
             </header>
+            {canToggleStaffAi && (
+              <div className="rounded-xl border border-white/10 bg-zinc-950/50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className={cn('text-sm font-medium', textMain)}>Pausar IA per a Staff</p>
+                    <p className={cn('text-xs', textSub)}>
+                      Bloqueja Generate/Refine per usuaris staff mentre mantens owner/manager operatius.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={staffAiPaused}
+                    onChange={(checked) => void handleToggleStaffAi(checked)}
+                    disabled={loadingStaffAiPaused || savingStaffAiPaused}
+                  />
+                </div>
+              </div>
+            )}
             <IntegrationsPlaceholder />
           </GlassCard>
         </div>

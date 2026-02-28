@@ -288,6 +288,10 @@ export default function LitoChatView() {
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
         return;
       }
+      if (response.status === 403 && (payload.error === 'feature_locked' || payload.error === 'staff_ai_paused')) {
+        toast(payload.message || t('dashboard.home.recommendations.lito.copyDisabledManager'), 'warning');
+        return;
+      }
       if (response.status === 409 && payload.error === 'in_flight') {
         toast(t('dashboard.home.recommendations.lito.inFlightToast'), 'warning');
         return;
@@ -334,6 +338,10 @@ export default function LitoChatView() {
       }
       if (response.status === 402 || payload.error === 'quota_exceeded') {
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
+        return;
+      }
+      if (response.status === 403 && (payload.error === 'feature_locked' || payload.error === 'staff_ai_paused')) {
+        toast(payload.message || t('dashboard.home.recommendations.lito.copyDisabledManager'), 'warning');
         return;
       }
       if (response.status === 409 && payload.error === 'in_flight') {

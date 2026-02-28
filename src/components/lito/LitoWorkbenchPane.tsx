@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Tabs from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
+import EntitlementPaywallModal, { type EntitlementModalType } from '@/components/billing/EntitlementPaywallModal';
 import { textMain, textSub } from '@/components/ui/glass';
 import { cn } from '@/lib/utils';
 import { emitLitoCopyUpdated, isLitoCopyUpdatedEvent, LITO_COPY_UPDATED_EVENT } from '@/components/lito/copy-sync';
@@ -44,7 +45,12 @@ type GeneratePayload = {
   copy?: LitoGeneratedCopy;
   quota?: LitoQuotaState;
   error?: string;
+  feature?: string;
   reason?: LitoCopyStatusReason;
+  paywall_reason?: string;
+  used?: number;
+  limit?: number;
+  remaining?: number;
   message?: string;
 };
 
@@ -143,6 +149,10 @@ export default function LitoWorkbenchPane({
   const [aiStatusReason, setAiStatusReason] = useState<LitoCopyStatusReason>('ok');
   const [aiMessage, setAiMessage] = useState('');
   const [hasGeneratedCopy, setHasGeneratedCopy] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallType, setPaywallType] = useState<EntitlementModalType>('quota_exceeded');
+  const [paywallUsed, setPaywallUsed] = useState<number | undefined>(undefined);
+  const [paywallLimit, setPaywallLimit] = useState<number | undefined>(undefined);
   const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
   const [previewChannel, setPreviewChannel] = useState<PreviewChannel>('instagram');
   const lastQuickRefineHandled = useRef<number | null>(null);
@@ -162,6 +172,13 @@ export default function LitoWorkbenchPane({
     if (reason === 'disabled' || reason === 'paused') return t('dashboard.home.recommendations.lito.copyDisabledManager');
     return fallback || t('dashboard.home.recommendations.lito.aiUnavailable');
   }, [t]);
+
+  const openPaywall = useCallback((type: EntitlementModalType, payload?: GeneratePayload) => {
+    setPaywallType(type);
+    setPaywallUsed(typeof payload?.used === 'number' ? payload.used : undefined);
+    setPaywallLimit(typeof payload?.limit === 'number' ? payload.limit : undefined);
+    setPaywallOpen(true);
+  }, []);
 
   const applyCopy = useCallback((copy: LitoGeneratedCopy) => {
     setCopyShort(copy.caption_short || '');
@@ -303,7 +320,20 @@ export default function LitoWorkbenchPane({
       }
 
       if (response.status === 402 || payload.error === 'quota_exceeded') {
+        openPaywall('quota_exceeded', payload);
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
+        return;
+      }
+
+      if (payload.error === 'limit_reached') {
+        openPaywall('limit_reached', payload);
+        toast(payload.message || t('dashboard.home.recommendations.lito.copyDisabledManager'), 'warning');
+        return;
+      }
+
+      if (response.status === 403 && (payload.error === 'feature_locked' || payload.error === 'staff_ai_paused')) {
+        openPaywall('feature_locked', payload);
+        toast(payload.message || t('dashboard.home.recommendations.lito.copyDisabledManager'), 'warning');
         return;
       }
 
@@ -338,7 +368,7 @@ export default function LitoWorkbenchPane({
     } finally {
       setGenerating(false);
     }
-  }, [aiReasonMessage, applyCopy, bizId, effectiveFormat, onQuotaChange, pollUntilCopyAvailable, recommendation?.id, t, toast]);
+  }, [aiReasonMessage, applyCopy, bizId, effectiveFormat, onQuotaChange, openPaywall, pollUntilCopyAvailable, recommendation?.id, t, toast]);
 
   const runRefine = useCallback(async (mode: RefineMode | 'custom', instruction?: string) => {
     if (!bizId || !recommendation?.id) return;
@@ -368,7 +398,20 @@ export default function LitoWorkbenchPane({
       }
 
       if (response.status === 402 || payload.error === 'quota_exceeded') {
+        openPaywall('quota_exceeded', payload);
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
+        return;
+      }
+
+      if (payload.error === 'limit_reached') {
+        openPaywall('limit_reached', payload);
+        toast(payload.message || t('dashboard.home.recommendations.lito.copyDisabledManager'), 'warning');
+        return;
+      }
+
+      if (response.status === 403 && (payload.error === 'feature_locked' || payload.error === 'staff_ai_paused')) {
+        openPaywall('feature_locked', payload);
+        toast(payload.message || t('dashboard.home.recommendations.lito.copyDisabledManager'), 'warning');
         return;
       }
 
@@ -403,7 +446,7 @@ export default function LitoWorkbenchPane({
     } finally {
       setRefineLoading(null);
     }
-  }, [aiReasonMessage, applyCopy, bizId, onQuotaChange, pollUntilCopyAvailable, recommendation?.id, t, toast]);
+  }, [aiReasonMessage, applyCopy, bizId, onQuotaChange, openPaywall, pollUntilCopyAvailable, recommendation?.id, t, toast]);
 
   const handleCopyText = useCallback(async (value: string) => {
     if (!value.trim()) return;
@@ -759,6 +802,14 @@ export default function LitoWorkbenchPane({
           </Button>
         </div>
       </footer>
+
+      <EntitlementPaywallModal
+        isOpen={paywallOpen}
+        type={paywallType}
+        used={paywallUsed}
+        limit={paywallLimit}
+        onClose={() => setPaywallOpen(false)}
+      />
     </section>
   );
 }
