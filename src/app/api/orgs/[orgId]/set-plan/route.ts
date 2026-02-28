@@ -76,7 +76,7 @@ export async function POST(
     return NextResponse.json(
       {
         error: 'schema_missing',
-        message: "Falten columnes de límits de pla. Executa la migració 'phase-t-plan-business-limits-social-posts.sql'.",
+        message: "Falten columnes de límits de pla. Executa la migració '20260314030000_phase_t_plan_business_limits_social_posts.sql'.",
       },
       { status: 409 },
     );
