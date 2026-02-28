@@ -126,6 +126,9 @@ export default function LitoContextPanel({
                 <p className="text-[11px] uppercase tracking-wide text-white/55">{item.format}</p>
                 <p className={cn('mt-0.5 text-sm font-medium text-white/90')}>{item.hook}</p>
                 <p className={cn('mt-1 text-xs', textSub)}>{buildSignalReason(item)}</p>
+                <p className="mt-1 text-[11px] font-medium text-emerald-200/90">
+                  {t('dashboard.litoPage.openWithLito')}
+                </p>
               </button>
             );
           })

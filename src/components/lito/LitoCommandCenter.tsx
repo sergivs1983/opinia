@@ -8,7 +8,6 @@ import { useToast } from '@/components/ui/Toast';
 import Button from '@/components/ui/Button';
 import GlassCard from '@/components/ui/GlassCard';
 import LitoContextPanel from '@/components/lito/LitoContextPanel';
-import LitoThreadPane from '@/components/lito/LitoThreadPane';
 import LitoWorkbenchPane from '@/components/lito/LitoWorkbenchPane';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
@@ -83,6 +82,29 @@ function normalizeFormat(value: string | null | undefined): 'post' | 'story' | '
   return 'post';
 }
 
+function sanitizeMessages(messages: LitoThreadMessage[]): LitoThreadMessage[] {
+  return messages.filter((item) => {
+    if (item.role === 'system') return false;
+    const normalized = item.content.toLowerCase();
+    if (normalized.includes('context:')) return false;
+    if (normalized.includes('system prompt')) return false;
+    if (normalized.includes('payload intern')) return false;
+    if (normalized.includes('debug:')) return false;
+    return true;
+  });
+}
+
+function formatThreadDate(value: string): string {
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return '';
+  return new Date(parsed).toLocaleString('ca-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 type LitoCommandCenterProps = {
   embedded?: boolean;
   className?: string;
@@ -105,8 +127,6 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LitoThreadMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [messageDraft, setMessageDraft] = useState('');
 
   const [gbpState, setGbpState] = useState<'connected' | 'needs_reauth' | 'not_connected' | 'unknown'>('unknown');
   const [quota, setQuota] = useState<LitoQuotaState | null>(null);
@@ -125,6 +145,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   }, [activeThread?.recommendation_id, queryRecommendationId, weeklyRecommendations]);
 
   const selectedRecommendationId = activeRecommendation?.id || null;
+  const previewMessages = useMemo(() => sanitizeMessages(messages).slice(-10), [messages]);
 
   const replaceQuery = useCallback((next: { bizId?: string | null; recommendationId?: string | null; threadId?: string | null }) => {
     if (embedded) return;
@@ -139,6 +160,17 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     const basePath = '/dashboard/lito';
     router.replace(qs ? `${basePath}?${qs}` : basePath);
   }, [embedded, router, searchParams]);
+
+  const openChatView = useCallback(() => {
+    if (!biz?.id || !activeThreadId) return;
+    const params = new URLSearchParams();
+    params.set('biz_id', biz.id);
+    params.set('thread_id', activeThreadId);
+    if (activeThread?.recommendation_id) {
+      params.set('recommendation_id', activeThread.recommendation_id);
+    }
+    router.push(`/dashboard/lito/chat?${params.toString()}`);
+  }, [activeThread?.recommendation_id, activeThreadId, biz?.id, router]);
 
   const loadWeeklyRecommendations = useCallback(async () => {
     if (!biz?.id) return;
@@ -207,7 +239,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const loadThreadDetail = useCallback(async (threadId: string) => {
     setMessagesLoading(true);
     try {
-      const response = await fetch(`/api/lito/threads/${threadId}?limit=200`);
+      const response = await fetch(`/api/lito/messages?thread_id=${threadId}&limit=10`);
       const payload = (await response.json().catch(() => ({}))) as ThreadDetailPayload;
       if (!response.ok || payload.error || !payload.thread) {
         throw new Error(payload.message || t('dashboard.home.recommendations.lito.loadError'));
@@ -275,48 +307,18 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
 
   const openThreadForRecommendation = useCallback(async (recommendation: LitoRecommendationItem) => {
     setSelectedFormat(normalizeFormat(recommendation.format));
-    await openOrCreateThread({
+    const thread = await openOrCreateThread({
       recommendationId: recommendation.id,
       title: recommendation.hook || t('dashboard.litoPage.thread.recommendationThreadTitle'),
     });
-  }, [openOrCreateThread, t]);
+    if (!thread || !biz?.id) return;
 
-  const openThreadForFormat = useCallback(async (format: 'post' | 'story' | 'reel') => {
-    setSelectedFormat(format);
-    const candidate = weeklyRecommendations.find((item) => normalizeFormat(item.format) === format) || weeklyRecommendations[0];
-    if (candidate) {
-      await openThreadForRecommendation(candidate);
-      return;
-    }
-    await openGeneralThread();
-  }, [openGeneralThread, openThreadForRecommendation, weeklyRecommendations]);
-
-  const handleSendMessage = useCallback(async () => {
-    if (!activeThreadId || messageDraft.trim().length < 2) return;
-    setSendingMessage(true);
-    try {
-      const response = await fetch(`/api/lito/threads/${activeThreadId}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: messageDraft.trim() }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { messages?: LitoThreadMessage[]; error?: string; message?: string };
-      if (!response.ok || payload.error) {
-        throw new Error(payload.message || t('dashboard.home.recommendations.lito.sendError'));
-      }
-      setMessageDraft('');
-      const appendedMessages = Array.isArray(payload.messages) ? payload.messages : [];
-      if (appendedMessages.length > 0) {
-        setMessages((previous) => [...previous, ...appendedMessages]);
-      }
-      await loadThreads();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.sendError');
-      toast(message, 'error');
-    } finally {
-      setSendingMessage(false);
-    }
-  }, [activeThreadId, loadThreads, messageDraft, t, toast]);
+    const params = new URLSearchParams();
+    params.set('biz_id', biz.id);
+    params.set('thread_id', thread.id);
+    if (thread.recommendation_id) params.set('recommendation_id', thread.recommendation_id);
+    router.push(`/dashboard/lito/chat?${params.toString()}`);
+  }, [biz?.id, openOrCreateThread, router, t]);
 
   const handleMarkPublished = useCallback(async (recommendationId: string) => {
     const response = await fetch(`/api/recommendations/${recommendationId}/feedback`, {
@@ -365,10 +367,11 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
 
     if (queryRecommendationId) {
       const recommendation = weeklyRecommendations.find((item) => item.id === queryRecommendationId);
-      if (recommendation) {
-        void openThreadForRecommendation(recommendation);
-        return;
-      }
+      void openOrCreateThread({
+        recommendationId: queryRecommendationId,
+        title: recommendation?.hook || t('dashboard.litoPage.thread.recommendationThreadTitle'),
+      });
+      return;
     }
 
     if (threads.length > 0) {
@@ -381,10 +384,11 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   }, [
     biz?.id,
     openGeneralThread,
-    openThreadForRecommendation,
+    openOrCreateThread,
     queryRecommendationId,
     queryThreadId,
     replaceQuery,
+    t,
     threads,
     threadsLoading,
     weeklyLoading,
@@ -462,27 +466,93 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           onSelectRecommendation={(item) => void openThreadForRecommendation(item)}
         />
 
-        <LitoThreadPane
-          t={t}
-          threads={threads}
-          threadsLoading={threadsLoading}
-          selectedThreadId={activeThreadId}
-          onSelectThread={(threadId) => {
-            setActiveThreadId(threadId);
-            const thread = threads.find((item) => item.id === threadId);
-            replaceQuery({ bizId: biz.id, recommendationId: thread?.recommendation_id || null, threadId });
-          }}
-          onOpenGeneralThread={() => void openGeneralThread()}
-          onOpenThreadForFormat={(format) => void openThreadForFormat(format)}
-          selectedFormat={selectedFormat}
-          messages={messages}
-          messagesLoading={messagesLoading}
-          draftMessage={messageDraft}
-          sending={sendingMessage}
-          onDraftMessageChange={setMessageDraft}
-          onSendMessage={() => void handleSendMessage()}
-          activeRecommendation={activeRecommendation}
-        />
+        <section className="flex min-h-[70vh] flex-col rounded-2xl border border-white/10 bg-zinc-900/45 backdrop-blur-md">
+          <header className="border-b border-white/10 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className={cn('text-sm font-semibold tracking-wide', textMain)}>
+                {t('dashboard.litoPage.command.threadPreviewTitle')}
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" className="h-7 px-2.5 text-xs" onClick={() => void openGeneralThread()}>
+                  {t('dashboard.litoPage.thread.newThread')}
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={!activeThreadId}
+                  onClick={openChatView}
+                >
+                  {t('dashboard.litoPage.command.openChat')}
+                </Button>
+              </div>
+            </div>
+            <div className="mt-2">
+              <select
+                value={activeThreadId || ''}
+                onChange={(event) => {
+                  const threadId = event.target.value || null;
+                  setActiveThreadId(threadId);
+                  const thread = threads.find((item) => item.id === threadId);
+                  replaceQuery({
+                    bizId: biz.id,
+                    recommendationId: thread?.recommendation_id || null,
+                    threadId,
+                  });
+                }}
+                className="h-8 w-full rounded-lg border border-white/10 bg-black/30 px-2.5 text-xs text-white outline-none transition-colors duration-200 ease-premium hover:border-white/20 focus:border-emerald-300/35"
+              >
+                {threadsLoading ? (
+                  <option value="">{t('common.loading')}</option>
+                ) : threads.length > 0 ? (
+                  threads.map((thread) => (
+                    <option key={thread.id} value={thread.id} className="bg-zinc-900 text-white">
+                      {thread.title}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">{t('dashboard.litoPage.command.noThreads')}</option>
+                )}
+              </select>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            {activeRecommendation ? (
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/6 p-3">
+                <p className={cn('text-xs font-semibold', textMain)}>{activeRecommendation.hook}</p>
+                <p className={cn('mt-1 text-sm text-white/80')}>{activeRecommendation.idea}</p>
+              </div>
+            ) : null}
+
+            {messagesLoading ? (
+              <div className="space-y-2">
+                <div className="h-14 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+                <div className="h-14 animate-pulse rounded-xl border border-white/8 bg-white/6" />
+              </div>
+            ) : previewMessages.length > 0 ? (
+              <div className="space-y-2.5">
+                {previewMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      'max-w-[90%] rounded-2xl border px-3 py-2 text-sm',
+                      message.role === 'user'
+                        ? 'ml-auto border-emerald-300/30 bg-emerald-500/12 text-emerald-100'
+                        : 'border-white/10 bg-white/6 text-white/88',
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    <p className={cn('mt-1 text-[11px]', textSub)}>{formatThreadDate(message.created_at)}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className={cn('rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-sm', textSub)}>
+                {t('dashboard.litoPage.command.emptyPreview')}
+              </p>
+            )}
+          </div>
+        </section>
 
         <LitoWorkbenchPane
           t={t}

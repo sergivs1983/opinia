@@ -476,11 +476,35 @@ export default function DashboardPage() {
     [biz?.id, t, toast],
   );
 
-  const handleOpenLito = useCallback((recommendation: WeeklyRecommendationItem | null = null) => {
+  const handleOpenLito = useCallback(async (recommendation: WeeklyRecommendationItem | null = null) => {
     if (!biz?.id) return;
-    const query = new URLSearchParams({ biz_id: biz.id });
-    if (recommendation?.id) query.set('recommendation_id', recommendation.id);
-    router.push(`/dashboard/lito?${query.toString()}`);
+
+    try {
+      const response = await fetch('/api/lito/threads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: biz.id,
+          recommendation_id: recommendation?.id || null,
+          title: recommendation?.hook || null,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { thread?: { id?: string }; error?: string };
+
+      const query = new URLSearchParams({ biz_id: biz.id });
+      const threadId = payload.thread?.id;
+      if (response.ok && threadId) {
+        query.set('thread_id', threadId);
+      } else if (recommendation?.id) {
+        query.set('recommendation_id', recommendation.id);
+      }
+
+      router.push(`/dashboard/lito?${query.toString()}`);
+    } catch {
+      const query = new URLSearchParams({ biz_id: biz.id });
+      if (recommendation?.id) query.set('recommendation_id', recommendation.id);
+      router.push(`/dashboard/lito?${query.toString()}`);
+    }
   }, [biz?.id, router]);
 
   if (!biz) {
@@ -554,7 +578,7 @@ export default function DashboardPage() {
             <Button
               variant="secondary"
               className="h-8 px-3 text-xs"
-              onClick={() => handleOpenLito(null)}
+              onClick={() => void handleOpenLito(null)}
             >
               {t('dashboard.home.recommendations.actions.talkLito')}
             </Button>
@@ -601,7 +625,7 @@ export default function DashboardPage() {
                         variant="secondary"
                         className="h-8 px-3 text-xs"
                         disabled={actionPending}
-                        onClick={() => handleOpenLito(item)}
+                        onClick={() => void handleOpenLito(item)}
                       >
                         {t('dashboard.litoPage.openWithLito')}
                       </Button>
