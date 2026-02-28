@@ -16,6 +16,7 @@ import ActionReviewCard from '@/components/home/ActionReviewCard';
 import PublishSuccessModal from '@/components/home/PublishSuccessModal';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
+import { buildInlineIkeaHowTo } from '@/lib/recommendations/howto';
 import type { Reply, Review } from '@/types/database';
 
 type ReplyDraftRow = Pick<Reply, 'id' | 'review_id' | 'tone' | 'status' | 'content' | 'created_at'>;
@@ -171,6 +172,7 @@ export default function DashboardPage() {
   const [weeklyRecommendations, setWeeklyRecommendations] = useState<WeeklyRecommendationItem[]>([]);
   const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
   const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
+  const [weeklyRecommendationHowToOpenById, setWeeklyRecommendationHowToOpenById] = useState<Record<string, boolean>>({});
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -508,6 +510,43 @@ export default function DashboardPage() {
     }
   }, [biz?.id, router]);
 
+  const toggleRecommendationHowTo = useCallback((recommendationId: string) => {
+    setWeeklyRecommendationHowToOpenById((previous) => ({
+      ...previous,
+      [recommendationId]: !previous[recommendationId],
+    }));
+  }, []);
+
+  const handleCopyRecommendationChecklist = useCallback(async (recommendation: WeeklyRecommendationItem) => {
+    const howTo = buildInlineIkeaHowTo({
+      format: recommendation.format,
+      hook: recommendation.hook,
+      idea: recommendation.idea,
+      cta: recommendation.cta,
+      vertical: recommendation.vertical,
+    });
+
+    const plainChecklist = [
+      `${t('dashboard.home.recommendations.howto.title')} (${howTo.format.toUpperCase()})`,
+      '',
+      t('dashboard.home.recommendations.howTo.stepsTitle'),
+      ...howTo.steps.map((step, index) => `${index + 1}. ${step}`),
+      '',
+      t('dashboard.home.recommendations.howTo.photoTitle'),
+      ...howTo.photo_notes.map((note) => `- ${note}`),
+    ].join('\n');
+
+    try {
+      if (!navigator?.clipboard?.writeText) {
+        throw new Error('clipboard_unavailable');
+      }
+      await navigator.clipboard.writeText(plainChecklist);
+      toast(t('dashboard.home.recommendations.lito.copySuccess'), 'success');
+    } catch {
+      toast(t('dashboard.home.recommendations.lito.copyError'), 'error');
+    }
+  }, [t, toast]);
+
   if (!biz) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -595,6 +634,14 @@ export default function DashboardPage() {
             <div className="space-y-2.5">
               {weeklyRecommendations.slice(0, 3).map((item) => {
                 const actionPending = Boolean(weeklyRecommendationActionById[item.id]);
+                const howToOpen = Boolean(weeklyRecommendationHowToOpenById[item.id]);
+                const inlineHowTo = buildInlineIkeaHowTo({
+                  format: item.format,
+                  hook: item.hook,
+                  idea: item.idea,
+                  cta: item.cta,
+                  vertical: item.vertical,
+                });
 
                 return (
                   <div
@@ -623,6 +670,15 @@ export default function DashboardPage() {
                         {t('dashboard.home.recommendations.actions.dismiss')}
                       </Button>
                       <Button
+                        variant="ghost"
+                        className="h-8 px-3 text-xs text-white/80 hover:text-white"
+                        onClick={() => toggleRecommendationHowTo(item.id)}
+                      >
+                        {howToOpen
+                          ? t('dashboard.home.recommendations.actions.hideHowTo')
+                          : t('dashboard.home.recommendations.actions.showHowTo')}
+                      </Button>
+                      <Button
                         variant="secondary"
                         className="h-8 px-3 text-xs"
                         disabled={actionPending}
@@ -631,6 +687,42 @@ export default function DashboardPage() {
                         {t('dashboard.litoPage.openWithLito')}
                       </Button>
                     </div>
+
+                    {howToOpen ? (
+                      <div className="mt-3 rounded-lg border border-white/10 bg-black/15 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className={cn('text-xs font-semibold tracking-wide text-white/85')}>
+                            {t('dashboard.home.recommendations.howto.title')}
+                          </p>
+                          <span className="rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/75">
+                            {inlineHowTo.format}
+                          </span>
+                        </div>
+                        <p className={cn('mt-2 text-xs font-medium text-white/80')}>
+                          {t('dashboard.home.recommendations.howTo.stepsTitle')}
+                        </p>
+                        <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-white/72">
+                          {inlineHowTo.steps.map((step, index) => (
+                            <li key={`${item.id}-howto-step-${index}`}>{step}</li>
+                          ))}
+                        </ol>
+                        <p className={cn('mt-3 text-xs font-medium text-white/80')}>
+                          {t('dashboard.home.recommendations.howTo.photoTitle')}
+                        </p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-white/72">
+                          {inlineHowTo.photo_notes.map((note, index) => (
+                            <li key={`${item.id}-howto-photo-${index}`}>{note}</li>
+                          ))}
+                        </ul>
+                        <Button
+                          variant="ghost"
+                          className="mt-3 h-8 px-3 text-xs text-white/80 hover:text-white"
+                          onClick={() => void handleCopyRecommendationChecklist(item)}
+                        >
+                          {t('dashboard.home.recommendations.actions.copyChecklist')}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

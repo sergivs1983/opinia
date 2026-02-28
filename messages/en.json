@@ -580,6 +580,7 @@
           "talkLito": "Talk to LITO",
           "showHowTo": "How to do it",
           "hideHowTo": "Close guide",
+          "copyChecklist": "Copy checklist",
           "generateLito": "✨ Generate Copy & Ideas"
         },
         "lito": {
@@ -674,6 +675,7 @@
         "howTo": {
           "whyTitle": "Why now",
           "stepsTitle": "Steps",
+          "photoTitle": "Photo direction",
           "checklistTitle": "Checklist",
           "assetsTitle": "Assets needed",
           "timeTitle": "Estimated time",
