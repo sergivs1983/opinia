@@ -5,17 +5,57 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
-import { buildIkeaPayload, refineIkeaCopy, type CopyRefineMode, type IkeaVertical } from '@/lib/lito/ikea';
+import {
+  buildDeterministicCopyBase,
+  buildRefinePrompt,
+  mergeModelOutputIntoCopy,
+  parseModelOutput,
+  parseStoredGeneratedCopy,
+  resolveQuickRefineInstruction,
+  type LitoQuickRefineMode,
+  type LitoGeneratedCopy,
+} from '@/lib/ai/lito-copy';
+import { consumeQuota } from '@/lib/ai/quota';
+import { getAIProviderState } from '@/lib/ai/provider';
 import { createLogger } from '@/lib/logger';
+import { callLLM } from '@/lib/llm/provider';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
 
+const QUICK_MODES = [
+  'shorter',
+  'premium',
+  'funny',
+  'formal',
+  'translate_ca',
+  'translate_es',
+  'translate_en',
+] as const;
+
 const RefineBodySchema = z.object({
   biz_id: z.string().uuid(),
   recommendation_id: z.string().uuid(),
-  mode: z.enum(['shorter', 'funny', 'formal', 'translate_es', 'translate_en']),
+  instruction: z.string().trim().max(800).optional(),
+  mode: z.enum(['quick', 'custom']).default('custom'),
+  quick_mode: z.enum(QUICK_MODES).optional(),
+}).superRefine((value, ctx) => {
+  if (value.mode === 'quick' && !value.quick_mode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['quick_mode'],
+      message: 'quick_mode_required',
+    });
+  }
+  if (value.mode === 'custom' && (!value.instruction || value.instruction.trim().length < 2)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['instruction'],
+      message: 'instruction_required',
+    });
+  }
 });
 
 type RecommendationRow = {
@@ -23,11 +63,8 @@ type RecommendationRow = {
   biz_id: string;
   org_id: string;
   rule_id: string;
-  generated_copy: string | null;
+  generated_copy: unknown;
   signal: unknown;
-  copy_short: string | null;
-  copy_long: string | null;
-  hashtags: string[] | null;
 };
 
 type RuleRow = {
@@ -39,11 +76,17 @@ type PlaybookRow = {
   vertical: string | null;
 };
 
-type QuotaRow = {
-  allowed: boolean;
-  used: number;
-  quota_limit: number;
+type BusinessRow = {
+  id: string;
+  name: string;
+  type: string | null;
+  city: string | null;
+  default_language: string | null;
+  formality: string | null;
 };
+
+const SYSTEM_PROMPT =
+  "Ets LITO, assistent de social media per negocis locals. No inventis dades. Respon en l'idioma demanat. Retorna NOMÉS JSON vàlid segons l'esquema.";
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -51,22 +94,99 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   return response;
 }
 
-function mapVertical(value: string | null | undefined): IkeaVertical {
+function normalizeVertical(value: string | null | undefined): 'general' | 'restaurant' | 'hotel' {
   const normalized = (value || '').toLowerCase();
   if (normalized === 'restaurant') return 'restaurant';
   if (normalized === 'hotel') return 'hotel';
   return 'general';
 }
 
-function isMissingMetaDependency(error: unknown): boolean {
-  const code = ((error as { code?: string })?.code || '').toUpperCase();
-  const message = ((error as { message?: string })?.message || '').toLowerCase();
-  return code === '42P01' || code === '42703' || code === 'PGRST205' || message.includes('recommendation_log_meta');
+function normalizeLanguage(value: string | null | undefined): 'ca' | 'es' | 'en' {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'es' || normalized === 'en') return normalized;
+  return 'ca';
 }
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string');
+function isSchemaMissing(error: unknown): boolean {
+  const code = ((error as { code?: string })?.code || '').toUpperCase();
+  const message = ((error as { message?: string })?.message || '').toLowerCase();
+  return (
+    code === '42703'
+    || code === '42P01'
+    || code === 'PGRST204'
+    || code === 'PGRST205'
+    || message.includes('column')
+    || message.includes('schema cache')
+  );
+}
+
+function resolveInstruction(payload: z.infer<typeof RefineBodySchema>): string {
+  if (payload.mode === 'quick' && payload.quick_mode) {
+    return resolveQuickRefineInstruction(payload.quick_mode as LitoQuickRefineMode);
+  }
+  return payload.instruction?.trim() || 'Refina aquest copy mantenint la mateixa intenció.';
+}
+
+async function persistRefinedCopy(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  recommendationId: string;
+  copy: LitoGeneratedCopy;
+  log: ReturnType<typeof createLogger>;
+}): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const fullPayload = {
+    format: params.copy.format,
+    steps: params.copy.execution_checklist,
+    assets_needed: params.copy.assets_needed,
+    copy_short: params.copy.caption_short,
+    copy_long: params.copy.caption_long,
+    hashtags: params.copy.hashtags,
+    generated_copy: params.copy,
+    generated_copy_status: 'refined',
+    generated_copy_updated_at: nowIso,
+    last_action_at: nowIso,
+  };
+
+  const { error: fullErr } = await params.admin
+    .from('recommendation_log')
+    .update(fullPayload)
+    .eq('id', params.recommendationId);
+
+  if (!fullErr) return true;
+  if (!isSchemaMissing(fullErr)) {
+    params.log.error('lito_copy_refine_update_failed', {
+      error_code: fullErr.code || null,
+      error: fullErr.message || null,
+      recommendation_id: params.recommendationId,
+    });
+    return false;
+  }
+
+  const legacyPayload = {
+    format: params.copy.format,
+    steps: params.copy.execution_checklist,
+    assets_needed: params.copy.assets_needed,
+    copy_short: params.copy.caption_short,
+    copy_long: params.copy.caption_long,
+    hashtags: params.copy.hashtags,
+    generated_copy: JSON.stringify(params.copy),
+  };
+
+  const { error: legacyErr } = await params.admin
+    .from('recommendation_log')
+    .update(legacyPayload)
+    .eq('id', params.recommendationId);
+
+  if (legacyErr) {
+    params.log.error('lito_copy_refine_update_legacy_failed', {
+      error_code: legacyErr.code || null,
+      error: legacyErr.message || null,
+      recommendation_id: params.recommendationId,
+    });
+    return false;
+  }
+
+  return true;
 }
 
 export async function POST(request: Request) {
@@ -104,14 +224,21 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const { data: recommendationData, error: recommendationErr } = await admin
-      .from('recommendation_log')
-      .select('id, biz_id, org_id, rule_id, generated_copy, signal, copy_short, copy_long, hashtags')
-      .eq('id', payload.recommendation_id)
-      .eq('biz_id', payload.biz_id)
-      .maybeSingle();
+    const [{ data: recommendationData, error: recommendationErr }, { data: businessData, error: businessErr }] = await Promise.all([
+      admin
+        .from('recommendation_log')
+        .select('id, biz_id, org_id, rule_id, generated_copy, signal')
+        .eq('id', payload.recommendation_id)
+        .eq('biz_id', payload.biz_id)
+        .maybeSingle(),
+      admin
+        .from('businesses')
+        .select('id, name, type, city, default_language, formality')
+        .eq('id', payload.biz_id)
+        .maybeSingle(),
+    ]);
 
-    if (recommendationErr || !recommendationData) {
+    if (recommendationErr || !recommendationData || businessErr || !businessData) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -119,46 +246,56 @@ export async function POST(request: Request) {
     }
 
     const recommendation = recommendationData as RecommendationRow;
+    const business = businessData as BusinessRow;
 
-    const { data: quotaData, error: quotaErr } = await supabase.rpc('consume_draft_quota', {
-      p_org_id: recommendation.org_id,
-      p_increment: 1,
-    });
+    const providerState = getAIProviderState();
+    if (!providerState.available) {
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'ai_unavailable',
+            message: 'Activa LITO Copy a Configuració (Admin).',
+            request_id: requestId,
+          },
+          { status: 503 },
+        ),
+        requestId,
+      );
+    }
 
-    if (quotaErr) {
+    const quota = await consumeQuota(supabase, recommendation.org_id, 1);
+    if (!quota.ok) {
+      if (quota.reason === 'quota_exceeded') {
+        return withStandardHeaders(
+          NextResponse.json(
+            {
+              error: 'quota_exhausted',
+              message: 'Quota mensual assolida. Pots escriure manualment o ampliar el pla.',
+              used: quota.used,
+              limit: quota.limit,
+              remaining: quota.remaining,
+              request_id: requestId,
+            },
+            { status: 402 },
+          ),
+          requestId,
+        );
+      }
       log.error('lito_copy_refine_quota_failed', {
-        error_code: quotaErr.code || null,
-        error: quotaErr.message || null,
+        reason: quota.reason || null,
         org_id: recommendation.org_id,
       });
       return withStandardHeaders(
         NextResponse.json(
-          { error: 'internal', message: 'No s\'ha pogut validar la quota ara mateix.', request_id: requestId },
+          { error: 'internal', message: "No s'ha pogut validar la quota ara mateix.", request_id: requestId },
           { status: 500 },
         ),
         requestId,
       );
     }
 
-    const quota = (Array.isArray(quotaData) ? quotaData[0] : quotaData) as QuotaRow | null;
-    const used = Number(quota?.used || 0);
-    const limit = Number(quota?.quota_limit || 0);
-    const remaining = Math.max(limit - used, 0);
-    if (!quota?.allowed) {
-      return withStandardHeaders(
-        NextResponse.json(
-          { error: 'quota_exhausted', message: 'Quota mensual assolida. Pots escriure manualment o ampliar el pla.', remaining, used, limit, request_id: requestId },
-          { status: 429 },
-        ),
-        requestId,
-      );
-    }
-
-    let copyShort = recommendation.copy_short || '';
-    let copyLong = recommendation.copy_long || '';
-    let hashtags = asStringArray(recommendation.hashtags);
-
-    if (!copyShort || !copyLong || hashtags.length === 0) {
+    let current = parseStoredGeneratedCopy(recommendation.generated_copy);
+    if (!current) {
       const { data: ruleData } = await admin
         .from('playbook_rules')
         .select('playbook_id, recommendation_template')
@@ -166,47 +303,74 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (ruleData) {
-        const rule = ruleData as RuleRow;
         const { data: playbookData } = await admin
           .from('social_playbooks')
           .select('vertical')
-          .eq('id', rule.playbook_id)
+          .eq('id', (ruleData as RuleRow).playbook_id)
           .maybeSingle();
-        const vertical = mapVertical((playbookData as PlaybookRow | null)?.vertical);
-        const generated = buildIkeaPayload({
-          templateRaw: rule.recommendation_template,
+
+        const vertical = normalizeVertical((playbookData as PlaybookRow | null)?.vertical || business.type);
+        current = buildDeterministicCopyBase({
+          templateRaw: (ruleData as RuleRow).recommendation_template,
           generatedCopyRaw: recommendation.generated_copy,
           vertical,
           signal: (recommendation.signal || {}) as Record<string, unknown>,
+          language: normalizeLanguage(business.default_language),
+          channel: 'instagram',
+          tone: business.formality === 'voste' ? 'formal' : 'neutral',
         });
-        copyShort = copyShort || generated.copy_short;
-        copyLong = copyLong || generated.copy_long;
-        hashtags = hashtags.length > 0 ? hashtags : generated.hashtags;
       }
     }
 
-    const refined = refineIkeaCopy({
-      currentShort: copyShort,
-      currentLong: copyLong,
-      currentHashtags: hashtags,
-      mode: payload.mode as CopyRefineMode,
+    if (!current) {
+      return withStandardHeaders(
+        NextResponse.json(
+          { error: 'not_found', message: 'No hi ha cap copy generat encara.', request_id: requestId },
+          { status: 404 },
+        ),
+        requestId,
+      );
+    }
+
+    const instruction = resolveInstruction(payload);
+    const targetLanguage = normalizeLanguage(business.default_language);
+    const prompt = buildRefinePrompt({
+      language: targetLanguage,
+      instruction,
+      current,
     });
 
-    const { error: updateErr } = await admin
-      .from('recommendation_log')
-      .update({
-        copy_short: refined.copy_short,
-        copy_long: refined.copy_long,
-        hashtags: refined.hashtags,
-      })
-      .eq('id', recommendation.id);
+    const llmResult = await callLLM({
+      provider: providerState.provider,
+      model: providerState.model,
+      json: true,
+      temperature: 0.35,
+      maxTokens: 900,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+    });
 
-    if (updateErr) {
-      log.error('lito_copy_refine_update_failed', {
-        error_code: updateErr.code || null,
-        error: updateErr.message || null,
-        recommendation_id: recommendation.id,
-      });
+    const parsed = parseModelOutput(llmResult.content);
+    if (!parsed) {
+      return withStandardHeaders(
+        NextResponse.json(
+          { error: 'invalid_ai_output', message: "La resposta de LITO no és vàlida ara mateix.", request_id: requestId },
+          { status: 502 },
+        ),
+        requestId,
+      );
+    }
+
+    const refined = mergeModelOutputIntoCopy(current, parsed);
+    const persisted = await persistRefinedCopy({
+      admin,
+      recommendationId: recommendation.id,
+      copy: refined,
+      log,
+    });
+    if (!persisted) {
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
         requestId,
@@ -224,6 +388,9 @@ export async function POST(request: Request) {
             lito: {
               mode: 'refine',
               refine_mode: payload.mode,
+              quick_mode: payload.quick_mode || null,
+              provider: providerState.provider,
+              model: providerState.model,
               refined_at: new Date().toISOString(),
             },
           },
@@ -231,8 +398,7 @@ export async function POST(request: Request) {
         },
         { onConflict: 'recommendation_id' },
       );
-
-    if (metaErr && !isMissingMetaDependency(metaErr)) {
+    if (metaErr && !isSchemaMissing(metaErr)) {
       log.warn('lito_copy_refine_meta_upsert_failed', {
         error_code: metaErr.code || null,
         error: metaErr.message || null,
@@ -242,13 +408,8 @@ export async function POST(request: Request) {
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
-        mode: payload.mode,
-        copy_short: refined.copy_short,
-        copy_long: refined.copy_long,
-        hashtags: refined.hashtags,
-        remaining,
-        used,
-        limit,
+        copy: refined,
+        quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
         request_id: requestId,
       }),
       requestId,

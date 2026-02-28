@@ -70,7 +70,7 @@ type RecommendationLogRow = {
   copy_short?: string | null;
   copy_long?: string | null;
   hashtags?: string[] | null;
-  generated_copy: string | null;
+  generated_copy: unknown;
   generated_at: string;
   week_start: string;
 };
@@ -438,8 +438,11 @@ function isMissingRecommendationColumn(error: unknown): boolean {
     || message.includes('schema cache');
 }
 
-function safeJsonParse(value: string | null | undefined): unknown {
-  if (!value) return null;
+function safeJsonParse(value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return null;
+  if (!value.trim()) return null;
   try {
     return JSON.parse(value) as unknown;
   } catch {
@@ -593,7 +596,7 @@ export function parseTemplate(input: unknown): RecommendationTemplate | null {
   };
 }
 
-export function parseTemplateFromGeneratedCopy(value: string | null | undefined): RecommendationTemplate | null {
+export function parseTemplateFromGeneratedCopy(value: unknown): RecommendationTemplate | null {
   return parseTemplate(safeJsonParse(value));
 }
 
@@ -1182,7 +1185,7 @@ async function ensureTargetCount(params: {
         signal: template.signal,
         steps: template.how_to.steps,
         assets_needed: template.assets_needed,
-        generated_copy: JSON.stringify(template),
+        generated_copy: template,
       };
     });
 

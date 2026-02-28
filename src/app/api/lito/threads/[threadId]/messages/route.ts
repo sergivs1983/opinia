@@ -70,9 +70,10 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   return response;
 }
 
-function parseTemplateFromGeneratedCopy(raw: string | null): RecommendationTemplate | null {
-  if (!raw || !raw.trim()) return null;
-  const trimmed = raw.trim();
+function parseTemplateFromGeneratedCopy(raw: unknown): RecommendationTemplate | null {
+  if (!raw) return null;
+  const trimmed = typeof raw === 'string' ? raw.trim() : JSON.stringify(raw);
+  if (!trimmed) return null;
 
   try {
     const parsed = JSON.parse(trimmed) as Partial<RecommendationTemplate>;
@@ -345,7 +346,7 @@ export async function POST(
         .maybeSingle();
 
       const parsed = parseTemplateFromGeneratedCopy(
-        (recommendationData as { generated_copy?: string | null } | null)?.generated_copy || null,
+        (recommendationData as { generated_copy?: unknown } | null)?.generated_copy || null,
       );
       if (parsed) {
         assistantReply = buildAssistantReplyFromTemplate(parsed);
