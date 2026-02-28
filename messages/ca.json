@@ -583,6 +583,120 @@
           "copyChecklist": "Copiar checklist",
           "generateLito": "✨ Generar Text i Idees"
         },
+        "d0": {
+          "ikea": {
+            "title": "Pas a pas (Mode IKEA)",
+            "channelLabel": "Canal",
+            "channel": {
+              "instagram": "Instagram",
+              "tiktok": "TikTok"
+            },
+            "copyChecklist": "Copiar checklist",
+            "copiedToast": "Checklist copiat.",
+            "copyError": "No s'ha pogut copiar el checklist.",
+            "headerChannel": "CANAL: {channel}",
+            "sectionSteps": "Passos",
+            "sectionPhoto": "Director de foto",
+            "sectionChannel": "Notes del canal",
+            "fallback": {
+              "hook": {
+                "general": "Una escena real del teu negoci que genera confiança",
+                "restaurant": "Aquest cap de setmana et proposem un pla amb sabor local",
+                "hotel": "Un racó del teu allotjament que la gent ha de conèixer"
+              },
+              "idea": {
+                "general": "Mostra un resultat concret del teu servei amb una situació real",
+                "restaurant": "Mostra un plat estrella i el moment de servei a sala",
+                "hotel": "Ensenya un detall de l’habitació i una experiència del client"
+              },
+              "cta": {
+                "general": "Contacta’ns i t’ajudem a trobar la millor opció",
+                "restaurant": "Reserva taula i vine a tastar-ho aquesta setmana",
+                "hotel": "Consulta disponibilitat i planifica la teva estada"
+              }
+            },
+            "steps": {
+              "post": {
+                "common": {
+                  "open": "Obre el copy amb el hook: “{hook}”.",
+                  "explain": "Explica la idea en 2-3 línies: {idea}.",
+                  "visual": "Afegeix una foto/carrusel real del negoci (no stock).",
+                  "close": "Tanca amb una CTA concreta: {cta}."
+                },
+                "instagram": {
+                  "location": "Afegeix ubicació del local.",
+                  "hashtags": "Inclou entre 3 i 6 hashtags rellevants."
+                },
+                "tiktok": {
+                  "directLine": "Escriu una línia molt directa amb la idea principal.",
+                  "comments": "Tanca amb CTA a comentaris: “Què en penses?”"
+                }
+              },
+              "story": {
+                "common": {
+                  "open": "Story 1: obre amb el titular “{hook}”.",
+                  "visual": "Story 2: mostra una prova visual real de {idea}.",
+                  "close": "Tanca amb una CTA clara: {cta}."
+                },
+                "instagram": {
+                  "sticker": "Afegeix sticker d'interacció (enquesta o pregunta).",
+                  "link": "Afegeix link si en tens (reserva, carta o contacte)."
+                },
+                "tiktok": {
+                  "bigText": "Posa text gran a pantalla amb 1 frase clau.",
+                  "comments": "CTA a comentaris: “Què prefereixes?”"
+                }
+              },
+              "reel": {
+                "common": {
+                  "action": "3-10s: mostra l'acció principal: {idea}.",
+                  "clips": "Munta 3-5 clips curts verticals amb ritme àgil.",
+                  "caption": "Caption final amb CTA: {cta}.",
+                  "publish": "Publica en una franja amb activitat alta."
+                },
+                "instagram": {
+                  "hook3s": "0-3s: obre amb hook en pantalla: “{hook}”.",
+                  "music": "Tria música d’Instagram en tendència.",
+                  "text3s": "Mantén text a pantalla només als primers 3 segons."
+                },
+                "tiktok": {
+                  "hook2s": "0-2s: hook visual molt clar + text curt.",
+                  "onScreenText": "Afegeix text inicial gran i llegible.",
+                  "followCta": "Tanca amb CTA: “Segueix-nos per més idees”."
+                }
+              }
+            },
+            "photo": {
+              "post": {
+                "framing": "Tria una foto hero amb punt focal clar.",
+                "pace": "Mantén colors coherents amb la marca."
+              },
+              "story": {
+                "framing": "Format vertical 9:16 amb contrast alt.",
+                "pace": "Una sola idea per story (no saturis)."
+              },
+              "reel": {
+                "framing": "Primer pla potent en els 2-3 primers segons.",
+                "pace": "Moviments simples i plans curts."
+              },
+              "vertical": {
+                "general": "Mostra persones reals, equip i resultat del servei.",
+                "restaurant": "Prioritza primers plans de plats i mans en acció.",
+                "hotel": "Prioritza espais ordenats amb llum natural."
+              }
+            },
+            "channelNotes": {
+              "instagram": {
+                "one": "A Instagram funciona millor una estètica consistent.",
+                "two": "Fes servir ubicació i hashtags per millorar descobriment."
+              },
+              "tiktok": {
+                "one": "A TikTok prioritza ritme ràpid i missatge directe.",
+                "two": "Demana resposta a comentaris per activar interacció."
+              }
+            }
+          }
+        },
         "lito": {
           "title": "Parla amb LITO",
           "openError": "No s'ha pogut obrir LITO ara mateix.",

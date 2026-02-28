@@ -1,5 +1,7 @@
 export type RecommendationVertical = 'general' | 'restaurant' | 'hotel';
 export type RecommendationFormat = 'post' | 'story' | 'reel';
+export type RecommendationChannel = 'instagram' | 'tiktok';
+export type RecommendationLocale = 'ca' | 'es' | 'en';
 
 export type HowToGuide = {
   objective: string;
@@ -17,8 +19,32 @@ export type HowToGuide = {
 
 export type InlineIkeaHowTo = {
   format: RecommendationFormat;
-  steps: string[];
-  photo_notes: string[];
+  channel: RecommendationChannel;
+  locale: RecommendationLocale;
+  hook: {
+    value?: string;
+    fallbackKey: string;
+  };
+  idea: {
+    value?: string;
+    fallbackKey: string;
+  };
+  cta: {
+    value?: string;
+    fallbackKey: string;
+  };
+  steps: Array<{
+    key: string;
+    vars?: Record<string, string | number>;
+  }>;
+  photo_notes: Array<{
+    key: string;
+    vars?: Record<string, string | number>;
+  }>;
+  channel_notes: Array<{
+    key: string;
+    vars?: Record<string, string | number>;
+  }>;
 };
 
 type InlineIkeaInput = {
@@ -27,6 +53,8 @@ type InlineIkeaInput = {
   idea?: string | null;
   cta?: string | null;
   vertical?: string | null;
+  channel?: RecommendationChannel | null;
+  locale?: RecommendationLocale | null;
 };
 
 type BuildHowToInput = {
@@ -88,102 +116,139 @@ function normalizeVertical(value: string | null | undefined): RecommendationVert
   return 'general';
 }
 
-function fallbackHook(vertical: RecommendationVertical): string {
-  if (vertical === 'restaurant') return 'Aquest cap de setmana et proposem un pla amb sabor local';
-  if (vertical === 'hotel') return 'Un racó del teu allotjament que la gent ha de conèixer';
-  return 'Una escena real del teu negoci que genera confiança';
+function normalizeChannel(value: RecommendationChannel | null | undefined): RecommendationChannel {
+  return value === 'tiktok' ? 'tiktok' : 'instagram';
 }
 
-function fallbackIdea(vertical: RecommendationVertical): string {
-  if (vertical === 'restaurant') return 'Mostra un plat estrella i el moment de servei a sala';
-  if (vertical === 'hotel') return 'Ensenya un detall de l’habitació i una experiència del client';
-  return 'Ensenya un resultat concret del teu servei amb una situació real';
+function normalizeLocale(value: RecommendationLocale | null | undefined): RecommendationLocale {
+  if (value === 'es' || value === 'en') return value;
+  return 'ca';
 }
 
-function fallbackCta(vertical: RecommendationVertical): string {
-  if (vertical === 'restaurant') return 'Reserva taula i vine a tastar-ho aquesta setmana';
-  if (vertical === 'hotel') return 'Consulta disponibilitat i planifica la teva estada';
-  return 'Contacta’ns i t’ajudem a trobar la millor opció';
+function fallbackHookKey(vertical: RecommendationVertical): string {
+  return `dashboard.home.recommendations.d0.ikea.fallback.hook.${vertical}`;
+}
+
+function fallbackIdeaKey(vertical: RecommendationVertical): string {
+  return `dashboard.home.recommendations.d0.ikea.fallback.idea.${vertical}`;
+}
+
+function fallbackCtaKey(vertical: RecommendationVertical): string {
+  return `dashboard.home.recommendations.d0.ikea.fallback.cta.${vertical}`;
 }
 
 function buildInlineSteps(
   format: RecommendationFormat,
-  hook: string,
-  idea: string,
-  cta: string,
-): string[] {
+  channel: RecommendationChannel,
+): Array<{ key: string; vars?: Record<string, string | number> }> {
   if (format === 'story') {
+    if (channel === 'tiktok') {
+      return [
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.story.common.open' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.story.common.visual' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.story.tiktok.bigText' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.story.tiktok.comments' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.story.common.close' },
+      ];
+    }
+
     return [
-      `Story 1: obre amb el titular: “${hook}”.`,
-      `Story 2: mostra una prova visual real de: ${idea}.`,
-      'Afegeix text gran i llegible (màx. 8 paraules per pantalla).',
-      'Posa un sticker (pregunta/enquesta) per activar respostes.',
-      `Tanca amb una CTA clara: ${cta}.`,
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.story.common.open' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.story.common.visual' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.story.instagram.sticker' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.story.instagram.link' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.story.common.close' },
     ];
   }
 
   if (format === 'reel') {
+    if (channel === 'tiktok') {
+      return [
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.tiktok.hook2s' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.common.action' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.common.clips' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.tiktok.onScreenText' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.tiktok.followCta' },
+        { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.common.caption' },
+      ];
+    }
+
     return [
-      `0-3s: obre amb hook a pantalla: “${hook}”.`,
-      `3-10s: mostra l’acció principal: ${idea}.`,
-      'Grava 3-5 clips curts verticals amb ritme àgil.',
-      'Afegeix text inicial i subtítols curts per entendre-ho sense so.',
-      `Caption final amb CTA: ${cta}.`,
-      'Publica en una franja amb activitat alta del teu públic.',
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.instagram.hook3s' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.common.action' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.instagram.music' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.instagram.text3s' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.common.caption' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.reel.common.publish' },
+    ];
+  }
+
+  if (channel === 'tiktok') {
+    return [
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.post.common.open' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.post.tiktok.directLine' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.post.common.visual' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.post.tiktok.comments' },
+      { key: 'dashboard.home.recommendations.d0.ikea.steps.post.common.close' },
     ];
   }
 
   return [
-    `Obre el copy amb el hook: “${hook}”.`,
-    `Explica la idea en 2-3 línies: ${idea}.`,
-    'Afegeix una foto/carrusel real del negoci (no stock).',
-    'Inclou ubicació i context perquè sigui accionable.',
-    `Tanca amb una CTA concreta: ${cta}.`,
+    { key: 'dashboard.home.recommendations.d0.ikea.steps.post.common.open' },
+    { key: 'dashboard.home.recommendations.d0.ikea.steps.post.common.explain' },
+    { key: 'dashboard.home.recommendations.d0.ikea.steps.post.common.visual' },
+    { key: 'dashboard.home.recommendations.d0.ikea.steps.post.instagram.location' },
+    { key: 'dashboard.home.recommendations.d0.ikea.steps.post.instagram.hashtags' },
   ];
 }
 
-function buildPhotoNotes(format: RecommendationFormat, vertical: RecommendationVertical): string[] {
-  const verticalTip = vertical === 'restaurant'
-    ? 'Prioritza primers plans de plats i mans en acció.'
-    : vertical === 'hotel'
-      ? 'Prioritza espais ordenats amb llum natural i profunditat.'
-      : 'Prioritza cares reals, equip i resultat final del servei.';
+function buildPhotoNotes(
+  format: RecommendationFormat,
+  vertical: RecommendationVertical,
+): Array<{ key: string; vars?: Record<string, string | number> }> {
+  const notes: Array<{ key: string; vars?: Record<string, string | number> }> = [
+    { key: `dashboard.home.recommendations.d0.ikea.photo.${format}.framing` },
+    { key: `dashboard.home.recommendations.d0.ikea.photo.${format}.pace` },
+    { key: `dashboard.home.recommendations.d0.ikea.photo.vertical.${vertical}` },
+  ];
+  return notes;
+}
 
-  if (format === 'story') {
-    return [
-      'Format vertical 9:16 i contrast alt per llegibilitat.',
-      verticalTip,
-      'Una idea per story, sense saturar text ni adhesius.',
-    ];
-  }
-
-  if (format === 'reel') {
-    return [
-      'Primer pla potent als 2-3 primers segons.',
-      'Moviments simples i estables (evita plans massa llargs).',
-      verticalTip,
-    ];
-  }
-
+function buildChannelNotes(channel: RecommendationChannel): Array<{ key: string }> {
   return [
-    'Tria una foto hero amb punt focal clar.',
-    verticalTip,
-    'Mantén la paleta de colors coherent amb la marca.',
+    { key: `dashboard.home.recommendations.d0.ikea.channelNotes.${channel}.one` },
+    { key: `dashboard.home.recommendations.d0.ikea.channelNotes.${channel}.two` },
   ];
 }
 
 export function buildInlineIkeaHowTo(input: InlineIkeaInput): InlineIkeaHowTo {
   const format = normalizeFormat(input.format);
   const vertical = normalizeVertical(input.vertical);
-
-  const hook = (input.hook || '').trim() || fallbackHook(vertical);
-  const idea = (input.idea || '').trim() || fallbackIdea(vertical);
-  const cta = (input.cta || '').trim() || fallbackCta(vertical);
+  const channel = normalizeChannel(input.channel);
+  const locale = normalizeLocale(input.locale);
+  const hook = (input.hook || '').trim();
+  const idea = (input.idea || '').trim();
+  const cta = (input.cta || '').trim();
 
   return {
     format,
-    steps: buildInlineSteps(format, hook, idea, cta),
+    channel,
+    locale,
+    hook: {
+      value: hook || undefined,
+      fallbackKey: fallbackHookKey(vertical),
+    },
+    idea: {
+      value: idea || undefined,
+      fallbackKey: fallbackIdeaKey(vertical),
+    },
+    cta: {
+      value: cta || undefined,
+      fallbackKey: fallbackCtaKey(vertical),
+    },
+    steps: buildInlineSteps(format, channel),
     photo_notes: buildPhotoNotes(format, vertical),
+    channel_notes: buildChannelNotes(channel),
   };
 }
 

@@ -583,6 +583,120 @@
           "copyChecklist": "Copy checklist",
           "generateLito": "✨ Generate Copy & Ideas"
         },
+        "d0": {
+          "ikea": {
+            "title": "Step by step (IKEA mode)",
+            "channelLabel": "Channel",
+            "channel": {
+              "instagram": "Instagram",
+              "tiktok": "TikTok"
+            },
+            "copyChecklist": "Copy checklist",
+            "copiedToast": "Checklist copied.",
+            "copyError": "Could not copy the checklist.",
+            "headerChannel": "CHANNEL: {channel}",
+            "sectionSteps": "Steps",
+            "sectionPhoto": "Photo direction",
+            "sectionChannel": "Channel notes",
+            "fallback": {
+              "hook": {
+                "general": "A real business moment that builds trust",
+                "restaurant": "This weekend, highlight a local flavor moment",
+                "hotel": "A corner of your property guests should discover"
+              },
+              "idea": {
+                "general": "Show a concrete service result in a real situation",
+                "restaurant": "Show a signature dish and a real service moment",
+                "hotel": "Show a room detail and a guest experience"
+              },
+              "cta": {
+                "general": "Contact us and we will help you choose the best option",
+                "restaurant": "Book a table and try it this week",
+                "hotel": "Check availability and plan your stay"
+              }
+            },
+            "steps": {
+              "post": {
+                "common": {
+                  "open": "Open your copy with the hook: “{hook}”.",
+                  "explain": "Explain the idea in 2-3 lines: {idea}.",
+                  "visual": "Add a real photo/carousel from the business (no stock).",
+                  "close": "Close with a specific CTA: {cta}."
+                },
+                "instagram": {
+                  "location": "Add your business location.",
+                  "hashtags": "Include 3 to 6 relevant hashtags."
+                },
+                "tiktok": {
+                  "directLine": "Write one direct line with the core idea.",
+                  "comments": "Close with a comments CTA: “What do you think?”"
+                }
+              },
+              "story": {
+                "common": {
+                  "open": "Story 1: open with the headline “{hook}”.",
+                  "visual": "Story 2: show real visual proof of {idea}.",
+                  "close": "Close with a clear CTA: {cta}."
+                },
+                "instagram": {
+                  "sticker": "Add an interaction sticker (poll or question).",
+                  "link": "Add a link if available (booking, menu, contact)."
+                },
+                "tiktok": {
+                  "bigText": "Use large on-screen text with one key sentence.",
+                  "comments": "Comments CTA: “What would you choose?”"
+                }
+              },
+              "reel": {
+                "common": {
+                  "action": "3-10s: show the main action: {idea}.",
+                  "clips": "Edit 3-5 short vertical clips with clear rhythm.",
+                  "caption": "Final caption with CTA: {cta}.",
+                  "publish": "Publish during your peak activity window."
+                },
+                "instagram": {
+                  "hook3s": "0-3s: open with on-screen hook: “{hook}”.",
+                  "music": "Choose trending music from Instagram.",
+                  "text3s": "Keep on-screen text only in the first 3 seconds."
+                },
+                "tiktok": {
+                  "hook2s": "0-2s: strong visual hook + short text.",
+                  "onScreenText": "Add large and readable opening text.",
+                  "followCta": "Close with CTA: “Follow us for more ideas”."
+                }
+              }
+            },
+            "photo": {
+              "post": {
+                "framing": "Pick a hero image with one clear focal point.",
+                "pace": "Keep colors consistent with your brand."
+              },
+              "story": {
+                "framing": "Use vertical 9:16 format with high contrast.",
+                "pace": "One idea per story (avoid overload)."
+              },
+              "reel": {
+                "framing": "Use a strong close-up in the first 2-3 seconds.",
+                "pace": "Keep movement simple and shots short."
+              },
+              "vertical": {
+                "general": "Show real people, team, and service outcome.",
+                "restaurant": "Prioritize close-ups of dishes and hands in action.",
+                "hotel": "Prioritize tidy spaces with natural light."
+              }
+            },
+            "channelNotes": {
+              "instagram": {
+                "one": "On Instagram, visual consistency performs better.",
+                "two": "Use location and hashtags to improve discovery."
+              },
+              "tiktok": {
+                "one": "On TikTok, prioritize fast rhythm and direct messaging.",
+                "two": "Ask for comments to trigger interaction."
+              }
+            }
+          }
+        },
         "lito": {
           "title": "Talk to LITO",
           "openError": "Could not open LITO right now.",

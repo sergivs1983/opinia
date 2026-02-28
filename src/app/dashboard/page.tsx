@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useT } from '@/components/i18n/I18nContext';
+import { useLocale, useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useReviews } from '@/hooks/useReviews';
 import { useSupabase } from '@/hooks/useSupabase';
@@ -16,7 +16,7 @@ import ActionReviewCard from '@/components/home/ActionReviewCard';
 import PublishSuccessModal from '@/components/home/PublishSuccessModal';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
-import { buildInlineIkeaHowTo } from '@/lib/recommendations/howto';
+import { buildInlineIkeaHowTo, type RecommendationChannel } from '@/lib/recommendations/howto';
 import type { Reply, Review } from '@/types/database';
 
 type ReplyDraftRow = Pick<Reply, 'id' | 'review_id' | 'tone' | 'status' | 'content' | 'created_at'>;
@@ -152,6 +152,7 @@ function normalizeRecommendationItem(
 
 export default function DashboardPage() {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const supabase = useSupabase();
   const { toast } = useToast();
@@ -173,6 +174,7 @@ export default function DashboardPage() {
   const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
   const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
   const [weeklyRecommendationHowToOpenById, setWeeklyRecommendationHowToOpenById] = useState<Record<string, boolean>>({});
+  const [weeklyRecommendationChannelById, setWeeklyRecommendationChannelById] = useState<Record<string, RecommendationChannel>>({});
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -517,23 +519,55 @@ export default function DashboardPage() {
     }));
   }, []);
 
-  const handleCopyRecommendationChecklist = useCallback(async (recommendation: WeeklyRecommendationItem) => {
+  const setRecommendationChannel = useCallback((recommendationId: string, channel: RecommendationChannel) => {
+    setWeeklyRecommendationChannelById((previous) => ({
+      ...previous,
+      [recommendationId]: channel,
+    }));
+  }, []);
+
+  const handleCopyRecommendationChecklist = useCallback(async (
+    recommendation: WeeklyRecommendationItem,
+    channel: RecommendationChannel,
+  ) => {
     const howTo = buildInlineIkeaHowTo({
       format: recommendation.format,
       hook: recommendation.hook,
       idea: recommendation.idea,
       cta: recommendation.cta,
       vertical: recommendation.vertical,
+      channel,
+      locale,
     });
+
+    const resolvedHook = howTo.hook.value || t(howTo.hook.fallbackKey);
+    const resolvedIdea = howTo.idea.value || t(howTo.idea.fallbackKey);
+    const resolvedCta = howTo.cta.value || t(howTo.cta.fallbackKey);
+
+    const resolveMessage = (token: { key: string; vars?: Record<string, string | number> }) => (
+      t(token.key, {
+        ...(token.vars || {}),
+        hook: resolvedHook,
+        idea: resolvedIdea,
+        cta: resolvedCta,
+      })
+    );
+
+    const channelLabel = t(`dashboard.home.recommendations.d0.ikea.channel.${howTo.channel}`);
 
     const plainChecklist = [
       `${t('dashboard.home.recommendations.howto.title')} (${howTo.format.toUpperCase()})`,
       '',
-      t('dashboard.home.recommendations.howTo.stepsTitle'),
-      ...howTo.steps.map((step, index) => `${index + 1}. ${step}`),
+      t('dashboard.home.recommendations.d0.ikea.headerChannel', { channel: channelLabel }),
       '',
-      t('dashboard.home.recommendations.howTo.photoTitle'),
-      ...howTo.photo_notes.map((note) => `- ${note}`),
+      t('dashboard.home.recommendations.d0.ikea.sectionSteps'),
+      ...howTo.steps.map((step, index) => `${index + 1}. ${resolveMessage(step)}`),
+      '',
+      t('dashboard.home.recommendations.d0.ikea.sectionPhoto'),
+      ...howTo.photo_notes.map((note) => `- ${resolveMessage(note)}`),
+      '',
+      t('dashboard.home.recommendations.d0.ikea.sectionChannel'),
+      ...howTo.channel_notes.map((note) => `- ${resolveMessage(note)}`),
     ].join('\n');
 
     try {
@@ -541,11 +575,11 @@ export default function DashboardPage() {
         throw new Error('clipboard_unavailable');
       }
       await navigator.clipboard.writeText(plainChecklist);
-      toast(t('dashboard.home.recommendations.lito.copySuccess'), 'success');
+      toast(t('dashboard.home.recommendations.d0.ikea.copiedToast'), 'success');
     } catch {
-      toast(t('dashboard.home.recommendations.lito.copyError'), 'error');
+      toast(t('dashboard.home.recommendations.d0.ikea.copyError'), 'error');
     }
-  }, [t, toast]);
+  }, [locale, t, toast]);
 
   if (!biz) {
     return (
@@ -635,13 +669,27 @@ export default function DashboardPage() {
               {weeklyRecommendations.slice(0, 3).map((item) => {
                 const actionPending = Boolean(weeklyRecommendationActionById[item.id]);
                 const howToOpen = Boolean(weeklyRecommendationHowToOpenById[item.id]);
+                const selectedChannel = weeklyRecommendationChannelById[item.id] || 'instagram';
                 const inlineHowTo = buildInlineIkeaHowTo({
                   format: item.format,
                   hook: item.hook,
                   idea: item.idea,
                   cta: item.cta,
                   vertical: item.vertical,
+                  channel: selectedChannel,
+                  locale,
                 });
+                const resolvedHook = inlineHowTo.hook.value || t(inlineHowTo.hook.fallbackKey);
+                const resolvedIdea = inlineHowTo.idea.value || t(inlineHowTo.idea.fallbackKey);
+                const resolvedCta = inlineHowTo.cta.value || t(inlineHowTo.cta.fallbackKey);
+                const resolveHowToMessage = (token: { key: string; vars?: Record<string, string | number> }) => (
+                  t(token.key, {
+                    ...(token.vars || {}),
+                    hook: resolvedHook,
+                    idea: resolvedIdea,
+                    cta: resolvedCta,
+                  })
+                );
 
                 return (
                   <div
@@ -692,34 +740,67 @@ export default function DashboardPage() {
                       <div className="mt-3 rounded-lg border border-white/10 bg-black/15 p-3">
                         <div className="flex items-center justify-between gap-3">
                           <p className={cn('text-xs font-semibold tracking-wide text-white/85')}>
-                            {t('dashboard.home.recommendations.howto.title')}
+                            {t('dashboard.home.recommendations.d0.ikea.title')}
                           </p>
                           <span className="rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/75">
                             {inlineHowTo.format}
                           </span>
                         </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-white/70">
+                            {t('dashboard.home.recommendations.d0.ikea.channelLabel')}
+                          </span>
+                          <div className="inline-flex rounded-full border border-white/15 bg-white/5 p-0.5">
+                            {(['instagram', 'tiktok'] as RecommendationChannel[]).map((channel) => {
+                              const active = selectedChannel === channel;
+                              return (
+                                <button
+                                  key={`${item.id}-channel-${channel}`}
+                                  type="button"
+                                  onClick={() => setRecommendationChannel(item.id, channel)}
+                                  className={cn(
+                                    'rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors',
+                                    active
+                                      ? 'bg-white/15 text-white'
+                                      : 'text-white/65 hover:bg-white/10 hover:text-white/90',
+                                  )}
+                                >
+                                  {t(`dashboard.home.recommendations.d0.ikea.channel.${channel}`)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                         <p className={cn('mt-2 text-xs font-medium text-white/80')}>
-                          {t('dashboard.home.recommendations.howTo.stepsTitle')}
+                          {t('dashboard.home.recommendations.d0.ikea.sectionSteps')}
                         </p>
                         <ol className="mt-1 list-decimal space-y-1 pl-4 text-xs text-white/72">
                           {inlineHowTo.steps.map((step, index) => (
-                            <li key={`${item.id}-howto-step-${index}`}>{step}</li>
+                            <li key={`${item.id}-howto-step-${index}`}>{resolveHowToMessage(step)}</li>
                           ))}
                         </ol>
                         <p className={cn('mt-3 text-xs font-medium text-white/80')}>
-                          {t('dashboard.home.recommendations.howTo.photoTitle')}
+                          {t('dashboard.home.recommendations.d0.ikea.sectionPhoto')}
                         </p>
                         <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-white/72">
                           {inlineHowTo.photo_notes.map((note, index) => (
-                            <li key={`${item.id}-howto-photo-${index}`}>{note}</li>
+                            <li key={`${item.id}-howto-photo-${index}`}>{resolveHowToMessage(note)}</li>
+                          ))}
+                        </ul>
+                        <p className={cn('mt-3 text-xs font-medium text-white/80')}>
+                          {t('dashboard.home.recommendations.d0.ikea.sectionChannel')}
+                        </p>
+                        <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-white/72">
+                          {inlineHowTo.channel_notes.map((note, index) => (
+                            <li key={`${item.id}-howto-channel-${index}`}>{resolveHowToMessage(note)}</li>
                           ))}
                         </ul>
                         <Button
                           variant="ghost"
                           className="mt-3 h-8 px-3 text-xs text-white/80 hover:text-white"
-                          onClick={() => void handleCopyRecommendationChecklist(item)}
+                          onClick={() => void handleCopyRecommendationChecklist(item, selectedChannel)}
                         >
-                          {t('dashboard.home.recommendations.actions.copyChecklist')}
+                          {t('dashboard.home.recommendations.d0.ikea.copyChecklist')}
                         </Button>
                       </div>
                     ) : null}

@@ -583,6 +583,120 @@
           "copyChecklist": "Copiar checklist",
           "generateLito": "✨ Generar texto e ideas"
         },
+        "d0": {
+          "ikea": {
+            "title": "Paso a paso (Modo IKEA)",
+            "channelLabel": "Canal",
+            "channel": {
+              "instagram": "Instagram",
+              "tiktok": "TikTok"
+            },
+            "copyChecklist": "Copiar checklist",
+            "copiedToast": "Checklist copiado.",
+            "copyError": "No se pudo copiar el checklist.",
+            "headerChannel": "CANAL: {channel}",
+            "sectionSteps": "Pasos",
+            "sectionPhoto": "Dirección de foto",
+            "sectionChannel": "Notas del canal",
+            "fallback": {
+              "hook": {
+                "general": "Una escena real de tu negocio que genera confianza",
+                "restaurant": "Este fin de semana te proponemos un plan con sabor local",
+                "hotel": "Un rincón de tu alojamiento que la gente debería conocer"
+              },
+              "idea": {
+                "general": "Muestra un resultado concreto de tu servicio en una situación real",
+                "restaurant": "Muestra un plato estrella y el momento de servicio en sala",
+                "hotel": "Enseña un detalle de la habitación y una experiencia del cliente"
+              },
+              "cta": {
+                "general": "Contáctanos y te ayudamos a encontrar la mejor opción",
+                "restaurant": "Reserva mesa y ven a probarlo esta semana",
+                "hotel": "Consulta disponibilidad y planifica tu estancia"
+              }
+            },
+            "steps": {
+              "post": {
+                "common": {
+                  "open": "Abre el copy con el hook: “{hook}”.",
+                  "explain": "Explica la idea en 2-3 líneas: {idea}.",
+                  "visual": "Añade una foto/carrusel real del negocio (sin stock).",
+                  "close": "Cierra con una CTA concreta: {cta}."
+                },
+                "instagram": {
+                  "location": "Añade la ubicación del local.",
+                  "hashtags": "Incluye entre 3 y 6 hashtags relevantes."
+                },
+                "tiktok": {
+                  "directLine": "Escribe una línea muy directa con la idea principal.",
+                  "comments": "Cierra con CTA a comentarios: “¿Qué opinas?”"
+                }
+              },
+              "story": {
+                "common": {
+                  "open": "Story 1: abre con el titular “{hook}”.",
+                  "visual": "Story 2: muestra una prueba visual real de {idea}.",
+                  "close": "Cierra con una CTA clara: {cta}."
+                },
+                "instagram": {
+                  "sticker": "Añade sticker de interacción (encuesta o pregunta).",
+                  "link": "Añade enlace si lo tienes (reserva, carta o contacto)."
+                },
+                "tiktok": {
+                  "bigText": "Pon texto grande en pantalla con 1 frase clave.",
+                  "comments": "CTA a comentarios: “¿Qué prefieres?”"
+                }
+              },
+              "reel": {
+                "common": {
+                  "action": "3-10s: muestra la acción principal: {idea}.",
+                  "clips": "Monta 3-5 clips verticales cortos con ritmo ágil.",
+                  "caption": "Caption final con CTA: {cta}.",
+                  "publish": "Publica en una franja con actividad alta."
+                },
+                "instagram": {
+                  "hook3s": "0-3s: abre con hook en pantalla: “{hook}”.",
+                  "music": "Elige música en tendencia de Instagram.",
+                  "text3s": "Mantén texto en pantalla solo en los primeros 3 segundos."
+                },
+                "tiktok": {
+                  "hook2s": "0-2s: hook visual muy claro + texto corto.",
+                  "onScreenText": "Añade texto inicial grande y legible.",
+                  "followCta": "Cierra con CTA: “Síguenos para más ideas”."
+                }
+              }
+            },
+            "photo": {
+              "post": {
+                "framing": "Elige una foto principal con punto focal claro.",
+                "pace": "Mantén colores coherentes con tu marca."
+              },
+              "story": {
+                "framing": "Formato vertical 9:16 con contraste alto.",
+                "pace": "Una sola idea por story (sin saturar)."
+              },
+              "reel": {
+                "framing": "Primer plano potente en los 2-3 primeros segundos.",
+                "pace": "Movimientos simples y planos cortos."
+              },
+              "vertical": {
+                "general": "Muestra personas reales, equipo y resultado del servicio.",
+                "restaurant": "Prioriza primeros planos de platos y manos en acción.",
+                "hotel": "Prioriza espacios ordenados con luz natural."
+              }
+            },
+            "channelNotes": {
+              "instagram": {
+                "one": "En Instagram funciona mejor una estética consistente.",
+                "two": "Usa ubicación y hashtags para mejorar el descubrimiento."
+              },
+              "tiktok": {
+                "one": "En TikTok prioriza ritmo rápido y mensaje directo.",
+                "two": "Pide respuesta en comentarios para activar interacción."
+              }
+            }
+          }
+        },
         "lito": {
           "title": "Hablar con LITO",
           "openError": "No se pudo abrir LITO ahora mismo.",
