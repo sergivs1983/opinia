@@ -7,6 +7,7 @@ import Tabs from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
 import { textMain, textSub } from '@/components/ui/glass';
 import { cn } from '@/lib/utils';
+import { emitLitoCopyUpdated, isLitoCopyUpdatedEvent, LITO_COPY_UPDATED_EVENT } from '@/components/lito/copy-sync';
 import type {
   LitoGeneratedCopy,
   LitoQuotaState,
@@ -322,6 +323,11 @@ export default function LitoWorkbenchPane({
         setQuota(payload.quota);
         onQuotaChange(payload.quota);
       }
+      emitLitoCopyUpdated({
+        bizId,
+        recommendationId: recommendation.id,
+        source: 'workbench',
+      });
       setAiUnavailable(false);
       setAiStatusReason('ok');
       setAiMessage('');
@@ -382,6 +388,11 @@ export default function LitoWorkbenchPane({
         setQuota(payload.quota);
         onQuotaChange(payload.quota);
       }
+      emitLitoCopyUpdated({
+        bizId,
+        recommendationId: recommendation.id,
+        source: 'workbench',
+      });
       if (mode === 'custom') setCustomInstruction('');
       setAiUnavailable(false);
       setAiStatusReason('ok');
@@ -424,6 +435,24 @@ export default function LitoWorkbenchPane({
     lastQuickRefineHandled.current = quickRefineTrigger.id;
     void runRefine(quickRefineTrigger.mode);
   }, [quickRefineTrigger, recommendation?.id, runRefine]);
+
+  useEffect(() => {
+    if (!bizId || !recommendation?.id) return;
+
+    const onCopyUpdated = (event: Event) => {
+      if (!isLitoCopyUpdatedEvent(event)) return;
+      const detail = event.detail;
+      if (!detail) return;
+      if (detail.source === 'workbench') return;
+      if (detail.bizId !== bizId || detail.recommendationId !== recommendation.id) return;
+      void loadStoredCopy();
+    };
+
+    window.addEventListener(LITO_COPY_UPDATED_EVENT, onCopyUpdated as EventListener);
+    return () => {
+      window.removeEventListener(LITO_COPY_UPDATED_EVENT, onCopyUpdated as EventListener);
+    };
+  }, [bizId, loadStoredCopy, recommendation?.id]);
 
   const tabValue = useMemo(() => {
     if (activeTab === 'copy_long') return copyLong;
