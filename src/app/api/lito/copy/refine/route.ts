@@ -25,6 +25,7 @@ import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
 import { consumeOrgQuota, consumeStaffDaily, enforceStaffMonthlyCap } from '@/lib/ai/staff-guards';
 import { litoCopyUnavailableMessage, resolveLitoCopyStatus } from '@/lib/ai/copy-status';
 import { resolveProvider } from '@/lib/ai/provider';
+import { canUseLitoCopy, getOrgEntitlements } from '@/lib/billing/entitlements';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -300,6 +301,10 @@ export async function POST(request: Request) {
       .eq('id', recommendation.org_id)
       .maybeSingle();
     const orgSettings = (orgSettingsData || null) as OrganizationSettingsRow | null;
+    const entitlements = await getOrgEntitlements({
+      supabase: admin,
+      orgId: recommendation.org_id,
+    });
 
     const instruction = resolveInstruction(payload);
     const targetLanguage = normalizeLanguage(business.default_language);
@@ -422,22 +427,27 @@ export async function POST(request: Request) {
     jobId = jobAcquire.jobId;
     const activeJobId = jobAcquire.jobId;
 
-    const copyStatus = resolveLitoCopyStatus({
-      providerState,
-      paused: memberRole === 'staff' && Boolean(orgSettings?.lito_staff_ai_paused),
+    const litoAccess = canUseLitoCopy({
+      role: memberRole,
+      pausedFlag: Boolean(orgSettings?.lito_staff_ai_paused),
+      entitlements,
     });
 
-    if (memberRole === 'staff' && copyStatus.reason === 'paused') {
+    if (!litoAccess.allowed) {
       await markLitoCopyJobFailed({
         admin,
         jobId: activeJobId,
-        error: 'staff_ai_paused',
+        error: litoAccess.reason || 'feature_locked',
       });
       return withStandardHeaders(
         NextResponse.json(
           {
-            error: 'staff_ai_paused',
-            message: "Funció desactivada pel manager.",
+            error: 'feature_locked',
+            feature: 'lito_copy',
+            reason: litoAccess.reason || 'feature_locked',
+            message: litoAccess.reason === 'paused'
+              ? 'Funció desactivada pel manager.'
+              : 'Aquesta funció és del pla Business.',
             request_id: requestId,
           },
           { status: 403 },
@@ -445,6 +455,11 @@ export async function POST(request: Request) {
         requestId,
       );
     }
+
+    const copyStatus = resolveLitoCopyStatus({
+      providerState,
+      paused: false,
+    });
 
     if (!copyStatus.enabled) {
       await markLitoCopyJobFailed({
@@ -473,7 +488,7 @@ export async function POST(request: Request) {
         orgId: recommendation.org_id,
         userId: user.id,
         inc: 1,
-        limit: 10,
+        limit: entitlements.staff_daily_limit,
       });
       if (!staffLimit.ok) {
         await markLitoCopyJobFailed({
@@ -485,13 +500,15 @@ export async function POST(request: Request) {
           return withStandardHeaders(
             NextResponse.json(
               {
-                error: 'staff_daily_limit',
+                error: 'quota_exceeded',
+                reason: 'staff_daily_limit',
                 message: "Has arribat al límit diari d'accions de LITO.",
                 limit: staffLimit.limit,
                 used: staffLimit.used,
+                remaining: staffLimit.remaining,
                 request_id: requestId,
               },
-              { status: 429 },
+              { status: 402 },
             ),
             requestId,
           );
@@ -509,7 +526,7 @@ export async function POST(request: Request) {
         supabase,
         orgId: recommendation.org_id,
         inc: 1,
-        capRatio: 0.30,
+        capRatio: entitlements.staff_monthly_ratio_cap,
       });
       if (!monthlyCap.ok) {
         await markLitoCopyJobFailed({
@@ -521,14 +538,15 @@ export async function POST(request: Request) {
           return withStandardHeaders(
             NextResponse.json(
               {
-                error: 'staff_monthly_cap',
+                error: 'quota_exceeded',
+                reason: 'staff_monthly_cap',
                 message: "Has arribat al límit mensual de l'equip staff.",
                 used: monthlyCap.used,
                 limit: monthlyCap.limit,
                 remaining: monthlyCap.remaining,
                 request_id: requestId,
               },
-              { status: 429 },
+              { status: 402 },
             ),
             requestId,
           );
@@ -559,6 +577,7 @@ export async function POST(request: Request) {
           NextResponse.json(
             {
               error: 'quota_exceeded',
+              reason: 'org_quota',
               message: 'Quota mensual assolida. Pots escriure manualment o ampliar el pla.',
               used: quota.used,
               limit: quota.limit,
