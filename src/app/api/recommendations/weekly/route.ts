@@ -80,7 +80,7 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
 
     const { items } = await ensureAndGetWeeklyRecommendations({
-      readClient: supabase,
+      readClient: admin,
       writeClient: admin,
       bizId: business.id,
       orgId: business.org_id,
