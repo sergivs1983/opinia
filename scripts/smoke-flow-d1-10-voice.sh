@@ -118,12 +118,45 @@ if [ -n "${LITO_SESSION_COOKIE}" ] && [ -n "${LITO_BIZ_ID}" ]; then
     if [ "${REQ_CODE}" = "200" ]; then
       report_ok "voice transcribe amb sessió (HTTP 200)"
       ACTION_COUNT="$(json_field "${REQ_BODY}" "actions.length")"
+      FIRST_CLIP_ID="$(json_field "${REQ_BODY}" "clip_id")"
       if [ -n "${ACTION_COUNT}" ] && [ "${ACTION_COUNT}" -ge 1 ] 2>/dev/null; then
         report_ok "voice transcribe genera >=1 draft"
       else
         REQ_CODE="shape"
         REQ_BODY="actions.length=${ACTION_COUNT}"
         report_fail "voice transcribe genera >=1 draft"
+      fi
+      if [ -n "${FIRST_CLIP_ID}" ]; then
+        report_ok "voice transcribe retorna clip_id"
+      else
+        REQ_CODE="shape"
+        REQ_BODY="clip_id buit"
+        report_fail "voice transcribe retorna clip_id"
+      fi
+
+      perform_request -X POST "${BASE}/api/lito/voice/transcribe" \
+        -H "Content-Type: application/json" \
+        -H "${COOKIE_HEADER}" \
+        -d "{\"biz_id\":\"${LITO_BIZ_ID}\",\"transcript_text\":\"Avui tanquem a les 18h i fem una story per avisar clients\",\"transcript_lang\":\"ca\"}"
+      if [ "${REQ_CODE}" = "200" ]; then
+        SECOND_CLIP_ID="$(json_field "${REQ_BODY}" "clip_id")"
+        IDEMPOTENT_FLAG="$(json_field "${REQ_BODY}" "idempotent")"
+        if [ -n "${FIRST_CLIP_ID}" ] && [ -n "${SECOND_CLIP_ID}" ] && [ "${FIRST_CLIP_ID}" = "${SECOND_CLIP_ID}" ]; then
+          report_ok "voice transcribe idempotent (mateix clip_id)"
+        else
+          REQ_CODE="shape"
+          REQ_BODY="first=${FIRST_CLIP_ID} second=${SECOND_CLIP_ID}"
+          report_fail "voice transcribe idempotent (mateix clip_id)"
+        fi
+        if [ "${IDEMPOTENT_FLAG}" = "true" ] || [ "${IDEMPOTENT_FLAG}" = "false" ]; then
+          report_ok "voice transcribe retorna flag idempotent"
+        else
+          REQ_CODE="shape"
+          REQ_BODY="idempotent=${IDEMPOTENT_FLAG}"
+          report_fail "voice transcribe retorna flag idempotent"
+        fi
+      else
+        report_fail "segona crida voice transcribe (expected 200)"
       fi
 
       perform_request "${BASE}/api/lito/action-drafts?biz_id=${LITO_BIZ_ID}&limit=5" \
