@@ -18,6 +18,7 @@ type LitoCopyStatusReason = 'missing_api_key' | 'paused' | 'disabled' | 'ok';
 type LitoTabKey = 'copy_short' | 'copy_long' | 'hashtags' | 'shotlist' | 'image_idea';
 type RefineMode = 'shorter' | 'premium' | 'funny';
 type FormatKey = 'post' | 'story' | 'reel';
+type PreviewChannel = 'instagram' | 'tiktok';
 
 type CopyStatusPayload = {
   enabled?: boolean;
@@ -48,6 +49,7 @@ type GeneratePayload = {
 type LitoWorkbenchPaneProps = {
   t: (key: string, vars?: Record<string, string | number>) => string;
   bizId: string | null;
+  businessName: string;
   recommendation: LitoRecommendationItem | null;
   viewerRole: LitoViewerRole;
   selectedFormat: FormatKey;
@@ -106,6 +108,7 @@ function normalizedFormat(value: string | undefined): FormatKey {
 export default function LitoWorkbenchPane({
   t,
   bizId,
+  businessName,
   recommendation,
   viewerRole,
   selectedFormat,
@@ -137,6 +140,7 @@ export default function LitoWorkbenchPane({
   const [aiMessage, setAiMessage] = useState('');
   const [hasGeneratedCopy, setHasGeneratedCopy] = useState(false);
   const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
+  const [previewChannel, setPreviewChannel] = useState<PreviewChannel>('instagram');
 
   const recommendationTemplate = recommendation?.recommendation_template;
   const fallbackFormat = normalizedFormat(recommendation?.format || recommendationTemplate?.format);
@@ -164,6 +168,7 @@ export default function LitoWorkbenchPane({
     setDirectorNotes(copy.director_notes || DIRECTOR_NOTES_BY_FORMAT[normalizedFormat(copy.format)]);
     setAssets(copy.assets_needed || []);
     setHasGeneratedCopy(true);
+    setPreviewChannel(copy.channel === 'tiktok' ? 'tiktok' : 'instagram');
   }, []);
 
   const hydrateFallbackPlan = useCallback(() => {
@@ -403,6 +408,7 @@ export default function LitoWorkbenchPane({
     setAiStatusReason('ok');
     setAiMessage('');
     setCustomInstruction('');
+    setPreviewChannel('instagram');
     hydrateFallbackPlan();
     void loadCopyStatus();
     void loadStoredCopy();
@@ -574,6 +580,75 @@ export default function LitoWorkbenchPane({
                 >
                   {t('dashboard.home.recommendations.lito.actions.refineCustom')}
                 </Button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/6 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.litoPage.workbench.previewTitle')}</p>
+                  <p className={cn('mt-1 text-xs', textSub)}>{t('dashboard.litoPage.workbench.previewSubtitle')}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewChannel('instagram')}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-200 ease-premium',
+                      previewChannel === 'instagram'
+                        ? 'border-emerald-300/45 bg-emerald-500/12 text-emerald-200'
+                        : 'border-white/12 bg-white/6 text-white/75 hover:text-white',
+                    )}
+                  >
+                    {t('dashboard.litoPage.workbench.previewChannels.instagram')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewChannel('tiktok')}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-200 ease-premium',
+                      previewChannel === 'tiktok'
+                        ? 'border-emerald-300/45 bg-emerald-500/12 text-emerald-200'
+                        : 'border-white/12 bg-white/6 text-white/75 hover:text-white',
+                    )}
+                  >
+                    {t('dashboard.litoPage.workbench.previewChannels.tiktok')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 flex justify-center">
+                <div className="w-full max-w-[280px] rounded-[28px] border border-white/12 bg-zinc-950 p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+                  <div className="rounded-[22px] border border-white/10 bg-black/35 p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-white/90">{businessName || 'Negoci'}</p>
+                        <p className="text-[11px] text-white/60">
+                          {previewChannel === 'instagram'
+                            ? t('dashboard.litoPage.workbench.previewChannels.instagram')
+                            : t('dashboard.litoPage.workbench.previewChannels.tiktok')}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-white/15 bg-white/8 px-2 py-0.5 text-[10px] text-white/70">
+                        {effectiveFormat}
+                      </span>
+                    </div>
+                    <div className="mt-3 min-h-[160px] rounded-xl border border-white/8 bg-zinc-900/50 p-3">
+                      {(copyLong || copyShort || hashtags.length > 0) ? (
+                        <>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/88">
+                            {copyLong || copyShort}
+                          </p>
+                          {hashtags.length > 0 ? (
+                            <p className="mt-3 text-xs text-emerald-300/85">{hashtags.join(' ')}</p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="text-sm text-white/55">{t('dashboard.litoPage.workbench.previewEmpty')}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 

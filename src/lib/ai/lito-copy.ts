@@ -91,7 +91,7 @@ function normalizeTone(input: unknown): LitoCopyTone {
   return 'neutral';
 }
 
-function normalizeHashtags(tags: string[]): string[] {
+function normalizeHashtags(tags: string[], fallback?: string[]): string[] {
   const cleaned = tags
     .map((tag) => tag.trim())
     .filter(Boolean)
@@ -104,7 +104,52 @@ function normalizeHashtags(tags: string[]): string[] {
     )
     .filter((tag) => tag.length > 1);
 
-  return [...new Set(cleaned)].slice(0, 8);
+  const unique = [...new Set(cleaned)];
+  const fallbackPool = (fallback || ['#opinia', '#negocilocal', '#experiencia'])
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .map((tag) => (tag.startsWith('#') ? tag : `#${tag}`))
+    .map((tag) =>
+      tag
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w#]/g, ''),
+    )
+    .filter((tag) => tag.length > 1);
+
+  for (const tag of fallbackPool) {
+    if (unique.length >= 3) break;
+    if (!unique.includes(tag)) unique.push(tag);
+  }
+
+  while (unique.length < 3) {
+    const synthetic = `#opinia${unique.length + 1}`;
+    if (!unique.includes(synthetic)) unique.push(synthetic);
+  }
+
+  return unique.slice(0, 3);
+}
+
+function normalizeShotlist(shotlist: string[], fallback?: string[]): string[] {
+  const base = [...new Set(shotlist.map((item) => item.trim()).filter(Boolean))].slice(0, 6);
+  const fallbackItems = (fallback || [
+    'Pla curt del producte o servei principal.',
+    'Pla humà de l’equip atenent o preparant.',
+    'Pla final amb CTA visible en pantalla.',
+  ])
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  for (const item of fallbackItems) {
+    if (base.length >= 3) break;
+    if (!base.includes(item)) base.push(item);
+  }
+
+  while (base.length < 3) {
+    base.push(`Pla de suport ${base.length + 1}`);
+  }
+
+  return base.slice(0, 6);
 }
 
 function parseJson(text: string): unknown {
@@ -149,7 +194,7 @@ export function buildDeterministicCopyBase(input: BuildCopyBaseInput): LitoGener
     caption_short: clampText(ikea.copy_short, 280, ''),
     caption_long: clampText(ikea.copy_long, 500, ''),
     hashtags: normalizeHashtags(ikea.hashtags),
-    shotlist: cleanArray(ikea.director_notes, ikea.steps, 8),
+    shotlist: normalizeShotlist(cleanArray(ikea.director_notes, ikea.steps, 8), ikea.steps),
     image_idea: clampText(
       `${ikea.copy_short}. ${ikea.assets_needed[0] || 'Mostra un detall real del negoci.'}`,
       500,
@@ -176,15 +221,15 @@ export function parseModelOutput(content: string): z.infer<typeof ModelOutputSch
 export function mergeModelOutputIntoCopy(base: LitoGeneratedCopy, model: z.infer<typeof ModelOutputSchema>): LitoGeneratedCopy {
   const format = normalizeFormat(base.format);
   const nextChecklist = cleanArray(model.execution_checklist, base.execution_checklist, 10);
-  const nextShotlist = cleanArray(model.shotlist, base.shotlist, 8);
-  const nextHashtags = normalizeHashtags(cleanArray(model.hashtags, base.hashtags, 8));
+  const nextShotlist = normalizeShotlist(cleanArray(model.shotlist, base.shotlist, 8), base.shotlist);
+  const nextHashtags = normalizeHashtags(cleanArray(model.hashtags, base.hashtags, 8), base.hashtags);
 
   return {
     ...base,
     caption_short: clampText(model.caption_short, 280, base.caption_short),
     caption_long: clampText(model.caption_long, 500, base.caption_long),
-    hashtags: nextHashtags.length > 0 ? nextHashtags : base.hashtags,
-    shotlist: nextShotlist.length > 0 ? nextShotlist : base.shotlist,
+    hashtags: nextHashtags,
+    shotlist: nextShotlist,
     image_idea: clampText(model.image_idea, 500, base.image_idea),
     execution_checklist: nextChecklist.length > 0 ? nextChecklist : base.execution_checklist,
     stickers: format === 'story'
@@ -212,7 +257,7 @@ export function parseStoredGeneratedCopy(raw: unknown): LitoGeneratedCopy | null
     caption_short: clampText(obj.caption_short, 280, ''),
     caption_long: clampText(obj.caption_long, 500, ''),
     hashtags: normalizeHashtags(cleanArray(obj.hashtags, [], 8)),
-    shotlist: cleanArray(obj.shotlist, [], 8),
+    shotlist: normalizeShotlist(cleanArray(obj.shotlist, [], 8)),
     image_idea: clampText(obj.image_idea, 500, ''),
     execution_checklist: cleanArray(obj.execution_checklist, [], 10),
     stickers: Array.isArray(obj.stickers)

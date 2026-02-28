@@ -5,6 +5,7 @@ BASE="${1:-http://localhost:3000}"
 FLOW_D12_BIZ_ID="${FLOW_D12_BIZ_ID:-}"
 FLOW_D12_RECOMMENDATION_ID="${FLOW_D12_RECOMMENDATION_ID:-}"
 FLOW_D12_SESSION_COOKIE="${FLOW_D12_SESSION_COOKIE:-}"
+FLOW_D12_ORG_ID="${FLOW_D12_ORG_ID:-}"
 
 PASS="PASS"
 FAIL="FAIL"
@@ -77,6 +78,72 @@ has_ai_key() {
   return 1
 }
 
+check_quota_rpc_optional() {
+  if [ -z "${FLOW_D12_ORG_ID}" ]; then
+    report_ok "quota rpc SKIP (defineix FLOW_D12_ORG_ID per validar consume_draft_quota)"
+    return
+  fi
+  if [ -z "${NEXT_PUBLIC_SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    report_ok "quota rpc SKIP (falten NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY a l'entorn)"
+    return
+  fi
+
+  local rpc_output
+  rpc_output="$(
+    FLOW_D12_ORG_ID="${FLOW_D12_ORG_ID}" \
+    NEXT_PUBLIC_SUPABASE_URL="${NEXT_PUBLIC_SUPABASE_URL}" \
+    SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}" \
+    node - <<'JS'
+const { createClient } = require('@supabase/supabase-js');
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const orgId = process.env.FLOW_D12_ORG_ID || '';
+
+function monthStartUTC() {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+}
+
+(async () => {
+  try {
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await supabase.rpc('consume_draft_quota', {
+      p_org_id: orgId,
+      p_month_start: monthStartUTC(),
+      p_increment: 1,
+    });
+    if (error) {
+      process.stdout.write(`ERR:${error.code || 'rpc_error'}:${error.message || 'unknown'}`);
+      return;
+    }
+    const row = Array.isArray(data) ? (data[0] || {}) : (data || {});
+    const ok = typeof row.ok === 'boolean' ? row.ok : (typeof row.allowed === 'boolean' ? row.allowed : null);
+    if (ok === null) {
+      process.stdout.write('ERR:invalid_payload');
+      return;
+    }
+    process.stdout.write('OK');
+  } catch (error) {
+    process.stdout.write(`ERR:exception:${error instanceof Error ? error.message : String(error)}`);
+  }
+})();
+JS
+  )"
+
+  if [ "${rpc_output}" = "OK" ]; then
+    report_ok "consume_draft_quota RPC (opcional) respon correctament"
+  else
+    REQ_CODE="rpc"
+    REQ_BODY="${rpc_output}"
+    report_fail "consume_draft_quota RPC (opcional)"
+  fi
+}
+
 echo "Flow D1.2+ copy smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
@@ -97,6 +164,10 @@ if [ "${REQ_CODE}" = "401" ]; then
 else
   report_fail "POST /api/lito/copy/generate sense sessió (expected 401)"
 fi
+
+echo ""
+echo "1.1) Quota RPC (opcional)"
+check_quota_rpc_optional
 
 echo ""
 echo "2) Functional opcional (sessió real)"

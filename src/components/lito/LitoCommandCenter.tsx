@@ -487,6 +487,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
         <LitoWorkbenchPane
           t={t}
           bizId={biz.id}
+          businessName={biz.name}
           recommendation={activeRecommendation}
           viewerRole={weeklyViewerRole}
           selectedFormat={selectedFormat}

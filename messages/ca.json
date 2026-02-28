@@ -727,6 +727,13 @@
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomanació o obre un fil general.",
         "selectRecommendation": "Tria una recomanació per generar copy, retocar i preparar assets.",
+        "previewTitle": "Mobile Preview",
+        "previewSubtitle": "Vista ràpida del copy en format mòbil.",
+        "previewEmpty": "Genera o retoca el copy per veure la previsualització.",
+        "previewChannels": {
+          "instagram": "Instagram",
+          "tiktok": "TikTok"
+        },
         "tabs": {
           "short": "Copy curt",
           "long": "Copy llarg",

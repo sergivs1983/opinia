@@ -727,6 +727,13 @@
         "title": "Workbench",
         "emptyTitle": "Selecciona una recomendación o abre un hilo general.",
         "selectRecommendation": "Elige una recomendación para generar copy, refinar y preparar assets.",
+        "previewTitle": "Vista móvil",
+        "previewSubtitle": "Previsualización rápida del copy en formato móvil.",
+        "previewEmpty": "Genera o refina el copy para ver la previsualización.",
+        "previewChannels": {
+          "instagram": "Instagram",
+          "tiktok": "TikTok"
+        },
         "tabs": {
           "short": "Copy corto",
           "long": "Copy largo",
