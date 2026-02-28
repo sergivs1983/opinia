@@ -1,12 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import LitoCommandCenter from '@/components/lito/LitoCommandCenter';
+import LitoDrawer from '@/components/lito/LitoDrawer';
 import { cn } from '@/lib/utils';
-import { textMain, textSub } from '@/components/ui/glass';
 
 type LitoCopyStatusReason = 'missing_api_key' | 'paused' | 'disabled' | 'ok';
 
@@ -16,16 +14,25 @@ type LitoCopyStatusPayload = {
   provider?: 'openai' | 'anthropic' | 'none';
 };
 
+type WeeklyRecommendationsPayload = {
+  items?: unknown[];
+};
+
+type ThreadsPayload = {
+  threads?: unknown[];
+};
+
 export default function LitoLauncher() {
   const t = useT();
   const { biz, membership } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [reason, setReason] = useState<LitoCopyStatusReason>('disabled');
+  const [hasAttention, setHasAttention] = useState(false);
 
   const canActivate = useMemo(() => {
-    const role = (membership?.role || '').toLowerCase();
-    return role === 'owner' || role === 'manager' || role === 'admin';
+    const role = membership?.role || '';
+    return role === 'owner' || role === 'manager';
   }, [membership?.role]);
 
   const loadCopyStatus = useCallback(async () => {
@@ -51,29 +58,41 @@ export default function LitoLauncher() {
     }
   }, [biz?.id]);
 
+  const loadAttentionState = useCallback(async () => {
+    if (!biz?.id) {
+      setHasAttention(false);
+      return;
+    }
+    try {
+      const [weeklyRes, threadsRes] = await Promise.all([
+        fetch(`/api/recommendations/weekly?biz_id=${biz.id}`),
+        fetch(`/api/lito/threads?biz_id=${biz.id}&limit=20`),
+      ]);
+      if (!weeklyRes.ok || !threadsRes.ok) {
+        setHasAttention(false);
+        return;
+      }
+      const weeklyPayload = (await weeklyRes.json().catch(() => ({}))) as WeeklyRecommendationsPayload;
+      const threadsPayload = (await threadsRes.json().catch(() => ({}))) as ThreadsPayload;
+      const weeklyCount = Array.isArray(weeklyPayload.items) ? weeklyPayload.items.length : 0;
+      const threadsCount = Array.isArray(threadsPayload.threads) ? threadsPayload.threads.length : 0;
+      setHasAttention(weeklyCount > 0 || threadsCount > 0);
+    } catch {
+      setHasAttention(false);
+    }
+  }, [biz?.id]);
+
   useEffect(() => {
     void loadCopyStatus();
-  }, [loadCopyStatus]);
+    void loadAttentionState();
+  }, [loadAttentionState, loadCopyStatus]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open]);
-
-  const statusClass = enabled ? 'bg-emerald-400' : 'bg-amber-400';
-  const tooltip = enabled
+  const statusClass = hasAttention ? 'bg-amber-400' : (enabled ? 'bg-emerald-400' : 'bg-amber-400');
+  const tooltip = hasAttention
+    ? t('dashboard.litoPage.launcher.tooltipPending')
+    : enabled
     ? t('dashboard.litoPage.launcher.tooltipActive')
     : t('dashboard.litoPage.launcher.tooltipInactive');
-
-  const disabledMessage = reason === 'missing_api_key'
-    ? t('dashboard.litoPage.launcher.bannerMissingKey')
-    : t('dashboard.litoPage.launcher.bannerPaused');
 
   return (
     <>
@@ -89,59 +108,13 @@ export default function LitoLauncher() {
         LITO
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-[90]">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
-            aria-label={t('common.close')}
-            onClick={() => setOpen(false)}
-          />
-          <aside className="absolute bottom-0 left-0 top-0 w-[min(92vw,520px)] border-r border-white/10 bg-zinc-950/95 p-4 shadow-[24px_0_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h2 className={cn('text-base font-semibold tracking-wide', textMain)}>
-                  {t('dashboard.litoPage.launcher.drawerTitle')}
-                </h2>
-                <p className={cn('mt-1 text-xs', textSub)}>{t('dashboard.litoPage.launcher.drawerSubtitle')}</p>
-              </div>
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/12 bg-white/5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                onClick={() => setOpen(false)}
-                aria-label={t('common.close')}
-              >
-                ×
-              </button>
-            </div>
-
-            {!enabled ? (
-              <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-500/10 p-3">
-                <p className="text-sm font-semibold text-amber-100">{t('dashboard.litoPage.launcher.bannerTitle')}</p>
-                <p className="mt-1 text-xs text-amber-100/90">{disabledMessage}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {canActivate ? (
-                    <Link
-                      href="/dashboard/admin"
-                      className="inline-flex items-center rounded-lg border border-amber-200/35 bg-amber-200/20 px-2.5 py-1.5 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-200/30"
-                    >
-                      {t('dashboard.litoPage.launcher.goToSettings')}
-                    </Link>
-                  ) : (
-                    <span className="text-xs font-medium text-amber-100/90">
-                      {t('dashboard.litoPage.launcher.ownerManagerOnly')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="h-[calc(100%-88px)] overflow-y-auto pr-1">
-              <LitoCommandCenter embedded />
-            </div>
-          </aside>
-        </div>
-      ) : null}
+      <LitoDrawer
+        open={open}
+        onClose={() => setOpen(false)}
+        enabled={enabled}
+        reason={reason}
+        canActivate={canActivate}
+      />
     </>
   );
 }

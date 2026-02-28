@@ -750,7 +750,9 @@
       },
       "launcher": {
         "tooltipActive": "LITO activo",
+        "tooltipPending": "Hay recomendaciones pendientes",
         "tooltipInactive": "Activa LITO Copy en Configuración",
+        "menuTitle": "Menú del día",
         "drawerTitle": "LITO Copilot",
         "drawerSubtitle": "Pasa de recomendación a acción.",
         "bannerTitle": "Activa LITO Copy",
