@@ -4,6 +4,7 @@ set -euo pipefail
 BASE="${1:-http://localhost:3000}"
 LITO_SESSION_COOKIE="${LITO_SESSION_COOKIE:-}"
 LITO_BIZ_ID="${LITO_BIZ_ID:-}"
+LITO_RECOMMENDATION_ID="${LITO_RECOMMENDATION_ID:-}"
 
 PASS="PASS"
 FAIL="FAIL"
@@ -179,6 +180,40 @@ if [ -n "${LITO_SESSION_COOKIE}" ] && [ -n "${LITO_BIZ_ID}" ]; then
         report_ok "message roles user+assistant"
       else
         report_fail "message roles user+assistant"
+      fi
+
+      if [ -n "${LITO_RECOMMENDATION_ID}" ]; then
+        perform_request -X POST "${BASE}/api/lito/threads" \
+          -H "Content-Type: application/json" \
+          -H "${COOKIE_HEADER}" \
+          -d "{\"biz_id\":\"${LITO_BIZ_ID}\",\"recommendation_id\":\"${LITO_RECOMMENDATION_ID}\",\"format\":\"post\",\"hook\":\"Smoke recommendation\"}"
+        if [ "${REQ_CODE}" = "200" ] || [ "${REQ_CODE}" = "201" ]; then
+          report_ok "create/open recommendation thread #1 (HTTP ${REQ_CODE})"
+        else
+          report_fail "create/open recommendation thread #1 (expected 200/201)"
+        fi
+        REC_THREAD_ID_1="$(json_field "${REQ_BODY}" "thread.id")"
+
+        perform_request -X POST "${BASE}/api/lito/threads" \
+          -H "Content-Type: application/json" \
+          -H "${COOKIE_HEADER}" \
+          -d "{\"biz_id\":\"${LITO_BIZ_ID}\",\"recommendation_id\":\"${LITO_RECOMMENDATION_ID}\",\"format\":\"post\",\"hook\":\"Smoke recommendation\"}"
+        if [ "${REQ_CODE}" = "200" ] || [ "${REQ_CODE}" = "201" ]; then
+          report_ok "create/open recommendation thread #2 (HTTP ${REQ_CODE})"
+        else
+          report_fail "create/open recommendation thread #2 (expected 200/201)"
+        fi
+        REC_THREAD_ID_2="$(json_field "${REQ_BODY}" "thread.id")"
+
+        if [ -n "${REC_THREAD_ID_1}" ] && [ -n "${REC_THREAD_ID_2}" ] && [ "${REC_THREAD_ID_1}" = "${REC_THREAD_ID_2}" ]; then
+          report_ok "same recommendation_id reuses same thread id"
+        else
+          REQ_CODE="mismatch"
+          REQ_BODY="thread#1=${REC_THREAD_ID_1} thread#2=${REC_THREAD_ID_2}"
+          report_fail "same recommendation_id reuses same thread id"
+        fi
+      else
+        report_ok "thread idempotency SKIP (defineix LITO_RECOMMENDATION_ID)"
       fi
     fi
   fi
