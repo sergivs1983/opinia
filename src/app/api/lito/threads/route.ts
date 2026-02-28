@@ -38,6 +38,8 @@ type LitoThreadRow = {
   updated_at: string;
 };
 
+const LITO_ALLOWED_ROLES = ['owner', 'admin', 'manager', 'responder'] as const;
+
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
   response.headers.set('Cache-Control', 'no-store');
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
       supabase,
       userId: user.id,
       businessId: payload.biz_id,
-      allowedRoles: ['owner', 'manager', 'responder'],
+      allowedRoles: [...LITO_ALLOWED_ROLES],
     });
     if (!access.allowed || !access.orgId) {
       return withStandardHeaders(
@@ -213,7 +215,7 @@ export async function GET(request: Request) {
       supabase,
       userId: user.id,
       businessId: payload.biz_id,
-      allowedRoles: ['owner', 'manager', 'responder'],
+      allowedRoles: [...LITO_ALLOWED_ROLES],
     });
     if (!access.allowed) {
       return withStandardHeaders(
