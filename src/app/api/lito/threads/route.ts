@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody, validateQuery } from '@/lib/validations';
 
@@ -77,9 +78,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const admin = createAdminClient();
+
     const recommendationId = payload.recommendation_id ?? null;
     if (recommendationId) {
-      const { data: recommendationData, error: recommendationErr } = await supabase
+      const { data: recommendationData, error: recommendationErr } = await admin
         .from('recommendation_log')
         .select('id')
         .eq('id', recommendationId)
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
     }
 
     if (recommendationId) {
-      const { data: existingData } = await supabase
+      const { data: existingData } = await admin
         .from('lito_threads')
         .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
         .eq('biz_id', payload.biz_id)
@@ -119,7 +122,7 @@ export async function POST(request: Request) {
         ? 'LITO — Recomanació'
         : 'LITO — Consultes';
 
-    const { data: insertedData, error: insertErr } = await supabase
+    const { data: insertedData, error: insertErr } = await admin
       .from('lito_threads')
       .insert({
         org_id: access.orgId,
@@ -132,7 +135,7 @@ export async function POST(request: Request) {
 
     if (insertErr || !insertedData) {
       if (insertErr?.code === '23505' && recommendationId) {
-        const { data: conflictData } = await supabase
+        const { data: conflictData } = await admin
           .from('lito_threads')
           .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
           .eq('biz_id', payload.biz_id)
