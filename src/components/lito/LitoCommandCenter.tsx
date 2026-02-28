@@ -20,6 +20,29 @@ import type {
   LitoViewerRole,
 } from '@/components/lito/types';
 
+// ── D1.3 Signals ─────────────────────────────────────────────────────────────
+type SignalType = 'alert' | 'opportunity' | 'evergreen';
+type SignalSeverity = 'high' | 'med' | 'low';
+
+type SignalCard = {
+  id: string;
+  type: SignalType;
+  title: string;
+  reason: string;
+  severity: SignalSeverity;
+  cta_label: string;
+  action: { kind: 'open_thread'; recommendation_id?: string };
+};
+
+type SignalsPayload = {
+  ok?: boolean;
+  signals?: SignalCard[];
+  error?: string;
+  message?: string;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 type WeeklyRecommendationsPayload = {
   items?: Array<Partial<LitoRecommendationItem> & { recommendation_template?: LitoRecommendationTemplate }>;
   viewer_role?: LitoViewerRole;
@@ -128,6 +151,9 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const [messages, setMessages] = useState<LitoThreadMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
+  const [signals, setSignals] = useState<SignalCard[]>([]);
+  const [signalsLoading, setSignalsLoading] = useState(false);
+
   const [gbpState, setGbpState] = useState<'connected' | 'needs_reauth' | 'not_connected' | 'unknown'>('unknown');
   const [quota, setQuota] = useState<LitoQuotaState | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<'post' | 'story' | 'reel'>('post');
@@ -145,6 +171,25 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   }, [activeThread?.recommendation_id, queryRecommendationId, weeklyRecommendations]);
 
   const selectedRecommendationId = activeRecommendation?.id || null;
+
+  /** 3 cards: 1 alert (highest severity) + up to 2 opportunities/evergreen */
+  const displaySignals = useMemo(() => {
+    const alerts = signals.filter((s) => s.type === 'alert');
+    const others = signals.filter((s) => s.type !== 'alert');
+    const result: SignalCard[] = [];
+    if (alerts.length > 0) {
+      const top =
+        alerts.find((a) => a.severity === 'high') ??
+        alerts.find((a) => a.severity === 'med') ??
+        alerts[0];
+      result.push(top);
+    }
+    for (const s of others) {
+      if (result.length >= 3) break;
+      result.push(s);
+    }
+    return result;
+  }, [signals]);
   const previewMessages = useMemo(() => sanitizeMessages(messages).slice(-10), [messages]);
 
   const replaceQuery = useCallback((next: { bizId?: string | null; recommendationId?: string | null; threadId?: string | null }) => {
@@ -214,6 +259,25 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
       }
     } catch {
       setGbpState('unknown');
+    }
+  }, [biz?.id]);
+
+  const loadSignals = useCallback(async () => {
+    if (!biz?.id) return;
+    setSignalsLoading(true);
+    try {
+      const response = await fetch(`/api/lito/signals?biz_id=${biz.id}`);
+      const payload = (await response.json().catch(() => ({}))) as SignalsPayload;
+      if (!response.ok || payload.error) {
+        // Signals are non-critical: silently fallback to empty
+        setSignals([]);
+        return;
+      }
+      setSignals(payload.signals || []);
+    } catch {
+      setSignals([]);
+    } finally {
+      setSignalsLoading(false);
     }
   }, [biz?.id]);
 
@@ -347,10 +411,12 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   useEffect(() => {
     if (!biz?.id) return;
     setQuota(null);
+    setSignals([]);
     void loadWeeklyRecommendations();
     void loadThreads();
     void loadGoogleStatus();
-  }, [biz?.id, loadGoogleStatus, loadThreads, loadWeeklyRecommendations]);
+    void loadSignals();
+  }, [biz?.id, loadGoogleStatus, loadSignals, loadThreads, loadWeeklyRecommendations]);
 
   useEffect(() => {
     if (!biz?.id || !queryBizId) return;
@@ -457,6 +523,84 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           </Button>
         </div>
       </header>
+
+      {/* ── D1.3 Signals strip ── */}
+      {(signalsLoading || displaySignals.length > 0) && (
+        <section aria-label="Signals PRO" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {signalsLoading
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-[88px] animate-pulse rounded-2xl border border-white/8 bg-white/4"
+                />
+              ))
+            : displaySignals.map((signal) => {
+                const isAlert = signal.type === 'alert';
+                const isOpportunity = signal.type === 'opportunity';
+                const severityBorder =
+                  isAlert && signal.severity === 'high'
+                    ? 'border-rose-500/40'
+                    : isAlert && signal.severity === 'med'
+                      ? 'border-amber-400/40'
+                      : isOpportunity
+                        ? 'border-emerald-400/35'
+                        : 'border-white/10';
+                const badgeClass =
+                  isAlert && signal.severity === 'high'
+                    ? 'bg-rose-500/20 text-rose-300'
+                    : isAlert && signal.severity === 'med'
+                      ? 'bg-amber-400/20 text-amber-200'
+                      : isOpportunity
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-white/10 text-white/50';
+                const badgeLabel =
+                  signal.type === 'alert'
+                    ? 'Alerta'
+                    : signal.type === 'opportunity'
+                      ? 'Oportunitat'
+                      : 'Evergreen';
+
+                const ctaParams = new URLSearchParams();
+                ctaParams.set('biz_id', biz.id);
+                ctaParams.set('signal_id', signal.id);
+                if (signal.action.recommendation_id) {
+                  ctaParams.set('recommendation_id', signal.action.recommendation_id);
+                }
+                const ctaHref = `/dashboard/lito/chat?${ctaParams.toString()}`;
+
+                return (
+                  <div
+                    key={signal.id}
+                    className={cn(
+                      'flex flex-col justify-between gap-2 rounded-2xl border bg-zinc-900/50 px-4 py-3 backdrop-blur-sm',
+                      severityBorder,
+                    )}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', badgeClass)}>
+                          {badgeLabel}
+                        </span>
+                      </div>
+                      <p className={cn('mt-1.5 text-[13px] font-semibold leading-snug', textMain)}>
+                        {signal.title}
+                      </p>
+                      <p className={cn('mt-0.5 line-clamp-2 text-[11px] leading-relaxed', textSub)}>
+                        {signal.reason}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => router.push(ctaHref)}
+                      className="self-start rounded-lg bg-white/8 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/14 hover:text-white"
+                    >
+                      {signal.cta_label}
+                    </button>
+                  </div>
+                );
+              })}
+        </section>
+      )}
 
       <div className="grid gap-4 2xl:grid-cols-[300px_minmax(0,1fr)_420px]">
         <LitoContextPanel
