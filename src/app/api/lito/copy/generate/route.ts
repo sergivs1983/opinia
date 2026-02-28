@@ -5,9 +5,23 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
-import { buildIkeaPayload, type IkeaVertical } from '@/lib/lito/ikea';
+import {
+  buildDeterministicCopyBase,
+  buildGeneratePrompt,
+  buildRefinePrompt,
+  mergeModelOutputIntoCopy,
+  parseModelOutput,
+  type LitoCopyChannel,
+  type LitoCopyFormat,
+  type LitoCopyTone,
+  type LitoGeneratedCopy,
+} from '@/lib/ai/lito-copy';
+import { consumeQuota } from '@/lib/ai/quota';
+import { getAIProviderState } from '@/lib/ai/provider';
 import { createLogger } from '@/lib/logger';
+import { callLLM } from '@/lib/llm/provider';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -15,6 +29,10 @@ import { validateBody } from '@/lib/validations';
 const GenerateBodySchema = z.object({
   biz_id: z.string().uuid(),
   recommendation_id: z.string().uuid(),
+  format: z.enum(['post', 'story', 'reel']).optional(),
+  language: z.enum(['ca', 'es', 'en']).optional(),
+  channel: z.enum(['instagram', 'tiktok', 'facebook']).optional(),
+  tone: z.enum(['formal', 'neutral', 'friendly']).optional(),
 });
 
 type RecommendationRow = {
@@ -22,7 +40,7 @@ type RecommendationRow = {
   biz_id: string;
   org_id: string;
   rule_id: string;
-  generated_copy: string | null;
+  generated_copy: unknown;
   signal: unknown;
 };
 
@@ -35,11 +53,20 @@ type PlaybookRow = {
   vertical: string | null;
 };
 
-type QuotaRow = {
-  allowed: boolean;
-  used: number;
-  quota_limit: number;
+type BusinessRow = {
+  id: string;
+  name: string;
+  type: string | null;
+  city: string | null;
+  country: string | null;
+  default_language: string | null;
+  formality: string | null;
+  ai_instructions: string | null;
+  tags: string[] | null;
 };
+
+const SYSTEM_PROMPT =
+  "Ets LITO, assistent de social media per negocis locals. No inventis dades. Respon en l'idioma demanat. Retorna NOMÉS JSON vàlid segons l'esquema.";
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -47,17 +74,146 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   return response;
 }
 
-function mapVertical(value: string | null | undefined): IkeaVertical {
+function normalizeVertical(value: string | null | undefined): 'general' | 'restaurant' | 'hotel' {
   const normalized = (value || '').toLowerCase();
   if (normalized === 'restaurant') return 'restaurant';
   if (normalized === 'hotel') return 'hotel';
   return 'general';
 }
 
-function isMissingMetaDependency(error: unknown): boolean {
+function normalizeLanguage(value: string | null | undefined): 'ca' | 'es' | 'en' {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'es' || normalized === 'en') return normalized;
+  return 'ca';
+}
+
+function normalizeChannel(value: string | null | undefined): LitoCopyChannel {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'tiktok' || normalized === 'facebook') return normalized;
+  return 'instagram';
+}
+
+function normalizeTone(value: string | null | undefined): LitoCopyTone {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'formal' || normalized === 'friendly') return normalized as LitoCopyTone;
+  return 'neutral';
+}
+
+function normalizeFormat(value: string | null | undefined): LitoCopyFormat {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'story' || normalized === 'reel') return normalized;
+  return 'post';
+}
+
+function isSchemaMissing(error: unknown): boolean {
   const code = ((error as { code?: string })?.code || '').toUpperCase();
   const message = ((error as { message?: string })?.message || '').toLowerCase();
-  return code === '42P01' || code === '42703' || code === 'PGRST205' || message.includes('recommendation_log_meta');
+  return (
+    code === '42703'
+    || code === '42P01'
+    || code === 'PGRST204'
+    || code === 'PGRST205'
+    || message.includes('column')
+    || message.includes('schema cache')
+  );
+}
+
+async function loadThreadContext(admin: ReturnType<typeof createAdminClient>, bizId: string, recommendationId: string): Promise<string[]> {
+  const { data: threadData } = await admin
+    .from('lito_threads')
+    .select('id')
+    .eq('biz_id', bizId)
+    .eq('recommendation_id', recommendationId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const threadId = (threadData as { id?: string } | null)?.id;
+  if (!threadId) return [];
+
+  const { data: messagesData } = await admin
+    .from('lito_messages')
+    .select('role, content')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  const raw = (messagesData || []) as Array<{ role?: string; content?: string }>;
+  return raw
+    .reverse()
+    .map((message) => {
+      const role = typeof message.role === 'string' ? message.role : 'user';
+      const content = typeof message.content === 'string' ? message.content.trim() : '';
+      return content ? `${role}: ${content}` : '';
+    })
+    .filter(Boolean)
+    .slice(-10);
+}
+
+async function persistGeneratedCopy(params: {
+  admin: ReturnType<typeof createAdminClient>;
+  recommendationId: string;
+  orgId: string;
+  bizId: string;
+  copy: LitoGeneratedCopy;
+  requestId: string;
+  log: ReturnType<typeof createLogger>;
+}): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const fullPayload = {
+    format: params.copy.format,
+    steps: params.copy.execution_checklist,
+    assets_needed: params.copy.assets_needed,
+    copy_short: params.copy.caption_short,
+    copy_long: params.copy.caption_long,
+    hashtags: params.copy.hashtags,
+    generated_copy: params.copy,
+    generated_copy_status: 'generated',
+    generated_copy_updated_at: nowIso,
+    last_action_at: nowIso,
+  };
+
+  const { error: fullErr } = await params.admin
+    .from('recommendation_log')
+    .update(fullPayload)
+    .eq('id', params.recommendationId);
+
+  if (!fullErr) return true;
+
+  if (!isSchemaMissing(fullErr)) {
+    params.log.error('lito_copy_generate_update_failed', {
+      error_code: fullErr.code || null,
+      error: fullErr.message || null,
+      recommendation_id: params.recommendationId,
+    });
+    return false;
+  }
+
+  const legacyPayload = {
+    format: params.copy.format,
+    steps: params.copy.execution_checklist,
+    assets_needed: params.copy.assets_needed,
+    copy_short: params.copy.caption_short,
+    copy_long: params.copy.caption_long,
+    hashtags: params.copy.hashtags,
+    generated_copy: JSON.stringify(params.copy),
+  };
+
+  const { error: legacyErr } = await params.admin
+    .from('recommendation_log')
+    .update(legacyPayload)
+    .eq('id', params.recommendationId);
+
+  if (legacyErr) {
+    params.log.error('lito_copy_generate_update_legacy_failed', {
+      error_code: legacyErr.code || null,
+      error: legacyErr.message || null,
+      recommendation_id: params.recommendationId,
+    });
+    return false;
+  }
+
+  return true;
 }
 
 export async function POST(request: Request) {
@@ -95,14 +251,21 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const { data: recommendationData, error: recommendationErr } = await admin
-      .from('recommendation_log')
-      .select('id, biz_id, org_id, rule_id, generated_copy, signal')
-      .eq('id', payload.recommendation_id)
-      .eq('biz_id', payload.biz_id)
-      .maybeSingle();
+    const [{ data: recommendationData, error: recommendationErr }, { data: businessData, error: businessErr }] = await Promise.all([
+      admin
+        .from('recommendation_log')
+        .select('id, biz_id, org_id, rule_id, generated_copy, signal')
+        .eq('id', payload.recommendation_id)
+        .eq('biz_id', payload.biz_id)
+        .maybeSingle(),
+      admin
+        .from('businesses')
+        .select('id, name, type, city, country, default_language, formality, ai_instructions, tags')
+        .eq('id', payload.biz_id)
+        .maybeSingle(),
+    ]);
 
-    if (recommendationErr || !recommendationData) {
+    if (recommendationErr || !recommendationData || businessErr || !businessData) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -110,41 +273,7 @@ export async function POST(request: Request) {
     }
 
     const recommendation = recommendationData as RecommendationRow;
-
-    const { data: quotaData, error: quotaErr } = await supabase.rpc('consume_draft_quota', {
-      p_org_id: recommendation.org_id,
-      p_increment: 1,
-    });
-
-    if (quotaErr) {
-      log.error('lito_copy_generate_quota_failed', {
-        error_code: quotaErr.code || null,
-        error: quotaErr.message || null,
-        org_id: recommendation.org_id,
-      });
-      return withStandardHeaders(
-        NextResponse.json(
-          { error: 'internal', message: 'No s\'ha pogut validar la quota ara mateix.', request_id: requestId },
-          { status: 500 },
-        ),
-        requestId,
-      );
-    }
-
-    const quota = (Array.isArray(quotaData) ? quotaData[0] : quotaData) as QuotaRow | null;
-    const used = Number(quota?.used || 0);
-    const limit = Number(quota?.quota_limit || 0);
-    const remaining = Math.max(limit - used, 0);
-
-    if (!quota?.allowed) {
-      return withStandardHeaders(
-        NextResponse.json(
-          { error: 'quota_exhausted', message: 'Quota mensual assolida. Pots escriure manualment o ampliar el pla.', remaining, used, limit, request_id: requestId },
-          { status: 429 },
-        ),
-        requestId,
-      );
-    }
+    const business = businessData as BusinessRow;
 
     const { data: ruleData, error: ruleErr } = await admin
       .from('playbook_rules')
@@ -158,39 +287,173 @@ export async function POST(request: Request) {
       );
     }
 
-    const rule = ruleData as RuleRow;
     const { data: playbookData } = await admin
       .from('social_playbooks')
       .select('vertical')
-      .eq('id', rule.playbook_id)
+      .eq('id', (ruleData as RuleRow).playbook_id)
       .maybeSingle();
-    const vertical = mapVertical((playbookData as PlaybookRow | null)?.vertical);
 
-    const generated = buildIkeaPayload({
+    const providerState = getAIProviderState();
+    if (!providerState.available) {
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'ai_unavailable',
+            message: 'Activa LITO Copy a Configuració (Admin).',
+            request_id: requestId,
+          },
+          { status: 503 },
+        ),
+        requestId,
+      );
+    }
+
+    const quota = await consumeQuota(supabase, recommendation.org_id, 1);
+    if (!quota.ok) {
+      if (quota.reason === 'quota_exceeded') {
+        return withStandardHeaders(
+          NextResponse.json(
+            {
+              error: 'quota_exhausted',
+              message: 'Quota mensual assolida. Pots escriure manualment o ampliar el pla.',
+              used: quota.used,
+              limit: quota.limit,
+              remaining: quota.remaining,
+              request_id: requestId,
+            },
+            { status: 402 },
+          ),
+          requestId,
+        );
+      }
+      log.error('lito_copy_generate_quota_failed', {
+        reason: quota.reason || null,
+        org_id: recommendation.org_id,
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          { error: 'internal', message: "No s'ha pogut validar la quota ara mateix.", request_id: requestId },
+          { status: 500 },
+        ),
+        requestId,
+      );
+    }
+
+    const vertical = normalizeVertical((playbookData as PlaybookRow | null)?.vertical || business.type);
+    const language = normalizeLanguage(payload.language || business.default_language);
+    const format = normalizeFormat(payload.format || undefined);
+    const channel = normalizeChannel(payload.channel || undefined);
+    const tone = normalizeTone(payload.tone || business.formality || undefined);
+
+    const rule = ruleData as RuleRow;
+    const template = ensureTemplateOrFallback(rule.recommendation_template);
+    const baseCopy = buildDeterministicCopyBase({
       templateRaw: rule.recommendation_template,
       generatedCopyRaw: recommendation.generated_copy,
       vertical,
       signal: (recommendation.signal || {}) as Record<string, unknown>,
+      format,
+      language,
+      channel,
+      tone,
     });
 
-    const { error: updateErr } = await admin
-      .from('recommendation_log')
-      .update({
-        format: generated.format,
-        steps: generated.steps,
-        assets_needed: generated.assets_needed,
-        copy_short: generated.copy_short,
-        copy_long: generated.copy_long,
-        hashtags: generated.hashtags,
-      })
-      .eq('id', recommendation.id);
+    const threadContext = await loadThreadContext(admin, payload.biz_id, payload.recommendation_id);
+    const llmPrompt = buildGeneratePrompt({
+      businessName: business.name,
+      vertical,
+      city: business.city,
+      language,
+      channel,
+      tone,
+      format: baseCopy.format,
+      template: {
+        hook: template.hook,
+        idea: template.idea,
+        cta: template.cta,
+      },
+      aiInstructions: business.ai_instructions || null,
+      threadContext,
+    });
 
-    if (updateErr) {
-      log.error('lito_copy_generate_update_failed', {
-        error_code: updateErr.code || null,
-        error: updateErr.message || null,
-        recommendation_id: recommendation.id,
+    const llmResult = await callLLM({
+      provider: providerState.provider,
+      model: providerState.model,
+      json: true,
+      temperature: 0.35,
+      maxTokens: 900,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: llmPrompt },
+      ],
+    });
+
+    const parsed = parseModelOutput(llmResult.content);
+    if (!parsed) {
+      const retryPrompt = buildRefinePrompt({
+        language,
+        instruction: 'Reescriu la resposta i retorna estrictament JSON vàlid.',
+        current: baseCopy,
       });
+      const retry = await callLLM({
+        provider: providerState.provider,
+        model: providerState.model,
+        json: true,
+        temperature: 0.2,
+        maxTokens: 900,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: retryPrompt },
+        ],
+      });
+      const retryParsed = parseModelOutput(retry.content);
+      if (!retryParsed) {
+        return withStandardHeaders(
+          NextResponse.json(
+            { error: 'invalid_ai_output', message: "La resposta de LITO no és vàlida ara mateix.", request_id: requestId },
+            { status: 502 },
+          ),
+          requestId,
+        );
+      }
+      const copy = mergeModelOutputIntoCopy(baseCopy, retryParsed);
+      const persisted = await persistGeneratedCopy({
+        admin,
+        recommendationId: recommendation.id,
+        orgId: recommendation.org_id,
+        bizId: recommendation.biz_id,
+        copy,
+        requestId,
+        log,
+      });
+      if (!persisted) {
+        return withStandardHeaders(
+          NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
+          requestId,
+        );
+      }
+      return withStandardHeaders(
+        NextResponse.json({
+          ok: true,
+          copy,
+          quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
+          request_id: requestId,
+        }),
+        requestId,
+      );
+    }
+
+    const copy = mergeModelOutputIntoCopy(baseCopy, parsed);
+    const persisted = await persistGeneratedCopy({
+      admin,
+      recommendationId: recommendation.id,
+      orgId: recommendation.org_id,
+      bizId: recommendation.biz_id,
+      copy,
+      requestId,
+      log,
+    });
+    if (!persisted) {
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
         requestId,
@@ -207,16 +470,16 @@ export async function POST(request: Request) {
           internal_meta: {
             lito: {
               mode: 'generate',
+              provider: providerState.provider,
+              model: providerState.model,
               generated_at: new Date().toISOString(),
-              director_notes: generated.director_notes,
             },
           },
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'recommendation_id' },
       );
-
-    if (metaErr && !isMissingMetaDependency(metaErr)) {
+    if (metaErr && !isSchemaMissing(metaErr)) {
       log.warn('lito_copy_generate_meta_upsert_failed', {
         error_code: metaErr.code || null,
         error: metaErr.message || null,
@@ -226,15 +489,8 @@ export async function POST(request: Request) {
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
-        steps: generated.steps,
-        director_notes: generated.director_notes,
-        copy_short: generated.copy_short,
-        copy_long: generated.copy_long,
-        hashtags: generated.hashtags,
-        assets_needed: generated.assets_needed,
-        remaining,
-        used,
-        limit,
+        copy,
+        quota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
         request_id: requestId,
       }),
       requestId,
