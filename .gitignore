@@ -40,3 +40,7 @@ next-env.d.ts
 .claude/
 build.log
 package-lock 2.json
+
+# Supabase CLI temp artifacts
+supabase/.temp/
+supabase/.temp/**
