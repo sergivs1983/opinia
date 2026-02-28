@@ -2,35 +2,52 @@ import { resolveProvider } from '@/lib/ai/provider';
 
 export type LitoVoiceActionKind = 'gbp_update' | 'social_post' | 'customer_email';
 export type LitoVoiceActionStatus = 'draft' | 'pending_review' | 'approved' | 'rejected' | 'executed';
-export type LitoVoiceUnavailableReason = 'missing_api_key' | 'disabled' | 'ok';
+export type LitoVoicePrepareMode = 'record' | 'paste_transcript_only';
+export type LitoVoiceUnavailableReason = 'disabled' | 'ok';
 
-export type LitoVoiceAvailability = {
-  enabled: boolean;
-  reason: LitoVoiceUnavailableReason;
-  provider: 'openai' | 'anthropic' | 'none';
-  message: string;
-};
-
-export type LitoVoiceDraftPayload = {
-  title: string;
-  summary: string;
-  suggested_channel?: 'instagram' | 'tiktok';
-  suggested_format?: 'post' | 'story' | 'reel';
-  updates?: {
+type LitoVoiceGbpUpdatePayload = {
+  action: 'set_hours' | 'set_status' | 'post_update';
+  fields: {
     hours_note?: string;
     temporary_closure?: boolean;
     incident_note?: string;
   };
-  email?: {
-    subject: string;
-    body_outline: string[];
-  };
-  notes?: string[];
+  human_summary: string;
 };
+
+type LitoVoiceSocialPostPayload = {
+  channel: 'instagram' | 'tiktok';
+  format: 'post' | 'story' | 'reel';
+  caption?: string;
+  ikea_steps?: string[];
+  assets_needed?: string[];
+  human_summary: string;
+};
+
+type LitoVoiceCustomerEmailPayload = {
+  subject?: string;
+  body?: string;
+  audience: 'recent_customers' | 'all';
+  send_mode: 'manual';
+  human_summary: string;
+};
+
+export type LitoVoiceDraftPayload =
+  | LitoVoiceGbpUpdatePayload
+  | LitoVoiceSocialPostPayload
+  | LitoVoiceCustomerEmailPayload;
 
 export type LitoVoiceDraftSeed = {
   kind: LitoVoiceActionKind;
   payload: LitoVoiceDraftPayload;
+};
+
+export type LitoVoiceCapabilities = {
+  enabled: boolean;
+  reason: LitoVoiceUnavailableReason;
+  provider: 'openai' | 'anthropic' | 'none';
+  mode: LitoVoicePrepareMode;
+  message: string;
 };
 
 function compactText(value: string): string {
@@ -81,20 +98,18 @@ export function detectVoiceDraftSeeds(transcriptText: string): LitoVoiceDraftSee
     /cerramos\b/, /cerrado\b/, /abrimos\b/, /horario\b/, /aver[ii]a\b/, /feriado\b/,
     /\bclosed\b/, /\bopen\b/, /\bhours\b/, /\bholiday\b/,
   ])) {
+    const isClosure = includesAny(lower, [/tanquem\b/, /\bcerramos\b/, /\bclosed\b/]);
+    const hasIncident = includesAny(lower, [/avaria\b/, /\baver[ii]a\b/, /\bincident\b/]);
     add({
       kind: 'gbp_update',
       payload: {
-        title: 'Actualitza Google Business Profile',
-        summary: 'Sembla que cal actualitzar horaris o estat del negoci.',
-        updates: {
+        action: isClosure ? 'set_status' : 'set_hours',
+        fields: {
           hours_note: sliceSentence(text, 140),
-          temporary_closure: includesAny(lower, [/tanquem\b/, /\bcerramos\b/, /\bclosed\b/]),
-          incident_note: includesAny(lower, [/avaria\b/, /\baver[ii]a\b/, /\bincident\b/]) ? 'Revisa incidencies abans de publicar.' : undefined,
+          temporary_closure: isClosure,
+          incident_note: hasIncident ? 'Revisa incidencies abans de publicar.' : undefined,
         },
-        notes: [
-          'Revisa horari especial i festius.',
-          "Confirma la data d'inici i final del canvi.",
-        ],
+        human_summary: 'Sembla que cal actualitzar horaris o estat del negoci.',
       },
     });
   }
@@ -103,17 +118,34 @@ export function detectVoiceDraftSeeds(transcriptText: string): LitoVoiceDraftSee
     /story\b/, /post\b/, /reel\b/, /promo\b/, /promocio\b/, /promocion\b/,
     /instagram\b/, /tiktok\b/, /publicar\b/, /publica\b/, /contenido\b/, /xarxes?\b/,
   ])) {
+    const format = detectPreferredFormat(lower);
     add({
       kind: 'social_post',
       payload: {
-        title: 'Prepara contingut social',
-        summary: "S'ha detectat una accio de xarxes socials a partir del transcript.",
-        suggested_channel: detectPreferredChannel(lower),
-        suggested_format: detectPreferredFormat(lower),
-        notes: [
-          'Mantingues el missatge curt i accionable.',
-          'Inclou una crida final per comentar o reservar.',
-        ],
+        channel: detectPreferredChannel(lower),
+        format,
+        caption: sliceSentence(text, 180),
+        ikea_steps: format === 'story'
+          ? [
+            'Defineix una frase gran en pantalla.',
+            'Afegeix sticker de pregunta o enquesta.',
+            'Tanca amb una CTA curta.',
+          ]
+          : format === 'reel'
+            ? [
+              'Ganxo visual als primers 2 segons.',
+              'Mostra 3-5 clips curts i clars.',
+              'Acaba amb una CTA de comentari.',
+            ]
+            : [
+              'Tria una foto clara del producte o servei.',
+              'Escriu caption curt amb benefici principal.',
+              'Tanca amb CTA simple.',
+            ],
+        assets_needed: format === 'reel'
+          ? ['Video vertical 9:16', 'Text breu en pantalla', 'CTA final']
+          : ['Imatge principal', 'Copy curt', 'CTA visible'],
+        human_summary: "S'ha detectat una accio de xarxes socials a partir del transcript.",
       },
     });
   }
@@ -125,20 +157,15 @@ export function detectVoiceDraftSeeds(transcriptText: string): LitoVoiceDraftSee
     add({
       kind: 'customer_email',
       payload: {
-        title: 'Prepara email a clients',
-        summary: "S'ha detectat un avís per email a clients.",
-        email: {
-          subject: 'Actualitzacio important del negoci',
-          body_outline: [
-            'Context breu del canvi o novetat.',
-            'Quina accio ha de fer el client.',
-            'Canal de contacte per dubtes.',
-          ],
-        },
-        notes: [
-          'Evita text massa llarg al primer paragraf.',
-          'Inclou termini o data clau si aplica.',
-        ],
+        subject: 'Actualitzacio important del negoci',
+        body: [
+          'Context breu del canvi o novetat.',
+          'Que ha de fer el client a continuacio.',
+          'Canal de contacte per dubtes.',
+        ].join('\n'),
+        audience: 'recent_customers',
+        send_mode: 'manual',
+        human_summary: "S'ha detectat un avís per email a clients.",
       },
     });
   }
@@ -147,14 +174,16 @@ export function detectVoiceDraftSeeds(transcriptText: string): LitoVoiceDraftSee
     add({
       kind: 'social_post',
       payload: {
-        title: 'Draft social generic',
-        summary: "No s'ha detectat una intencio clara; es crea un draft social generic.",
-        suggested_channel: 'instagram',
-        suggested_format: 'post',
-        notes: [
-          'Valida objectiu abans de publicar.',
-          'Converteix el missatge en una promesa clara al client.',
+        channel: 'instagram',
+        format: 'post',
+        caption: sliceSentence(text, 160),
+        ikea_steps: [
+          'Defineix una idea principal en una frase.',
+          'Afegeix una imatge clara i neta.',
+          'Tanca amb una pregunta per obtenir resposta.',
         ],
+        assets_needed: ['Foto principal', 'CTA de comentari', 'Ubicacio si aplica'],
+        human_summary: "No s'ha detectat una intencio clara; es crea un draft social generic.",
       },
     });
   }
@@ -178,26 +207,35 @@ export function buildVoiceAssistantMessage(params: {
   });
 
   lines.push('');
-  lines.push(`Drafts generats: ${params.drafts.length}`);
-  lines.push('Revisa cada draft i decideix: Confirmar, Editar o Cancel·lar.');
+  lines.push(`Drafts generats: ${params.drafts.length}.`);
+  lines.push('Revisa cada accio i decideix: editar, enviar a revisio o confirmar.');
   return lines.join('\n');
 }
 
-export function resolveVoiceAvailability(orgProvider?: string | null): LitoVoiceAvailability {
+export function resolveVoiceCapabilities(orgProvider?: string | null): LitoVoiceCapabilities {
   const providerState = resolveProvider({ orgProvider: orgProvider ?? null });
-  if (!providerState.available) {
+  const manualDisabled = String(process.env.LITO_VOICE_MANUAL_DISABLED || '').toLowerCase() === 'true';
+  const mode: LitoVoicePrepareMode = String(process.env.LITO_VOICE_RECORDING_ENABLED || '').toLowerCase() === 'true'
+    ? 'record'
+    : 'paste_transcript_only';
+
+  if (manualDisabled) {
     return {
       enabled: false,
-      reason: 'missing_api_key',
-      provider: 'none',
-      message: 'LITO Voice no esta disponible: falta configurar la clau del provider.',
+      reason: 'disabled',
+      provider: providerState.available ? providerState.provider : 'none',
+      mode: 'paste_transcript_only',
+      message: 'LITO Voice desactivat per configuracio.',
     };
   }
 
   return {
     enabled: true,
     reason: 'ok',
-    provider: providerState.provider,
-    message: 'LITO Voice disponible.',
+    provider: providerState.available ? providerState.provider : 'none',
+    mode,
+    message: mode === 'record'
+      ? 'LITO Voice disponible en mode gravacio.'
+      : 'LITO Voice disponible en mode transcript manual.',
   };
 }

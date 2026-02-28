@@ -9,6 +9,7 @@ export type LitoActionDraftRow = {
   biz_id: string;
   thread_id: string | null;
   source_voice_clip_id: string | null;
+  idempotency_key?: string | null;
   kind: 'gbp_update' | 'social_post' | 'customer_email';
   status: 'draft' | 'pending_review' | 'approved' | 'rejected' | 'executed';
   payload: Record<string, unknown>;

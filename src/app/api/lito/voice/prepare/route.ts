@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { getLitoBizAccess } from '@/lib/lito/action-drafts';
-import { resolveVoiceAvailability } from '@/lib/lito/voice';
+import { resolveVoiceCapabilities } from '@/lib/lito/voice';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -89,14 +89,14 @@ export async function POST(request: Request) {
       .eq('id', access.orgId)
       .maybeSingle();
 
-    const availability = resolveVoiceAvailability((orgData as OrganizationRow | null)?.ai_provider ?? null);
-    if (!availability.enabled) {
+    const capabilities = resolveVoiceCapabilities((orgData as OrganizationRow | null)?.ai_provider ?? null);
+    if (!capabilities.enabled) {
       return withStandardHeaders(
         NextResponse.json(
           {
             error: 'voice_unavailable',
-            reason: availability.reason,
-            message: availability.message,
+            reason: capabilities.reason,
+            message: capabilities.message,
             request_id: requestId,
           },
           { status: 503 },
@@ -108,11 +108,13 @@ export async function POST(request: Request) {
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
+        mode: capabilities.mode,
+        maxSeconds: 30,
         upload: {
-          mode: 'direct',
+          mode: capabilities.mode,
           maxSeconds: 30,
         },
-        provider: availability.provider,
+        provider: capabilities.provider,
         request_id: requestId,
       }),
       requestId,

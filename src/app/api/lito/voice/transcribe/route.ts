@@ -10,8 +10,13 @@ import { getLitoBizAccess, type LitoActionDraftRow } from '@/lib/lito/action-dra
 import {
   buildVoiceAssistantMessage,
   detectVoiceDraftSeeds,
-  resolveVoiceAvailability,
+  resolveVoiceCapabilities,
 } from '@/lib/lito/voice';
+import {
+  buildVoiceDraftIdempotencyKey,
+  buildVoiceIdempotencyKey,
+  getVoiceDayBucket,
+} from '@/lib/lito/voice-idempotency';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -30,6 +35,9 @@ type ThreadRow = {
 
 type VoiceClipRow = {
   id: string;
+  transcript: string | null;
+  transcript_lang: string | null;
+  idempotency_key?: string | null;
 };
 
 type OrganizationRow = {
@@ -46,10 +54,19 @@ type MessageRow = {
   created_at: string;
 };
 
+type PostgrestErrorShape = {
+  code?: string;
+  message?: string;
+};
+
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
   response.headers.set('Cache-Control', 'no-store');
   return response;
+}
+
+function isMissingColumnError(error: PostgrestErrorShape | null | undefined): boolean {
+  return error?.code === '42703' || error?.code === 'PGRST204';
 }
 
 export async function POST(request: Request) {
@@ -108,14 +125,14 @@ export async function POST(request: Request) {
       .eq('id', access.orgId)
       .maybeSingle();
 
-    const availability = resolveVoiceAvailability((orgData as OrganizationRow | null)?.ai_provider ?? null);
-    if (!availability.enabled) {
+    const capabilities = resolveVoiceCapabilities((orgData as OrganizationRow | null)?.ai_provider ?? null);
+    if (!capabilities.enabled) {
       return withStandardHeaders(
         NextResponse.json(
           {
             error: 'voice_unavailable',
-            reason: availability.reason,
-            message: availability.message,
+            reason: capabilities.reason,
+            message: capabilities.message,
             request_id: requestId,
           },
           { status: 503 },
@@ -126,6 +143,55 @@ export async function POST(request: Request) {
 
     const transcriptText = payload.transcript_text.trim();
     const transcriptLang = payload.transcript_lang?.trim() || 'ca';
+    const dayBucket = getVoiceDayBucket();
+    const clipIdempotencyKey = buildVoiceIdempotencyKey({
+      userId: user.id,
+      bizId: payload.biz_id,
+      threadId: payload.thread_id || null,
+      transcriptText,
+      dayBucket,
+    });
+
+    const { data: existingClipByIdempotency, error: existingClipByIdempotencyErr } = await admin
+      .from('lito_voice_clips')
+      .select('id, transcript, transcript_lang, idempotency_key')
+      .eq('org_id', access.orgId)
+      .eq('idempotency_key', clipIdempotencyKey)
+      .maybeSingle();
+
+    if (existingClipByIdempotencyErr && !isMissingColumnError(existingClipByIdempotencyErr)) {
+      log.error('lito_voice_clip_idempotency_lookup_failed', {
+        error_code: existingClipByIdempotencyErr.code || null,
+        error: existingClipByIdempotencyErr.message || null,
+        biz_id: payload.biz_id,
+      });
+    }
+
+    if (existingClipByIdempotency) {
+      const existingClip = existingClipByIdempotency as VoiceClipRow;
+      const { data: existingDraftsData } = await admin
+        .from('lito_action_drafts')
+        .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
+        .eq('source_voice_clip_id', existingClip.id)
+        .order('created_at', { ascending: true });
+
+      return withStandardHeaders(
+        NextResponse.json({
+          ok: true,
+          clip_id: existingClip.id,
+          idempotent: true,
+          transcript: {
+            text: existingClip.transcript || transcriptText,
+            lang: existingClip.transcript_lang || transcriptLang,
+          },
+          actions: (existingDraftsData || []) as LitoActionDraftRow[],
+          messages: [],
+          viewer_role: access.role,
+          request_id: requestId,
+        }),
+        requestId,
+      );
+    }
 
     const { data: clipData, error: clipErr } = await admin
       .from('lito_voice_clips')
@@ -137,18 +203,80 @@ export async function POST(request: Request) {
         status: 'transcribed',
         transcript: transcriptText,
         transcript_lang: transcriptLang,
+        idempotency_key: clipIdempotencyKey,
         meta: {
           source: 'manual_transcript',
-          provider: availability.provider,
+          provider: capabilities.provider,
+          mode: capabilities.mode,
         },
       })
       .select('id')
       .single();
 
-    if (clipErr || !clipData) {
+    let finalClipData = clipData;
+    let finalClipErr = clipErr;
+    if ((finalClipErr || !finalClipData) && isMissingColumnError(finalClipErr)) {
+      const fallbackClip = await admin
+        .from('lito_voice_clips')
+        .insert({
+          org_id: access.orgId,
+          biz_id: payload.biz_id,
+          thread_id: payload.thread_id ?? null,
+          user_id: user.id,
+          status: 'transcribed',
+          transcript: transcriptText,
+          transcript_lang: transcriptLang,
+          meta: {
+            source: 'manual_transcript',
+            provider: capabilities.provider,
+            mode: capabilities.mode,
+          },
+        })
+        .select('id')
+        .single();
+      finalClipData = fallbackClip.data;
+      finalClipErr = fallbackClip.error;
+    }
+
+    if ((finalClipErr?.code === '23505' || finalClipErr?.code === '409') && !finalClipData) {
+      const { data: existingClipAfterConflict } = await admin
+        .from('lito_voice_clips')
+        .select('id, transcript, transcript_lang, idempotency_key')
+        .eq('org_id', access.orgId)
+        .eq('idempotency_key', clipIdempotencyKey)
+        .maybeSingle();
+
+      if (existingClipAfterConflict) {
+        const existingClip = existingClipAfterConflict as VoiceClipRow;
+        const { data: existingDraftsData } = await admin
+          .from('lito_action_drafts')
+          .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
+          .eq('source_voice_clip_id', existingClip.id)
+          .order('created_at', { ascending: true });
+
+        return withStandardHeaders(
+          NextResponse.json({
+            ok: true,
+            clip_id: existingClip.id,
+            idempotent: true,
+            transcript: {
+              text: existingClip.transcript || transcriptText,
+              lang: existingClip.transcript_lang || transcriptLang,
+            },
+            actions: (existingDraftsData || []) as LitoActionDraftRow[],
+            messages: [],
+            viewer_role: access.role,
+            request_id: requestId,
+          }),
+          requestId,
+        );
+      }
+    }
+
+    if (finalClipErr || !finalClipData) {
       log.error('lito_voice_clip_insert_failed', {
-        error_code: clipErr?.code || null,
-        error: clipErr?.message || null,
+        error_code: finalClipErr?.code || null,
+        error: finalClipErr?.message || null,
         biz_id: payload.biz_id,
       });
       return withStandardHeaders(
@@ -157,19 +285,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const clipId = (clipData as VoiceClipRow).id;
+    const clipId = (finalClipData as VoiceClipRow).id;
     const draftSeeds = detectVoiceDraftSeeds(transcriptText);
     const createdDrafts: LitoActionDraftRow[] = [];
 
     for (const seed of draftSeeds) {
       const nowIso = new Date().toISOString();
-      const { data: draftData, error: draftErr } = await admin
+      const draftIdempotencyKey = buildVoiceDraftIdempotencyKey({
+        clipIdempotencyKey,
+        kind: seed.kind,
+      });
+      const insertDraft = await admin
         .from('lito_action_drafts')
         .insert({
           org_id: access.orgId,
           biz_id: payload.biz_id,
           thread_id: payload.thread_id ?? null,
           source_voice_clip_id: clipId,
+          idempotency_key: draftIdempotencyKey,
           kind: seed.kind,
           status: 'draft',
           payload: seed.payload,
@@ -180,20 +313,54 @@ export async function POST(request: Request) {
         .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
         .single();
 
+      let draftData = insertDraft.data;
+      let draftErr = insertDraft.error;
+      if ((draftErr || !draftData) && isMissingColumnError(draftErr)) {
+        const fallbackDraft = await admin
+          .from('lito_action_drafts')
+          .insert({
+            org_id: access.orgId,
+            biz_id: payload.biz_id,
+            thread_id: payload.thread_id ?? null,
+            source_voice_clip_id: clipId,
+            kind: seed.kind,
+            status: 'draft',
+            payload: seed.payload,
+            created_by: user.id,
+            created_at: nowIso,
+            updated_at: nowIso,
+          })
+          .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
+          .single();
+        draftData = fallbackDraft.data;
+        draftErr = fallbackDraft.error;
+      }
+
       if (!draftErr && draftData) {
         createdDrafts.push(draftData as LitoActionDraftRow);
         continue;
       }
 
       if (draftErr?.code === '23505') {
-        const { data: existingData } = await admin
+        const { data: existingDataByIdempotency } = await admin
+          .from('lito_action_drafts')
+          .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
+          .eq('org_id', access.orgId)
+          .eq('idempotency_key', draftIdempotencyKey)
+          .maybeSingle();
+        if (existingDataByIdempotency) {
+          createdDrafts.push(existingDataByIdempotency as LitoActionDraftRow);
+          continue;
+        }
+
+        const { data: existingDataByClip } = await admin
           .from('lito_action_drafts')
           .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
           .eq('source_voice_clip_id', clipId)
           .eq('kind', seed.kind)
           .maybeSingle();
-        if (existingData) {
-          createdDrafts.push(existingData as LitoActionDraftRow);
+        if (existingDataByClip) {
+          createdDrafts.push(existingDataByClip as LitoActionDraftRow);
           continue;
         }
       }
@@ -260,6 +427,7 @@ export async function POST(request: Request) {
       NextResponse.json({
         ok: true,
         clip_id: clipId,
+        idempotent: false,
         transcript: {
           text: transcriptText,
           lang: transcriptLang,
