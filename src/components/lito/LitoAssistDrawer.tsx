@@ -36,20 +36,49 @@ type RecommendationInput = {
   recommendation_template?: RecommendationTemplate;
 };
 
-type GeneratePayload = {
+type LitoGeneratedCopy = {
+  caption_short: string;
+  caption_long: string;
+  hashtags: string[];
+  shotlist: string[];
+  image_idea: string;
+  execution_checklist: string[];
+  stickers: Array<'poll' | 'question' | 'countdown'>;
+  director_notes: string[];
+  assets_needed: string[];
+  format: 'post' | 'story' | 'reel';
+  language: 'ca' | 'es' | 'en';
+  channel: 'instagram' | 'tiktok' | 'facebook';
+  tone: 'formal' | 'neutral' | 'friendly';
+};
+
+type QuotaState = {
+  used: number;
+  limit: number;
+  remaining: number;
+};
+
+type CopyApiPayload = {
   ok?: boolean;
-  steps?: string[];
-  director_notes?: string[];
-  copy_short?: string;
-  copy_long?: string;
-  hashtags?: string[];
-  assets_needed?: string[];
-  remaining?: number;
+  copy?: LitoGeneratedCopy | null;
+  quota?: QuotaState | null;
+  ai?: {
+    available?: boolean;
+    provider?: string;
+  };
   error?: string;
   message?: string;
 };
 
-type RefineMode = 'shorter' | 'funny' | 'formal' | 'translate_es' | 'translate_en';
+type GeneratePayload = {
+  ok?: boolean;
+  copy?: LitoGeneratedCopy;
+  quota?: QuotaState;
+  error?: string;
+  message?: string;
+};
+
+type RefineMode = 'shorter' | 'premium' | 'funny' | 'formal' | 'translate_ca' | 'translate_es' | 'translate_en';
 type LitoTabKey = 'howto' | 'copy' | 'assets';
 
 type LitoAssistDrawerProps = {
@@ -62,6 +91,11 @@ type LitoAssistDrawerProps = {
   publishing?: boolean;
 };
 
+function normalizedFormat(value: string | undefined): 'post' | 'story' | 'reel' {
+  if (value === 'story' || value === 'reel') return value;
+  return 'post';
+}
+
 export default function LitoAssistDrawer({
   open,
   onClose,
@@ -73,16 +107,26 @@ export default function LitoAssistDrawer({
 }: LitoAssistDrawerProps) {
   const t = useT();
   const { toast } = useToast();
+
   const [activeTab, setActiveTab] = useState<LitoTabKey>('howto');
-  const [loadingPlan, setLoadingPlan] = useState(false);
-  const [refineLoading, setRefineLoading] = useState<RefineMode | null>(null);
+  const [loadingStored, setLoadingStored] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [refineLoading, setRefineLoading] = useState<string | null>(null);
+  const [customInstruction, setCustomInstruction] = useState('');
+
   const [steps, setSteps] = useState<string[]>([]);
   const [directorNotes, setDirectorNotes] = useState<string[]>([]);
   const [assets, setAssets] = useState<string[]>([]);
   const [copyShort, setCopyShort] = useState('');
   const [copyLong, setCopyLong] = useState('');
   const [hashtags, setHashtags] = useState<string[]>([]);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const [shotlist, setShotlist] = useState<string[]>([]);
+  const [imageIdea, setImageIdea] = useState('');
+  const [quota, setQuota] = useState<QuotaState | null>(null);
+  const [aiUnavailable, setAiUnavailable] = useState(false);
+  const [aiMessage, setAiMessage] = useState('');
+  const [hasGeneratedCopy, setHasGeneratedCopy] = useState(false);
+
   const [assetsDone, setAssetsDone] = useState<Record<string, boolean>>({});
   const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
 
@@ -105,6 +149,18 @@ export default function LitoAssistDrawer({
     return `${copyLong || copyShort}${tags}`.trim();
   }, [copyLong, copyShort, hashtags]);
 
+  const applyCopy = useCallback((copy: LitoGeneratedCopy) => {
+    setCopyShort(copy.caption_short || '');
+    setCopyLong(copy.caption_long || '');
+    setHashtags(copy.hashtags || []);
+    setShotlist(copy.shotlist || []);
+    setImageIdea(copy.image_idea || '');
+    setSteps(copy.execution_checklist || []);
+    setDirectorNotes(copy.director_notes || []);
+    setAssets(copy.assets_needed || []);
+    setHasGeneratedCopy(true);
+  }, []);
+
   const hydrateFallbackPlan = useCallback(() => {
     const fallbackSteps = localHowTo?.steps?.length
       ? localHowTo.steps
@@ -113,6 +169,7 @@ export default function LitoAssistDrawer({
           `${t('dashboard.home.recommendations.lito.fallbackSteps.step2')} ${ideaText}`.trim(),
           `${t('dashboard.home.recommendations.lito.fallbackSteps.step3')} ${ctaText}`.trim(),
         ].filter(Boolean);
+
     const fallbackAssets = localHowTo?.assets_needed?.length
       ? localHowTo.assets_needed
       : baseAssets;
@@ -124,15 +181,42 @@ export default function LitoAssistDrawer({
       t('dashboard.home.recommendations.lito.fallbackDirector.notes3'),
     ]);
     setAssets(fallbackAssets.slice(0, 12));
-    setCopyShort(`${hookTitle}. ${ctaText}`.trim());
-    setCopyLong([hookTitle, '', ideaText, '', ctaText].filter(Boolean).join('\n'));
-    setHashtags(['#OpinIA', '#NegociLocal']);
-    setRemaining(null);
+    setCopyShort('');
+    setCopyLong('');
+    setHashtags([]);
+    setShotlist([]);
+    setImageIdea('');
+    setHasGeneratedCopy(false);
   }, [baseAssets, ctaText, hookTitle, ideaText, localHowTo?.assets_needed, localHowTo?.steps, t]);
+
+  const loadStoredCopy = useCallback(async () => {
+    if (!bizId || !recommendation?.id) return;
+    setLoadingStored(true);
+    try {
+      const response = await fetch(`/api/lito/copy?biz_id=${bizId}&recommendation_id=${recommendation.id}`);
+      const payload = (await response.json().catch(() => ({}))) as CopyApiPayload;
+      if (response.status === 503 || payload.error === 'ai_unavailable') {
+        setAiUnavailable(true);
+        setAiMessage(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'));
+      } else {
+        setAiUnavailable(Boolean(payload.ai && payload.ai.available === false));
+        setAiMessage(payload.ai?.available === false ? t('dashboard.home.recommendations.lito.aiUnavailable') : '');
+      }
+
+      if (payload.quota) setQuota(payload.quota);
+      if (payload.copy) {
+        applyCopy(payload.copy);
+      }
+    } catch {
+      // Keep fallback state silently; drawer remains usable.
+    } finally {
+      setLoadingStored(false);
+    }
+  }, [applyCopy, bizId, recommendation?.id, t]);
 
   const runGenerate = useCallback(async () => {
     if (!bizId || !recommendation?.id) return;
-    setLoadingPlan(true);
+    setGenerating(true);
     try {
       const response = await fetch('/api/lito/copy/generate', {
         method: 'POST',
@@ -140,31 +224,39 @@ export default function LitoAssistDrawer({
         body: JSON.stringify({
           biz_id: bizId,
           recommendation_id: recommendation.id,
+          format: normalizedFormat(recommendation?.format || recommendationTemplate?.format),
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as GeneratePayload;
-      if (!response.ok || payload.error) {
+
+      if (response.status === 503 || payload.error === 'ai_unavailable') {
+        setAiUnavailable(true);
+        setAiMessage(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'));
+        toast(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'), 'error');
+        return;
+      }
+      if (!response.ok || payload.error || !payload.copy) {
         throw new Error(payload.message || t('dashboard.home.recommendations.lito.generateError'));
       }
-      setSteps((payload.steps || []).slice(0, 12));
-      setDirectorNotes((payload.director_notes || []).slice(0, 12));
-      setAssets((payload.assets_needed || []).slice(0, 12));
-      setCopyShort(payload.copy_short || '');
-      setCopyLong(payload.copy_long || '');
-      setHashtags((payload.hashtags || []).slice(0, 12));
-      setRemaining(typeof payload.remaining === 'number' ? payload.remaining : null);
+
+      applyCopy(payload.copy);
+      if (payload.quota) setQuota(payload.quota);
+      setAiUnavailable(false);
+      setAiMessage('');
+      setActiveTab('copy');
     } catch (error) {
-      hydrateFallbackPlan();
       const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.generateError');
       toast(message, 'error');
     } finally {
-      setLoadingPlan(false);
+      setGenerating(false);
     }
-  }, [bizId, hydrateFallbackPlan, recommendation?.id, t, toast]);
+  }, [applyCopy, bizId, recommendation?.format, recommendation?.id, recommendationTemplate?.format, t, toast]);
 
-  const runRefine = useCallback(async (mode: RefineMode) => {
+  const runRefine = useCallback(async (opts: { mode: 'quick' | 'custom'; quickMode?: RefineMode; instruction?: string }) => {
     if (!bizId || !recommendation?.id) return;
-    setRefineLoading(mode);
+    const loadingKey = opts.mode === 'quick' ? opts.quickMode || 'quick' : 'custom';
+    setRefineLoading(loadingKey);
+
     try {
       const response = await fetch('/api/lito/copy/refine', {
         method: 'POST',
@@ -172,33 +264,48 @@ export default function LitoAssistDrawer({
         body: JSON.stringify({
           biz_id: bizId,
           recommendation_id: recommendation.id,
-          mode,
+          mode: opts.mode,
+          quick_mode: opts.quickMode,
+          instruction: opts.instruction,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as GeneratePayload;
-      if (!response.ok || payload.error) {
+
+      if (response.status === 503 || payload.error === 'ai_unavailable') {
+        setAiUnavailable(true);
+        setAiMessage(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'));
+        toast(payload.message || t('dashboard.home.recommendations.lito.aiUnavailable'), 'error');
+        return;
+      }
+      if (!response.ok || payload.error || !payload.copy) {
         throw new Error(payload.message || t('dashboard.home.recommendations.lito.refineError'));
       }
-      setCopyShort(payload.copy_short || '');
-      setCopyLong(payload.copy_long || '');
-      setHashtags((payload.hashtags || []).slice(0, 12));
-      setRemaining(typeof payload.remaining === 'number' ? payload.remaining : null);
+
+      applyCopy(payload.copy);
+      if (payload.quota) setQuota(payload.quota);
+      if (opts.mode === 'custom') setCustomInstruction('');
+      setAiUnavailable(false);
+      setAiMessage('');
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.lito.refineError');
       toast(message, 'error');
     } finally {
       setRefineLoading(null);
     }
-  }, [bizId, recommendation?.id, t, toast]);
+  }, [applyCopy, bizId, recommendation?.id, t, toast]);
 
   useEffect(() => {
     if (!open) return;
     setActiveTab('howto');
     setAssetsDone({});
     setStepsDone({});
+    setQuota(null);
+    setAiUnavailable(false);
+    setAiMessage('');
+    setCustomInstruction('');
     hydrateFallbackPlan();
-    void runGenerate();
-  }, [hydrateFallbackPlan, open, runGenerate]);
+    void loadStoredCopy();
+  }, [hydrateFallbackPlan, loadStoredCopy, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -230,10 +337,16 @@ export default function LitoAssistDrawer({
                   {bizId ? ` · ${formatLabel}` : ''}
                 </p>
                 <p className="mt-2 text-sm text-white/85">{hookTitle}</p>
-                {remaining !== null ? (
+                {quota?.limit ? (
                   <p className="mt-1 text-xs text-emerald-300/85">
-                    {t('dashboard.home.recommendations.lito.remainingQuota', { count: remaining })}
+                    {t('dashboard.home.recommendations.lito.quotaBadge', {
+                      used: quota.used,
+                      limit: quota.limit,
+                    })}
                   </p>
+                ) : null}
+                {aiUnavailable ? (
+                  <p className="mt-1 text-xs text-amber-300">{aiMessage || t('dashboard.home.recommendations.lito.aiUnavailable')}</p>
                 ) : null}
               </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
@@ -255,15 +368,14 @@ export default function LitoAssistDrawer({
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-4">
-            {loadingPlan ? (
+            {loadingStored ? (
               <div className="space-y-3">
-                <p className={cn('text-sm', textSub)}>{t('dashboard.home.recommendations.lito.generating')}</p>
-                <div className="h-16 animate-pulse rounded-xl border border-white/10 bg-white/6" />
+                <p className={cn('text-sm', textSub)}>{t('common.loading')}</p>
                 <div className="h-16 animate-pulse rounded-xl border border-white/10 bg-white/6" />
               </div>
             ) : null}
 
-            {!loadingPlan && activeTab === 'howto' ? (
+            {!loadingStored && activeTab === 'howto' ? (
               <div className="space-y-3">
                 <section className="rounded-xl border border-white/10 bg-white/6 p-3">
                   <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.objective')}</p>
@@ -300,10 +412,24 @@ export default function LitoAssistDrawer({
               </div>
             ) : null}
 
-            {!loadingPlan && activeTab === 'copy' ? (
+            {!loadingStored && activeTab === 'copy' ? (
               <div className="space-y-3">
                 <section className="rounded-xl border border-white/10 bg-white/6 p-3">
-                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.copyShort')}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.copyShort')}</p>
+                    <Button
+                      size="sm"
+                      className="h-8 px-3 text-xs"
+                      loading={generating}
+                      disabled={generating || aiUnavailable}
+                      onClick={() => void runGenerate()}
+                    >
+                      {t('dashboard.home.recommendations.actions.generateLito')}
+                    </Button>
+                  </div>
+                  {!hasGeneratedCopy ? (
+                    <p className="mt-2 text-xs text-white/70">{t('dashboard.home.recommendations.lito.generatingHint')}</p>
+                  ) : null}
                   <textarea
                     value={copyShort}
                     onChange={(event) => setCopyShort(event.target.value)}
@@ -311,6 +437,7 @@ export default function LitoAssistDrawer({
                     className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
                   />
                 </section>
+
                 <section className="rounded-xl border border-white/10 bg-white/6 p-3">
                   <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.copyLong')}</p>
                   <textarea
@@ -320,6 +447,7 @@ export default function LitoAssistDrawer({
                     className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
                   />
                 </section>
+
                 <section className="rounded-xl border border-white/10 bg-white/6 p-3">
                   <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.hashtags')}</p>
                   <input
@@ -335,6 +463,25 @@ export default function LitoAssistDrawer({
                     className="mt-2 h-10 w-full rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
                   />
                 </section>
+
+                {shotlist.length > 0 ? (
+                  <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                    <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.shotlist')}</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/78">
+                      {shotlist.map((item, index) => (
+                        <li key={`shot-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                {imageIdea ? (
+                  <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                    <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.imageIdea')}</p>
+                    <p className="mt-2 text-sm text-white/82">{imageIdea}</p>
+                  </section>
+                ) : null}
+
                 <section className="flex flex-wrap gap-2">
                   <Button
                     variant="secondary"
@@ -351,26 +498,53 @@ export default function LitoAssistDrawer({
                   >
                     {t('dashboard.home.recommendations.lito.actions.copy')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine('shorter')}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'shorter'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'shorter' })} disabled={aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.shorter')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine('funny')}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'premium'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'premium' })} disabled={aiUnavailable}>
+                    {t('dashboard.home.recommendations.lito.refine.premium')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'funny'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'funny' })} disabled={aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.funny')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine('formal')}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'formal'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'formal' })} disabled={aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.formal')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine('translate_es')}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_ca'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_ca' })} disabled={aiUnavailable}>
+                    {t('dashboard.home.recommendations.lito.refine.translateCa')}
+                  </Button>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_es'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_es' })} disabled={aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.translateEs')}
                   </Button>
-                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine('translate_en')}>
+                  <Button size="sm" variant="ghost" loading={refineLoading === 'translate_en'} onClick={() => void runRefine({ mode: 'quick', quickMode: 'translate_en' })} disabled={aiUnavailable}>
                     {t('dashboard.home.recommendations.lito.refine.translateEn')}
                   </Button>
+                </section>
+
+                <section className="rounded-xl border border-white/10 bg-white/6 p-3">
+                  <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.home.recommendations.lito.customRefineTitle')}</p>
+                  <textarea
+                    value={customInstruction}
+                    onChange={(event) => setCustomInstruction(event.target.value)}
+                    rows={3}
+                    placeholder={t('dashboard.home.recommendations.lito.customInstructionPlaceholder')}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/25 p-3 text-sm text-white outline-none transition-all duration-200 ease-premium focus:border-emerald-300/35 focus:ring-2 focus:ring-emerald-400/20"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      size="sm"
+                      loading={refineLoading === 'custom'}
+                      disabled={aiUnavailable || customInstruction.trim().length < 2}
+                      onClick={() => void runRefine({ mode: 'custom', instruction: customInstruction.trim() })}
+                    >
+                      {t('dashboard.home.recommendations.lito.actions.refineCustom')}
+                    </Button>
+                  </div>
                 </section>
               </div>
             ) : null}
 
-            {!loadingPlan && activeTab === 'assets' ? (
+            {!loadingStored && activeTab === 'assets' ? (
               <div className="space-y-2 rounded-xl border border-white/10 bg-white/6 p-3">
                 {assets.length > 0 ? (
                   assets.map((asset, index) => {

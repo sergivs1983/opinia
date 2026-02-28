@@ -611,12 +611,19 @@
           "copyShort": "Copy corto",
           "copyLong": "Copy largo",
           "hashtags": "Hashtags",
+          "shotlist": "Shotlist",
+          "imageIdea": "Idea de imagen",
           "remainingQuota": "Cuota disponible este mes: {count}",
+          "quotaBadge": "Drafts IA: {used}/{limit}",
+          "generatingHint": "Pulsa “Generar texto e ideas” para crear el copy con IA.",
           "footerHint": "Cuando lo publiques, márcalo como hecho.",
           "generateError": "No se pudo generar el plan con LITO.",
           "refineError": "No se pudo retocar el copy ahora mismo.",
+          "aiUnavailable": "Activa LITO Copy en Configuración (Admin).",
           "copySuccess": "Copy copiado al portapapeles.",
           "copyError": "No se pudo copiar el texto.",
+          "customRefineTitle": "Refinado personalizado",
+          "customInstructionPlaceholder": "Ej: hazlo más directo y orientado a reservas.",
           "fallbackSteps": {
             "step1": "Define el hook principal:",
             "step2": "Explica la idea en 1-2 frases:",
@@ -629,12 +636,15 @@
           },
           "actions": {
             "copy": "Copiar",
+            "refineCustom": "Refinar con LITO",
             "markPublished": "✅ Hecho, ya lo publiqué"
           },
           "refine": {
             "shorter": "Más corto",
+            "premium": "Más premium",
             "funny": "Más cercano",
             "formal": "Más formal",
+            "translateCa": "Pasar a CA",
             "translateEs": "Pasar a ES",
             "translateEn": "Pasar a EN"
           }

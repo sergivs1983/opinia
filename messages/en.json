@@ -611,12 +611,19 @@
           "copyShort": "Short copy",
           "copyLong": "Long copy",
           "hashtags": "Hashtags",
+          "shotlist": "Shotlist",
+          "imageIdea": "Image idea",
           "remainingQuota": "Monthly quota left: {count}",
+          "quotaBadge": "AI drafts: {used}/{limit}",
+          "generatingHint": "Press “Generate Copy & Ideas” to create AI copy.",
           "footerHint": "When you publish it, mark it as done.",
           "generateError": "Could not generate the plan with LITO.",
           "refineError": "Could not refine the copy right now.",
+          "aiUnavailable": "Enable LITO Copy in Settings (Admin).",
           "copySuccess": "Copy saved to clipboard.",
           "copyError": "Could not copy text.",
+          "customRefineTitle": "Custom refine",
+          "customInstructionPlaceholder": "Example: make it more direct and booking-oriented.",
           "fallbackSteps": {
             "step1": "Define the main hook:",
             "step2": "Explain the idea in 1-2 lines:",
@@ -629,12 +636,15 @@
           },
           "actions": {
             "copy": "Copy",
+            "refineCustom": "Refine with LITO",
             "markPublished": "✅ Done! I already published it"
           },
           "refine": {
             "shorter": "Shorter",
+            "premium": "More premium",
             "funny": "Friendlier",
             "formal": "More formal",
+            "translateCa": "Translate CA",
             "translateEs": "Translate ES",
             "translateEn": "Translate EN"
           }

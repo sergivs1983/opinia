@@ -611,12 +611,19 @@
           "copyShort": "Copy curt",
           "copyLong": "Copy llarg",
           "hashtags": "Hashtags",
+          "shotlist": "Shotlist",
+          "imageIdea": "Idea d'imatge",
           "remainingQuota": "Quota disponible aquest mes: {count}",
+          "quotaBadge": "Drafts IA: {used}/{limit}",
+          "generatingHint": "Prem “Generar Text i Idees” per crear el copy amb IA.",
           "footerHint": "Quan estigui publicat, marca-ho com fet.",
           "generateError": "No s'ha pogut generar el pla amb LITO.",
           "refineError": "No s'ha pogut retocar el copy ara mateix.",
+          "aiUnavailable": "Activa LITO Copy a Configuració (Admin).",
           "copySuccess": "Copy copiat al porta-retalls.",
           "copyError": "No s'ha pogut copiar el text.",
+          "customRefineTitle": "Refinament personalitzat",
+          "customInstructionPlaceholder": "Ex: fes-lo més directe i orientat a reserves.",
           "fallbackSteps": {
             "step1": "Defineix el hook principal:",
             "step2": "Explica la idea en 1-2 frases:",
@@ -629,12 +636,15 @@
           },
           "actions": {
             "copy": "Copiar",
+            "refineCustom": "Refinar amb LITO",
             "markPublished": "✅ Fet! Ja ho he publicat"
           },
           "refine": {
             "shorter": "Més curt",
+            "premium": "Més premium",
             "funny": "Més proper",
             "formal": "Més formal",
+            "translateCa": "Passar a CA",
             "translateEs": "Passar a ES",
             "translateEn": "Passar a EN"
           }
