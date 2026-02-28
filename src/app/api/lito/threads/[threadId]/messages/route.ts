@@ -76,7 +76,8 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
 function isPlaceholderThreadTitle(value: string): boolean {
   const normalized = value.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
-    normalized === 'lito — consultes'
+    normalized === ''
+    || normalized === 'lito — consultes'
     || normalized === 'lito — consultas'
     || normalized === 'lito — questions'
     || normalized === 'lito — consulta'
@@ -86,6 +87,10 @@ function isPlaceholderThreadTitle(value: string): boolean {
     || normalized === 'nova conversa'
     || normalized === 'nueva conversación'
     || normalized === 'new conversation'
+    // Recommendation threads created without a hook (e.g. "LITO — Reel: Recomanació")
+    || (normalized.startsWith('lito — ') && normalized.endsWith(': recomanació'))
+    || (normalized.startsWith('lito — ') && normalized.endsWith(': recomendación'))
+    || (normalized.startsWith('lito — ') && normalized.endsWith(': recommendation'))
   );
 }
 
@@ -113,6 +118,18 @@ function makeThreadTitleFromText(content: string): string {
   if (!candidate) return 'Consulta';
 
   return capitalizeFirst(candidate);
+}
+
+/**
+ * D1.7: Build a short thread title from a recommendation template.
+ * Format: "{FormatLabel}: {Hook}" — max 48 chars with ellipsis.
+ */
+function makeThreadTitleFromRecommendation(format: string, hook: string): string {
+  const formatLabel = format === 'story' ? 'Story' : format === 'reel' ? 'Reel' : 'Post';
+  const cleanHook = hook.replace(/\s+/g, ' ').trim();
+  const candidate = `${formatLabel}: ${cleanHook}`;
+  if (candidate.length <= 48) return candidate;
+  return `${candidate.slice(0, 47).trimEnd()}…`;
 }
 
 function parseTemplateFromGeneratedCopy(raw: unknown): RecommendationTemplate | null {
@@ -561,6 +578,8 @@ export async function POST(
       );
     }
 
+    // D1.7: hoisted so parsedTemplate is available later for auto-title
+    let parsedTemplate: RecommendationTemplate | null = null;
     let assistantReply = buildGenericAssistantReply(payload.content);
     if (thread.recommendation_id) {
       const { data: recommendationData } = await supabase
@@ -577,22 +596,20 @@ export async function POST(
         copy_long?: string | null;
       } | null;
 
-      const parsed = parseTemplateFromGeneratedCopy(row?.generated_copy || null)
+      parsedTemplate = parseTemplateFromGeneratedCopy(row?.generated_copy || null)
         || parseTemplateFromGeneratedCopy(row?.recommendation_template || null);
 
       const hasCopy = Boolean(
         (typeof row?.copy_short === 'string' && row.copy_short.trim().length > 0)
         || (typeof row?.copy_long === 'string' && row.copy_long.trim().length > 0),
       );
-      if (parsed) {
+      if (parsedTemplate) {
         assistantReply = buildAssistantReplyFromTemplate({
-          template: parsed,
+          template: parsedTemplate,
           userMessage: payload.content,
           hasCopy,
         });
       }
-    } else {
-      assistantReply = buildGenericAssistantReply(payload.content);
     }
 
     const { data: assistantMessageData, error: assistantMessageErr } = await supabase
@@ -633,7 +650,17 @@ export async function POST(
     };
 
     if ((existingUserMessagesCount || 0) === 0 && isPlaceholderThreadTitle(thread.title)) {
-      threadUpdates.title = makeThreadTitleFromText(payload.content);
+      // D1.7: Case B — recommendation thread with template → use "Format: Hook"
+      //        Case A — extract phrase from user content
+      //        Case C — fallback 'Consulta' (inside makeThreadTitleFromText)
+      if (parsedTemplate?.hook) {
+        threadUpdates.title = makeThreadTitleFromRecommendation(
+          normalizeFormat(parsedTemplate.format),
+          parsedTemplate.hook,
+        );
+      } else {
+        threadUpdates.title = makeThreadTitleFromText(payload.content);
+      }
     }
 
     const { error: threadUpdateErr } = await admin

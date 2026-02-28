@@ -133,6 +133,20 @@ function buildThreadPreview(thread: LitoThreadItem): string {
   return preview;
 }
 
+/**
+ * D1.7: Detect format from thread title.
+ * After auto-rename titles look like "Reel: Hook text" or "LITO — Reel: Hook text".
+ */
+function detectFormatFromTitle(title: string): 'Post' | 'Story' | 'Reel' | null {
+  if (/^Reel:/i.test(title)) return 'Reel';
+  if (/^Story:/i.test(title)) return 'Story';
+  if (/^Post:/i.test(title)) return 'Post';
+  if (/LITO\s*—\s*Reel:/i.test(title)) return 'Reel';
+  if (/LITO\s*—\s*Story:/i.test(title)) return 'Story';
+  if (/LITO\s*—\s*Post:/i.test(title)) return 'Post';
+  return null;
+}
+
 function resolveQuickRefineModeFromText(value: string): QuickRefineMode | null {
   const text = value.toLowerCase();
   if (
@@ -824,8 +838,8 @@ export default function LitoChatView() {
               {threads.map((thread) => {
                 const isActive = activeThreadId === thread.id;
                 const isRenaming = renamingThreadId === thread.id;
-                const preview = buildThreadPreview(thread);
                 const timestamp = formatThreadAgo(thread.updated_at || thread.created_at);
+                const formatChip = detectFormatFromTitle(thread.title);
                 return (
                   <div
                     key={thread.id}
@@ -881,13 +895,17 @@ export default function LitoChatView() {
                           }}
                           className="min-w-0 flex-1 text-left"
                         >
-                          <p className="truncate text-sm font-semibold text-white/92">{thread.title}</p>
-                          <p className={cn('mt-1 truncate text-xs', textSub)}>
-                            {preview || t('dashboard.litoPage.chat.emptyPreview')}
-                          </p>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-white/92">{thread.title}</p>
+                            {formatChip ? (
+                              <span className="shrink-0 rounded border border-white/15 bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-white/60">
+                                {formatChip}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className={cn('mt-0.5 text-xs', textSub)}>{timestamp}</p>
                         </button>
-                        <div className="flex shrink-0 items-start gap-2">
-                          <span className={cn('pt-0.5 text-[11px]', textSub)}>{timestamp}</span>
+                        <div className="flex shrink-0 items-start">
                           <button
                             type="button"
                             className="rounded-md border border-white/15 bg-white/6 px-2 py-1 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"

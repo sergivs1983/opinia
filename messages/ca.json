@@ -1841,6 +1841,9 @@
         "toggle_show": "📋 Mode IKEA",
         "toggle_hide": "✕ Mode IKEA",
         "title": "Mode IKEA (pas a pas)"
+      },
+      "thread": {
+        "defaultTitle": "Consulta"
       }
     }
   }

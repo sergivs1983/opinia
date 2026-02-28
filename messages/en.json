@@ -1839,6 +1839,9 @@
         "toggle_show": "📋 IKEA Mode",
         "toggle_hide": "✕ IKEA Mode",
         "title": "IKEA Mode (step by step)"
+      },
+      "thread": {
+        "defaultTitle": "Consultation"
       }
     }
   }
