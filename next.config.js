@@ -48,6 +48,7 @@ const nextConfig = {
         { source: '/api/_internal/signals/run', destination: '/api/internal/signals/run' },
         { source: '/api/_internal/signals/backfill', destination: '/api/internal/signals/backfill' },
         { source: '/api/_internal/signals/to-weekly', destination: '/api/internal/signals/to-weekly' },
+        { source: '/api/_internal/social/reminders/run', destination: '/api/internal/social/reminders/run' },
       ],
     };
   },
