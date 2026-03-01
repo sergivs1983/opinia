@@ -181,15 +181,15 @@ export async function getOrgEntitlements(params: {
 }
 
 export function requireEntitlement(args: EntitlementCheckArgs): void {
+  // NOTE:
+  // Real LITO quota is enforced in ai_quotas_monthly via consume_draft_quota RPC.
+  // This module only performs feature gating by entitlement/RBAC shape.
   const amount = Math.max(1, args.amount ?? 1);
   const current = Math.max(0, args.current ?? 0);
 
   if (args.feature === 'lito_copy') {
-    if (args.entitlements.lito_drafts_limit <= 0) {
+    if (!isLitoCopyEnabled(args.entitlements)) {
       throw new EntitlementError('feature_locked', args.feature, 'lito_copy_locked');
-    }
-    if (current + amount > args.entitlements.lito_drafts_limit) {
-      throw new EntitlementError('quota_exceeded', args.feature, 'lito_copy_quota_exceeded');
     }
     return;
   }
@@ -215,7 +215,7 @@ export function canUseLitoCopy(input: {
     return { allowed: false, reason: 'paused' };
   }
 
-  if (input.entitlements.lito_drafts_limit <= 0) {
+  if (!isLitoCopyEnabled(input.entitlements)) {
     return { allowed: false, reason: 'feature_locked' };
   }
 
@@ -241,7 +241,12 @@ export function getLimits(ent: OrgEntitlements): { locations_limit: number; seat
   return { locations_limit: ent.locations_limit, seats_limit: ent.seats_limit };
 }
 
-/** Returns the monthly Drafts LITO limit from an OrgEntitlements record. */
+/** Returns the configured Drafts LITO value for plan display/configuration. */
 export function getDraftLimit(ent: OrgEntitlements): number {
   return ent.lito_drafts_limit;
+}
+
+/** Returns true when LITO Copy feature is enabled for the plan/overrides. */
+export function isLitoCopyEnabled(ent: OrgEntitlements): boolean {
+  return (ent.lito_drafts_limit ?? 0) > 0;
 }
