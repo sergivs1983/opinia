@@ -26,6 +26,7 @@ const BodySchema = z.object({
   thread_id: z.string().uuid().optional(),
   transcript_text: z.string().trim().min(3).max(4000),
   transcript_lang: z.string().trim().min(2).max(12).optional(),
+  append_user_message: z.boolean().optional(),
 });
 
 type ThreadRow = {
@@ -375,23 +376,25 @@ export async function POST(request: Request) {
 
     const insertedMessages: MessageRow[] = [];
     if (payload.thread_id) {
-      const { data: userMessageData } = await admin
-        .from('lito_messages')
-        .insert({
-          thread_id: payload.thread_id,
-          role: 'user',
-          content: `🎙️ ${transcriptText}`,
-          meta: {
-            type: 'voice_transcript',
-            clip_id: clipId,
-            transcript_lang: transcriptLang,
-          },
-        })
-        .select('id, thread_id, role, content, meta, created_at')
-        .single();
+      if (payload.append_user_message !== false) {
+        const { data: userMessageData } = await admin
+          .from('lito_messages')
+          .insert({
+            thread_id: payload.thread_id,
+            role: 'user',
+            content: `🎙️ ${transcriptText}`,
+            meta: {
+              type: 'voice_transcript',
+              clip_id: clipId,
+              transcript_lang: transcriptLang,
+            },
+          })
+          .select('id, thread_id, role, content, meta, created_at')
+          .single();
 
-      if (userMessageData) {
-        insertedMessages.push(userMessageData as MessageRow);
+        if (userMessageData) {
+          insertedMessages.push(userMessageData as MessageRow);
+        }
       }
 
       const assistantSummary = buildVoiceAssistantMessage({

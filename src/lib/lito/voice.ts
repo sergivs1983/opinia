@@ -215,7 +215,8 @@ export function buildVoiceAssistantMessage(params: {
 export function resolveVoiceCapabilities(orgProvider?: string | null): LitoVoiceCapabilities {
   const providerState = resolveProvider({ orgProvider: orgProvider ?? null });
   const manualDisabled = String(process.env.LITO_VOICE_MANUAL_DISABLED || '').toLowerCase() === 'true';
-  const mode: LitoVoicePrepareMode = String(process.env.LITO_VOICE_RECORDING_ENABLED || '').toLowerCase() === 'true'
+  const recordingEnabled = String(process.env.LITO_VOICE_RECORDING_ENABLED || '').toLowerCase() === 'true';
+  const mode: LitoVoicePrepareMode = recordingEnabled && providerState.available
     ? 'record'
     : 'paste_transcript_only';
 

@@ -797,15 +797,70 @@ export default function LitoChatView() {
         threadId = createdThread?.id || null;
       }
 
+      if (!threadId) {
+        toast(t('dashboard.litoPage.chat.threadRequired'), 'warning');
+        return;
+      }
+
+      const postTranscriptToThread = async (targetThreadId: string): Promise<{
+        response: Response;
+        payload: { messages?: LitoThreadMessage[]; error?: string; message?: string };
+      }> => {
+        const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const response = await fetch(`/api/lito/threads/${targetThreadId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-request-id': requestId,
+          },
+          cache: 'no-store',
+          body: JSON.stringify({ content: transcript }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          messages?: LitoThreadMessage[];
+          error?: string;
+          message?: string;
+        };
+        return { response, payload };
+      };
+
+      let postResult = await postTranscriptToThread(threadId);
+      if (postResult.response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (postResult.response.status === 404 || postResult.payload.error === 'not_found') {
+        const recoveredThread = await openOrCreateThread(recommendationContext);
+        threadId = recoveredThread?.id || null;
+        if (!threadId) {
+          toast(t('dashboard.litoPage.chat.threadRequired'), 'warning');
+          return;
+        }
+        postResult = await postTranscriptToThread(threadId);
+      }
+      if (postResult.response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (postResult.response.status >= 500) {
+        throw new Error(t('dashboard.litoPage.chat.sendServerError'));
+      }
+      if (!postResult.response.ok || postResult.payload.error) {
+        throw new Error(postResult.payload.message || t('dashboard.home.recommendations.lito.sendError'));
+      }
+
       const response = await fetch('/api/lito/voice/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({
           biz_id: biz.id,
-          thread_id: threadId || undefined,
+          thread_id: threadId,
           transcript_text: transcript,
           transcript_lang: voiceTranscriptLang,
+          append_user_message: false,
         }),
       });
       const payload = (await response.json().catch(() => ({}))) as VoiceTranscribePayload;
@@ -837,7 +892,11 @@ export default function LitoChatView() {
         });
       }
 
-      if (threadId) setActiveThreadId(threadId);
+      setActiveThreadId(threadId);
+      const postedMessages = Array.isArray(postResult.payload.messages) ? postResult.payload.messages : [];
+      if (postedMessages.length > 0) {
+        setMessages((previous) => [...previous, ...postedMessages]);
+      }
       if (payload.messages && payload.messages.length > 0) {
         setMessages((previous) => [...previous, ...payload.messages!]);
       }
@@ -1874,7 +1933,9 @@ export default function LitoChatView() {
                 disabled={voiceSubmitting || voiceTranscript.trim().length < 3}
                 onClick={() => void handleVoiceTranscribe()}
               >
-                {t('dashboard.litoPage.voice.generateActions')}
+                {voicePrepareMode === 'paste_transcript_only'
+                  ? t('dashboard.home.recommendations.lito.send')
+                  : t('dashboard.litoPage.voice.generateActions')}
               </Button>
             </div>
           </div>
