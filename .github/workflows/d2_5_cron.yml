@@ -1,0 +1,33 @@
+name: D2.5 Cron Wrappers
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  social_reminders:
+    name: Run social reminders wrapper
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/social-reminders
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS -i \
+            -H "x-cron-secret: ${{ secrets.D2_5_CRON_SECRET }}" \
+            "${{ secrets.D2_5_BASE_URL }}/api/cron/social-reminders"
+
+  signals_run:
+    name: Run signals wrapper
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/signals-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS -i \
+            -H "x-cron-secret: ${{ secrets.D2_5_CRON_SECRET }}" \
+            "${{ secrets.D2_5_BASE_URL }}/api/cron/signals-run"
