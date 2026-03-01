@@ -5,12 +5,12 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/social-reminders",
-      "schedule": "* * * * *"
-    },
-    {
       "path": "/api/cron/signals-run",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/social-reminders",
+      "schedule": "* * * * *"
     }
   ]
 }
