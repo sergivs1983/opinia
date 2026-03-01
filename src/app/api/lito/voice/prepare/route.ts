@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { getLitoBizAccess } from '@/lib/lito/action-drafts';
-import { resolveVoiceCapabilities } from '@/lib/lito/voice';
+import { resolveVoiceCapabilities, type LitoVoicePrepareMode } from '@/lib/lito/voice';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -90,31 +90,30 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const capabilities = resolveVoiceCapabilities((orgData as OrganizationRow | null)?.ai_provider ?? null);
-    if (!capabilities.enabled) {
-      return withStandardHeaders(
-        NextResponse.json(
-          {
-            error: 'voice_unavailable',
-            reason: capabilities.reason,
-            message: capabilities.message,
-            request_id: requestId,
-          },
-          { status: 503 },
-        ),
-        requestId,
-      );
-    }
+
+    // When voice is manually disabled, degrade gracefully to paste_transcript_only
+    // instead of returning a hard 503 (P1 fix: LITO_VOICE_MANUAL_DISABLED must not
+    // block transcript-based workflows that require no audio recording).
+    const effectiveMode: LitoVoicePrepareMode = capabilities.enabled
+      ? capabilities.mode
+      : 'paste_transcript_only';
+
+    // GDPR art. 5.1.e data minimisation notice — always included.
+    const gdpr_notice =
+      "L'àudio s'eliminarà automàticament passats 90 dies. " +
+      'No conservem dades de veu més temps del necessari (RGPD art. 5.1.e).';
 
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
-        mode: capabilities.mode,
+        mode: effectiveMode,
         maxSeconds: 30,
         upload: {
-          mode: capabilities.mode,
+          mode: effectiveMode,
           maxSeconds: 30,
         },
         provider: capabilities.provider,
+        gdpr_notice,
         request_id: requestId,
       }),
       requestId,
