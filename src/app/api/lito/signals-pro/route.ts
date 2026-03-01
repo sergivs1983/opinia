@@ -11,8 +11,8 @@ import { getRequestIdFromHeaders } from '@/lib/request-id';
 import {
   buildEvergreenSignals,
   getSignalById,
-  getSignalsLevelLimit,
   listSignalsForBusiness,
+  pickTopSignals,
   resolveVertical,
   toSignalCards,
   type SignalCard,
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const signalDay = todayIsoUtc();
   const rangeDays = payload.range_days ?? 7;
   const sinceDay = addDays(signalDay, -(Math.max(1, rangeDays) - 1));
-  const signalsLimit = getSignalsLevelLimit(signalsLevel);
+  const signalsLimit = 3;
 
   try {
     let cards: SignalCard[] = [];
@@ -159,7 +159,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         bizId: payload.biz_id,
         provider: 'google_business',
         sinceDay,
-        limit: Math.max(signalsLimit, 5),
+        limit: 12,
       });
 
       cards = toSignalCards({
@@ -169,18 +169,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    if (cards.length === 0) {
-      cards = buildEvergreenSignals({
+    const selectedTop = payload.signal_id ? cards : pickTopSignals(cards, signalsLimit);
+    const normalized: SignalCard[] = [...selectedTop];
+
+    if (!payload.signal_id && normalized.length < signalsLimit) {
+      const evergreen = buildEvergreenSignals({
         bizId: payload.biz_id,
         orgId: business.org_id,
         provider: 'google_business',
         vertical: resolveVertical(business.type),
-        limit: signalsLimit,
+        limit: signalsLimit + 2,
         signalDay,
       });
+      for (const card of evergreen) {
+        if (normalized.length >= signalsLimit) break;
+        if (normalized.some((existing) => existing.id === card.id)) continue;
+        normalized.push(card);
+      }
     }
 
-    const normalized = cards.slice(0, signalsLimit);
+    if (normalized.length === 0) {
+      normalized.push(
+        ...buildEvergreenSignals({
+          bizId: payload.biz_id,
+          orgId: business.org_id,
+          provider: 'google_business',
+          vertical: resolveVertical(business.type),
+          limit: signalsLimit,
+          signalDay,
+        }),
+      );
+    }
 
     return jsonNoStore(
       {
