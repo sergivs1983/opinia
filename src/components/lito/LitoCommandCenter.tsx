@@ -105,6 +105,15 @@ type TrialStatusPayload = {
   message?: string;
 };
 
+type SignalsBackfillPayload = {
+  ok?: boolean;
+  processed_days?: number;
+  rollups_ok?: number;
+  signals_ok?: boolean;
+  error?: string;
+  message?: string;
+};
+
 function normalizeRecommendationItem(
   item: Partial<LitoRecommendationItem> & { recommendation_template?: LitoRecommendationTemplate },
 ): LitoRecommendationItem | null {
@@ -187,6 +196,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [selectedFormat, setSelectedFormat] = useState<'post' | 'story' | 'reel'>('post');
   const [voicePendingCount, setVoicePendingCount] = useState(0);
+  const [recalculateSignalsLoading, setRecalculateSignalsLoading] = useState(false);
 
   const bootstrapRef = useRef<string | null>(null);
 
@@ -318,6 +328,75 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
       setSignalsLoading(false);
     }
   }, [biz?.id]);
+
+  const recalculateSignals = useCallback(async () => {
+    if (!biz?.id) return;
+    setRecalculateSignalsLoading(true);
+    try {
+      const dayTo = new Date().toISOString().slice(0, 10);
+      const fromDate = new Date(`${dayTo}T00:00:00.000Z`);
+      fromDate.setUTCDate(fromDate.getUTCDate() - 13);
+      const dayFrom = fromDate.toISOString().slice(0, 10);
+
+      const response = await fetch('/api/lito/signals-pro/backfill', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          biz_id: biz.id,
+          day_from: dayFrom,
+          day_to: dayTo,
+        }),
+        cache: 'no-store',
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as SignalsBackfillPayload;
+
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+
+      if (response.status === 403) {
+        toast(t('dashboard.litoPage.context.backfillForbidden'), 'warning');
+        return;
+      }
+
+      if (response.status === 404) {
+        toast(t('dashboard.litoPage.context.backfillNotFound'), 'error');
+        return;
+      }
+
+      if (response.status === 422) {
+        toast(t('dashboard.litoPage.context.backfillInvalidRange'), 'warning');
+        return;
+      }
+
+      if (response.status === 503) {
+        toast(t('dashboard.litoPage.context.backfillUnavailable'), 'warning');
+        return;
+      }
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || t('dashboard.litoPage.context.backfillError'));
+      }
+
+      toast(
+        t('dashboard.litoPage.context.backfillSuccess', {
+          days: Number(payload.processed_days || 0),
+        }),
+        'success',
+      );
+      await Promise.all([loadSignals(), loadWeeklyRecommendations()]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.context.backfillError');
+      toast(message, 'error');
+    } finally {
+      setRecalculateSignalsLoading(false);
+    }
+  }, [biz?.id, loadSignals, loadWeeklyRecommendations, router, t, toast]);
 
   const loadVoicePendingCount = useCallback(async () => {
     if (!biz?.id) return;
@@ -708,7 +787,9 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           trialDaysLeft={trialDaysLeft}
           voicePendingCount={voicePendingCount}
           selectedRecommendationId={selectedRecommendationId}
+          recalculateLoading={recalculateSignalsLoading}
           onOpenGeneral={() => void openGeneralThread()}
+          onRecalculateSignals={() => void recalculateSignals()}
           onSelectRecommendation={(item) => void openThreadForRecommendation(item)}
         />
 

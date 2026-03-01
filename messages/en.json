@@ -837,7 +837,15 @@
         "role": "Role",
         "signalsTitle": "Weekly signals",
         "askLito": "Ask LITO",
-        "quotaUnknown": "Monthly drafts: —"
+        "quotaUnknown": "Monthly drafts: —",
+        "recalculateSignals": "Recalculate signals",
+        "recalculateSignalsLoading": "Recalculating…",
+        "backfillSuccess": "Signals recalculated ({days} days).",
+        "backfillForbidden": "Only owner/manager can recalculate signals.",
+        "backfillNotFound": "Could not find this business.",
+        "backfillInvalidRange": "Date range is invalid.",
+        "backfillUnavailable": "Service temporarily unavailable. Try again.",
+        "backfillError": "Could not recalculate signals."
       },
       "thread": {
         "title": "Thread",

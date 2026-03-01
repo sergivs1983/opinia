@@ -837,7 +837,15 @@
         "role": "Rol",
         "signalsTitle": "Signals semanales",
         "askLito": "Preguntar a LITO",
-        "quotaUnknown": "Drafts mes: —"
+        "quotaUnknown": "Drafts mes: —",
+        "recalculateSignals": "Recalcular signals",
+        "recalculateSignalsLoading": "Recalculando…",
+        "backfillSuccess": "Signals recalculados ({days} días).",
+        "backfillForbidden": "Solo owner/manager puede recalcular signals.",
+        "backfillNotFound": "No se ha podido encontrar este negocio.",
+        "backfillInvalidRange": "El rango de fechas no es válido.",
+        "backfillUnavailable": "Servicio temporalmente no disponible. Vuelve a intentarlo.",
+        "backfillError": "No se han podido recalcular los signals."
       },
       "thread": {
         "title": "Thread",

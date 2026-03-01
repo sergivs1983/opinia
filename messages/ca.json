@@ -837,7 +837,15 @@
         "role": "Rol",
         "signalsTitle": "Signals setmanals",
         "askLito": "Preguntar a LITO",
-        "quotaUnknown": "Drafts mes: —"
+        "quotaUnknown": "Drafts mes: —",
+        "recalculateSignals": "Recalcular signals",
+        "recalculateSignalsLoading": "Recalculant…",
+        "backfillSuccess": "Signals recalculats ({days} dies).",
+        "backfillForbidden": "Només owner/manager pot recalcular signals.",
+        "backfillNotFound": "No s'ha pogut trobar aquest negoci.",
+        "backfillInvalidRange": "El rang de dates no és vàlid.",
+        "backfillUnavailable": "Servei temporalment no disponible. Torna-ho a provar.",
+        "backfillError": "No s'han pogut recalcular els signals."
       },
       "thread": {
         "title": "Thread",

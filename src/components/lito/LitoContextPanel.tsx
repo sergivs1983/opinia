@@ -19,7 +19,9 @@ type LitoContextPanelProps = {
   trialDaysLeft: number;
   voicePendingCount: number;
   selectedRecommendationId: string | null;
+  recalculateLoading: boolean;
   onOpenGeneral: () => void;
+  onRecalculateSignals: () => void;
   onSelectRecommendation: (item: LitoRecommendationItem) => void;
 };
 
@@ -59,7 +61,9 @@ export default function LitoContextPanel({
   trialDaysLeft,
   voicePendingCount,
   selectedRecommendationId,
+  recalculateLoading,
   onOpenGeneral,
+  onRecalculateSignals,
   onSelectRecommendation,
 }: LitoContextPanelProps) {
   const gbpLabel = (() => {
@@ -114,9 +118,24 @@ export default function LitoContextPanel({
         <p className={cn('text-xs uppercase tracking-wide text-white/55')}>
           {t('dashboard.litoPage.context.signalsTitle')}
         </p>
-        <Button size="sm" variant="secondary" className="h-7 px-2.5 text-xs" onClick={onOpenGeneral}>
-          {t('dashboard.litoPage.context.askLito')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {(viewerRole === 'owner' || viewerRole === 'manager') ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2.5 text-xs text-white/80 hover:text-white"
+              onClick={onRecalculateSignals}
+              disabled={recalculateLoading}
+            >
+              {recalculateLoading
+                ? t('dashboard.litoPage.context.recalculateSignalsLoading')
+                : t('dashboard.litoPage.context.recalculateSignals')}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="secondary" className="h-7 px-2.5 text-xs" onClick={onOpenGeneral}>
+            {t('dashboard.litoPage.context.askLito')}
+          </Button>
+        </div>
       </div>
 
       <div className="mt-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2.5">
