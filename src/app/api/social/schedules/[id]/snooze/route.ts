@@ -4,10 +4,13 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { buildGlobalProps } from '@/lib/analytics/properties';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { computeSnoozedAt } from '@/lib/social/schedules';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { trackEvent } from '@/lib/telemetry';
 import {
   badRequest,
   conflict,
@@ -134,6 +137,30 @@ export async function POST(
       error: error instanceof Error ? error.message : String(error),
     });
   }
+
+  const supabase = createServerSupabaseClient();
+  await trackEvent({
+    supabase,
+    orgId: access.orgId,
+    userId: access.userId,
+    name: 'post_snoozed',
+    props: {
+      ...buildGlobalProps({
+        userId: access.userId,
+        bizId: schedule.biz_id,
+        orgId: access.orgId,
+        role: access.role,
+        mode: 'basic',
+        platform: 'web',
+      }),
+      schedule_id: schedule.id,
+      action: 'snooze',
+      snooze_mode: parsedBody.data.mode,
+      source: 'social_schedules_snooze',
+    },
+    requestId,
+    sendPosthog: true,
+  });
 
   return withNoStore(
     NextResponse.json({ ok: true, schedule: updated, request_id: requestId }),

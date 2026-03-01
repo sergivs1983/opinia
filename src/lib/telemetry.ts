@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { log } from '@/lib/logger';
+import { capturePosthog } from '@/lib/analytics/posthog';
 
 type TelemetryProps = Record<string, unknown>;
 
@@ -10,6 +11,7 @@ export async function trackEvent(params: {
   name: string;
   props?: TelemetryProps;
   requestId?: string;
+  sendPosthog?: boolean;
 }): Promise<void> {
   try {
     if (!params.name || !params.name.trim()) return;
@@ -32,6 +34,14 @@ export async function trackEvent(params: {
         org_id: params.orgId || null,
         user_id: params.userId || null,
         error_code: error.code || null,
+      });
+    }
+
+    if (params.sendPosthog) {
+      await capturePosthog({
+        distinctId: params.userId || params.orgId || 'unknown',
+        event: params.name.trim(),
+        properties: eventProps,
       });
     }
   } catch (error) {

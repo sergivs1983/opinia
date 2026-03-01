@@ -15,6 +15,7 @@ import { useT } from '@/components/i18n/I18nContext';
 import { ringAccent } from '@/components/ui/glass';
 import { cn } from '@/lib/utils';
 import { roleCanAccessAdmin } from '@/lib/roles';
+import { captureClientEvent } from '@/lib/analytics/client';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 
 /* ── SVG Icons ── */
@@ -1154,6 +1155,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           setNotificationsOpen(false);
                           const scheduleId = item.payload?.schedule_id;
                           const bizId = item.biz_id;
+                          if (bizId) {
+                            void captureClientEvent({
+                              bizId,
+                              event: 'notification_opened',
+                              mode: 'basic',
+                              properties: {
+                                schedule_id: scheduleId || null,
+                                platform: item.payload?.platform || null,
+                                type: item.type,
+                              },
+                            });
+                          }
                           const query = new URLSearchParams();
                           if (bizId) query.set('biz_id', bizId);
                           if (scheduleId) query.set('schedule_id', scheduleId);

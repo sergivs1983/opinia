@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import { toLocalDateTimeInputValue } from '@/lib/social/schedules';
 import { getIkeaChecklist } from '@/lib/recommendations/howto';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 type ViewerRole = 'owner' | 'manager' | 'staff';
 
@@ -205,6 +206,7 @@ export default function SocialPlannerPanel() {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushPublicKey, setPushPublicKey] = useState<string | null>(null);
   const [pushPending, setPushPending] = useState(false);
+  const expiredSignalRef = useRef<string | null>(null);
 
   const canManageSchedules = viewerRole === 'owner' || viewerRole === 'manager';
   const canMarkPublished = viewerRole === 'owner' || viewerRole === 'manager' || viewerRole === 'staff';
@@ -457,6 +459,45 @@ export default function SocialPlannerPanel() {
       }
 
       toast(t('dashboard.home.socialPlanner.actionSuccess'), 'success');
+      if (action === 'publish') {
+        void captureClientEvent({
+          bizId: biz?.id || '',
+          event: 'ikea_action',
+          mode: showAdvanced ? 'advanced' : 'basic',
+          properties: {
+            action: 'done',
+            schedule_id: scheduleId,
+          },
+        });
+        void captureClientEvent({
+          bizId: biz?.id || '',
+          event: 'post_executed',
+          mode: showAdvanced ? 'advanced' : 'basic',
+          properties: {
+            schedule_id: scheduleId,
+            source: 'planner_basic',
+          },
+        });
+      } else if (action === 'snooze') {
+        void captureClientEvent({
+          bizId: biz?.id || '',
+          event: 'ikea_action',
+          mode: showAdvanced ? 'advanced' : 'basic',
+          properties: {
+            action: 'snooze',
+            schedule_id: scheduleId,
+          },
+        });
+        void captureClientEvent({
+          bizId: biz?.id || '',
+          event: 'post_snoozed',
+          mode: showAdvanced ? 'advanced' : 'basic',
+          properties: {
+            schedule_id: scheduleId,
+            source: 'planner_basic',
+          },
+        });
+      }
       await loadPlannerData();
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.home.socialPlanner.actionError');
@@ -468,7 +509,7 @@ export default function SocialPlannerPanel() {
         return next;
       });
     }
-  }, [loadPlannerData, t, toast]);
+  }, [biz?.id, loadPlannerData, showAdvanced, t, toast]);
 
   const handleCopyDraft = useCallback(async (text: string) => {
     if (!text) {
@@ -479,19 +520,60 @@ export default function SocialPlannerPanel() {
     try {
       await navigator.clipboard.writeText(text);
       toast(t('dashboard.home.socialPlanner.copySuccess'), 'success');
+      void captureClientEvent({
+        bizId: biz?.id || '',
+        event: 'ikea_action',
+        mode: showAdvanced ? 'advanced' : 'basic',
+        properties: {
+          action: 'copy',
+        },
+      });
     } catch {
       toast(t('dashboard.home.socialPlanner.copyError'), 'error');
     }
-  }, [t, toast]);
+  }, [biz?.id, showAdvanced, t, toast]);
+
+  const handleOpenPlatform = useCallback((platform: 'instagram' | 'tiktok', scheduleId?: string) => {
+    if (!biz?.id) return;
+    void captureClientEvent({
+      bizId: biz.id,
+      event: 'ikea_action',
+      mode: showAdvanced ? 'advanced' : 'basic',
+      properties: {
+        action: 'open',
+        platform,
+        schedule_id: scheduleId || null,
+      },
+    });
+    window.open(platformUrl(platform), '_blank', 'noopener,noreferrer');
+  }, [biz?.id, showAdvanced]);
 
   const handleEnablePush = useCallback(async () => {
     if (!biz?.id) return;
     if (!browserSupportsPush()) {
       toast('Push no disponible en aquest navegador.', 'error');
+      void captureClientEvent({
+        bizId: biz.id,
+        event: 'enable_push',
+        mode: showAdvanced ? 'advanced' : 'basic',
+        properties: {
+          result: 'blocked',
+          reason: 'unsupported_browser',
+        },
+      });
       return;
     }
     if (!pushPublicKey) {
       toast('Push no configurat al servidor.', 'error');
+      void captureClientEvent({
+        bizId: biz.id,
+        event: 'enable_push',
+        mode: showAdvanced ? 'advanced' : 'basic',
+        properties: {
+          result: 'blocked',
+          reason: 'missing_vapid_key',
+        },
+      });
       return;
     }
 
@@ -500,6 +582,15 @@ export default function SocialPlannerPanel() {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         toast('Cal acceptar permisos de notificació per activar recordatoris.', 'error');
+        void captureClientEvent({
+          bizId: biz.id,
+          event: 'enable_push',
+          mode: showAdvanced ? 'advanced' : 'basic',
+          properties: {
+            result: 'denied',
+            reason: 'permission_denied',
+          },
+        });
         return;
       }
 
@@ -539,13 +630,30 @@ export default function SocialPlannerPanel() {
 
       toast('Push activat per aquest dispositiu.', 'success');
       setPushSubscribed(true);
+      void captureClientEvent({
+        bizId: biz.id,
+        event: 'enable_push',
+        mode: showAdvanced ? 'advanced' : 'basic',
+        properties: {
+          result: 'accepted',
+        },
+      });
     } catch {
       toast('No s’ha pogut activar el push.', 'error');
+      void captureClientEvent({
+        bizId: biz.id,
+        event: 'enable_push',
+        mode: showAdvanced ? 'advanced' : 'basic',
+        properties: {
+          result: 'blocked',
+          reason: 'subscribe_failed',
+        },
+      });
     } finally {
       setPushPending(false);
       void loadPushStatus();
     }
-  }, [biz?.id, loadPushStatus, pushPublicKey, toast]);
+  }, [biz?.id, loadPushStatus, pushPublicKey, showAdvanced, toast]);
 
   const handleDisablePush = useCallback(async () => {
     if (!biz?.id) return;
@@ -583,6 +691,25 @@ export default function SocialPlannerPanel() {
       void loadPushStatus();
     }
   }, [biz?.id, loadPushStatus, toast]);
+
+  useEffect(() => {
+    if (!biz?.id) return;
+    const signature = `${biz.id}:${missedItems.length}`;
+    if (missedItems.length === 0) {
+      expiredSignalRef.current = signature;
+      return;
+    }
+    if (expiredSignalRef.current === signature) return;
+    expiredSignalRef.current = signature;
+    void captureClientEvent({
+      bizId: biz.id,
+      event: 'post_expired',
+      mode: showAdvanced ? 'advanced' : 'basic',
+      properties: {
+        missed_count: missedItems.length,
+      },
+    });
+  }, [biz?.id, missedItems.length, showAdvanced]);
 
   if (!biz) {
     return null;
@@ -914,7 +1041,7 @@ export default function SocialPlannerPanel() {
                       <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(executionCopy)}>
                         {t('dashboard.home.socialPlanner.quickCopy')}
                       </Button>
-                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(executionChannel), '_blank', 'noopener,noreferrer')}>
+                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => handleOpenPlatform(executionChannel, item.id)}>
                         {t('dashboard.home.socialPlanner.quickOpen')}
                       </Button>
                       {canSnoozeSchedules ? (
@@ -976,7 +1103,7 @@ export default function SocialPlannerPanel() {
                     <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(normalizeScheduleCopy(item.draft || null))}>
                       {t('dashboard.home.socialPlanner.quickCopy')}
                     </Button>
-                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
+                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => handleOpenPlatform(item.platform, item.id)}>
                       {t('dashboard.home.socialPlanner.quickOpen')}
                     </Button>
                   </div>

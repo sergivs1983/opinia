@@ -4,8 +4,11 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { buildGlobalProps } from '@/lib/analytics/properties';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { trackEvent } from '@/lib/telemetry';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   badRequest,
@@ -88,6 +91,29 @@ export async function POST(
   }
 
   await cancelPendingReminders(schedule.id);
+
+  const supabase = createServerSupabaseClient();
+  await trackEvent({
+    supabase,
+    orgId: access.orgId,
+    userId: access.userId,
+    name: 'post_executed',
+    props: {
+      ...buildGlobalProps({
+        userId: access.userId,
+        bizId: schedule.biz_id,
+        orgId: access.orgId,
+        role: access.role,
+        mode: 'basic',
+        platform: 'web',
+      }),
+      schedule_id: schedule.id,
+      action: 'publish',
+      source: 'social_schedules_publish',
+    },
+    requestId,
+    sendPosthog: true,
+  });
 
   return withNoStore(
     NextResponse.json({ ok: true, schedule: updated, request_id: requestId }),

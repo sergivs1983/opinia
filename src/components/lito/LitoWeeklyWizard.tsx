@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import Button from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { textMain, textSub } from '@/components/ui/glass';
 import { cn } from '@/lib/utils';
 import { getIkeaChecklist } from '@/lib/recommendations/howto';
+import { captureClientEvent } from '@/lib/analytics/client';
 
 import type { LitoRecommendationItem, LitoViewerRole } from '@/components/lito/types';
 
@@ -247,6 +248,7 @@ export default function LitoWeeklyWizard({
   const [activeIndex, setActiveIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const completedRef = useRef(false);
 
   const canSchedule = viewerRole === 'owner' || viewerRole === 'manager';
 
@@ -255,12 +257,21 @@ export default function LitoWeeklyWizard({
   const approvedCount = useMemo(() => drafts.filter((item) => item.approved).length, [drafts]);
 
   const openWizard = (target: 1 | 3 | 5 | 'surprise') => {
+    void captureClientEvent({
+      bizId,
+      event: 'start_weekly_wizard',
+      mode: 'basic',
+      properties: {
+        target_count: target === 'surprise' ? 'surprise' : target,
+      },
+    });
     setTargetInput(target);
     setOpen(true);
     setStep(1);
     setDrafts([]);
     setActiveIndex(0);
     setShowPushPrompt(false);
+    completedRef.current = false;
   };
 
   const startStepTwo = () => {
@@ -295,10 +306,38 @@ export default function LitoWeeklyWizard({
   };
 
   const updateActiveDraft = (partial: Partial<WizardDraft>) => {
+    if (typeof partial.approved === 'boolean') {
+      void captureClientEvent({
+        bizId,
+        event: 'approve_draft',
+        mode: 'basic',
+        properties: {
+          approved: partial.approved,
+          index: activeIndex + 1,
+          format: activeDraft?.format || null,
+        },
+      });
+    }
     setDrafts((previous) => previous.map((item, index) => {
       if (index !== activeIndex) return item;
       return { ...item, ...partial };
     }));
+  };
+
+  const closeWizard = (reason: string) => {
+    if (open && !completedRef.current) {
+      void captureClientEvent({
+        bizId,
+        event: 'wizard_abandoned',
+        mode: 'basic',
+        properties: {
+          reason,
+          step,
+          approved_count: approvedCount,
+        },
+      });
+    }
+    setOpen(false);
   };
 
   const regenerateActive = () => {
@@ -403,6 +442,17 @@ export default function LitoWeeklyWizard({
         toast(t('dashboard.litoPage.wizard.finalizeSuccess'), 'success');
       }
 
+      completedRef.current = true;
+      void captureClientEvent({
+        bizId,
+        event: 'handoff_to_planner',
+        mode: 'basic',
+        properties: {
+          approved_count: approvedDrafts.length,
+          scheduled_count: canSchedule && assignee ? approvedDrafts.length : 0,
+          role: viewerRole || null,
+        },
+      });
       setShowPushPrompt(true);
       onDone?.();
     } catch (error) {
@@ -412,6 +462,21 @@ export default function LitoWeeklyWizard({
       setSaving(false);
     }
   };
+
+  useEffect(() => () => {
+    if (open && !completedRef.current) {
+      void captureClientEvent({
+        bizId,
+        event: 'wizard_abandoned',
+        mode: 'basic',
+        properties: {
+          reason: 'unmount',
+          step,
+          approved_count: approvedCount,
+        },
+      });
+    }
+  }, [approvedCount, bizId, open, step]);
 
   return (
     <GlassCard variant="strong" className="border border-white/10 p-4 md:p-5">
@@ -445,7 +510,7 @@ export default function LitoWeeklyWizard({
                 placeholder={t('dashboard.litoPage.wizard.noveltyPlaceholder')}
               />
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" className="h-8 px-3 text-xs" onClick={() => setOpen(false)}>
+                <Button variant="secondary" className="h-8 px-3 text-xs" onClick={() => closeWizard('cancel_step_1')}>
                   {t('common.cancel')}
                 </Button>
                 <Button className="h-8 px-3 text-xs" onClick={startStepTwo}>
@@ -572,11 +637,37 @@ export default function LitoWeeklyWizard({
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button
                       className="h-7 px-2 text-xs"
-                      onClick={() => router.push(`/dashboard/planner?biz_id=${encodeURIComponent(bizId)}`)}
+                      onClick={() => {
+                        void captureClientEvent({
+                          bizId,
+                          event: 'enable_push',
+                          mode: 'basic',
+                          properties: {
+                            source: 'wizard_prompt',
+                            decision: 'accepted',
+                          },
+                        });
+                        router.push(`/dashboard/planner?biz_id=${encodeURIComponent(bizId)}`);
+                      }}
                     >
                       {t('dashboard.litoPage.wizard.pushYes')}
                     </Button>
-                    <Button variant="secondary" className="h-7 px-2 text-xs" onClick={() => setShowPushPrompt(false)}>
+                    <Button
+                      variant="secondary"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        void captureClientEvent({
+                          bizId,
+                          event: 'enable_push',
+                          mode: 'basic',
+                          properties: {
+                            source: 'wizard_prompt',
+                            decision: 'declined',
+                          },
+                        });
+                        setShowPushPrompt(false);
+                      }}
+                    >
                       {t('dashboard.litoPage.wizard.pushNo')}
                     </Button>
                   </div>
