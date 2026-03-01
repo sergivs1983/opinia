@@ -238,6 +238,67 @@ else
 fi
 
 echo ""
+echo "3) Delete/dismiss voice draft (opcional amb sessio)"
+if [ -z "${VOICE_SESSION_COOKIE}" ] || [ -z "${VOICE_BIZ_ID}" ]; then
+  report_ok "SKIP delete draft (defineix VOICE_SESSION_COOKIE/LITO_SESSION_COOKIE i VOICE_BIZ_ID/LITO_BIZ_ID)"
+else
+  COOKIE_HEADER="$(normalize_cookie_header "${VOICE_SESSION_COOKIE}" || true)"
+  if [ -z "${COOKIE_HEADER}" ]; then
+    REQ_CODE="cookie"
+    REQ_BODY="VOICE_SESSION_COOKIE invalid"
+    report_fail "cookie de sessio invalida (delete draft)"
+  else
+    perform_request -X POST "${BASE}/api/lito/threads" \
+      -H "Content-Type: application/json" \
+      -H "${COOKIE_HEADER}" \
+      -d "{\"biz_id\":\"${VOICE_BIZ_ID}\",\"title\":\"Voice delete smoke\"}"
+
+    if [ "${REQ_CODE}" != "200" ] && [ "${REQ_CODE}" != "201" ]; then
+      report_fail "crear thread per delete draft smoke (expected 200/201)"
+    else
+      THREAD_FOR_DELETE="$(json_field "${REQ_BODY}" "thread.id")"
+      if [ -z "${THREAD_FOR_DELETE}" ]; then
+        REQ_CODE="shape"
+        REQ_BODY="thread.id buit"
+        report_fail "thread.id per delete draft smoke"
+      else
+        perform_request -X POST "${BASE}/api/lito/voice/transcribe" \
+          -H "Content-Type: application/json" \
+          -H "${COOKIE_HEADER}" \
+          -d "{\"biz_id\":\"${VOICE_BIZ_ID}\",\"thread_id\":\"${THREAD_FOR_DELETE}\",\"transcript_text\":\"Avui fem una story promo per clients habituals\"}"
+
+        if [ "${REQ_CODE}" != "200" ]; then
+          report_fail "voice transcribe per generar draft (delete smoke)"
+        else
+          DRAFT_ID="$(json_field "${REQ_BODY}" "actions.0.id")"
+          if [ -z "${DRAFT_ID}" ]; then
+            REQ_CODE="shape"
+            REQ_BODY="actions.0.id buit"
+            report_fail "voice transcribe retorna draft id (delete smoke)"
+          else
+            perform_request -X DELETE "${BASE}/api/lito/voice/drafts/${DRAFT_ID}" \
+              -H "${COOKIE_HEADER}"
+            if [ "${REQ_CODE}" = "200" ]; then
+              report_ok "DELETE /api/lito/voice/drafts/:id (200)"
+            else
+              report_fail "DELETE /api/lito/voice/drafts/:id (expected 200)"
+            fi
+
+            perform_request -X DELETE "${BASE}/api/lito/voice/drafts/${DRAFT_ID}" \
+              -H "${COOKIE_HEADER}"
+            if [ "${REQ_CODE}" = "200" ]; then
+              report_ok "DELETE idempotent (segona crida 200)"
+            else
+              report_fail "DELETE idempotent (expected 200)"
+            fi
+          fi
+        fi
+      fi
+    fi
+  fi
+fi
+
+echo ""
 echo "────────────────────────────────────────────────────────────────────────"
 if [ "${FAILURES}" -eq 0 ]; then
   echo "All D2.4 voice smoke tests passed."

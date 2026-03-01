@@ -1037,6 +1037,7 @@
         "viewDraft": "Veure draft",
         "hideDraft": "Amagar",
         "editDraft": "Editar",
+        "deleteDraft": "Eliminar",
         "confirmAction": "Confirmar accio",
         "executeAction": "Executar",
         "cancelAction": "Cancel·lar",
@@ -1063,6 +1064,8 @@
         "ttsError": "No s'ha pogut reproduir l'audio.",
         "actionError": "No s'ha pogut actualitzar l'accio.",
         "actionSuccess": "Accio actualitzada.",
+        "deleteSuccess": "Draft eliminat.",
+        "deleteError": "No s'ha pogut eliminar el draft.",
         "editValidation": "El resum ha de tenir com a minim 3 caracters.",
         "editError": "No s'ha pogut desar l'edicio del draft.",
         "editSuccess": "Draft actualitzat."

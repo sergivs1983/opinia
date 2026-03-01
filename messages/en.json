@@ -1035,6 +1035,7 @@
         "viewDraft": "View draft",
         "hideDraft": "Hide",
         "editDraft": "Edit",
+        "deleteDraft": "Delete",
         "confirmAction": "Confirm action",
         "executeAction": "Execute",
         "cancelAction": "Cancel",
@@ -1061,6 +1062,8 @@
         "ttsError": "Could not play audio.",
         "actionError": "Could not update the action.",
         "actionSuccess": "Action updated.",
+        "deleteSuccess": "Draft deleted.",
+        "deleteError": "Could not delete draft.",
         "editValidation": "Summary must have at least 3 characters.",
         "editError": "Could not save draft edits.",
         "editSuccess": "Draft updated."
