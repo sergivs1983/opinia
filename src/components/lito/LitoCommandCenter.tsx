@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import GlassCard from '@/components/ui/GlassCard';
 import LitoContextPanel from '@/components/lito/LitoContextPanel';
 import LitoWorkbenchPane from '@/components/lito/LitoWorkbenchPane';
+import LitoWeeklyWizard from '@/components/lito/LitoWeeklyWizard';
 import { buildFallbackRecommendation } from '@/components/lito/recommendation-fallback';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
@@ -694,6 +695,20 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           ) : null}
         </div>
       </header>
+
+      <LitoWeeklyWizard
+        t={t}
+        bizId={biz.id}
+        orgId={biz.org_id || null}
+        businessName={biz.name}
+        businessVertical={biz.type || 'general'}
+        viewerRole={weeklyViewerRole}
+        recommendations={weeklyRecommendations}
+        onDone={() => {
+          void loadWeeklyRecommendations();
+          void loadVoicePendingCount();
+        }}
+      />
 
       {/* ── D1.3 Signals strip ── */}
       {(signalsLoading || displaySignals.length > 0) && (
