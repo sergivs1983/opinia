@@ -2,8 +2,6 @@ name: D2.5 Cron Wrappers
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
 
 jobs:
   social_reminders:
