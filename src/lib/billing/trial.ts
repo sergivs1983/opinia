@@ -100,6 +100,39 @@ export async function getTrialUsedEstimate(params: {
   return toNumber((data as { drafts_used?: unknown }).drafts_used, 0);
 }
 
+function normalizeTrialQuotaPayload(raw: unknown): TrialQuotaCheck {
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const ok = Boolean(obj.ok);
+    const used = typeof obj.used === 'number' ? obj.used : 0;
+    const limit = typeof obj.limit === 'number' ? obj.limit : 0;
+    const remaining = typeof obj.remaining === 'number'
+      ? obj.remaining
+      : Math.max(limit - used, 0);
+    return {
+      ok,
+      used,
+      limit,
+      remaining,
+      reason: ok ? undefined : 'trial_cap_reached',
+    };
+  }
+  return { ok: false, used: 0, limit: 0, remaining: 0, reason: 'trial_cap_reached' };
+}
+
+/**
+ * Atomically consume one trial draft from the monthly quota.
+ *
+ * Uses consume_trial_quota() — a SECURITY DEFINER DB function that performs
+ * a single atomic UPDATE with a cap guard, eliminating the previous
+ * read-then-check TOCTOU race (NO-GO-3 fix).
+ *
+ * Returns ok:false / reason:'trial_cap_reached' when the cap is hit;
+ * callers should respond with HTTP 402.
+ *
+ * Falls back gracefully: if the trial is not active, returns ok:true
+ * immediately without touching the DB.
+ */
 export async function enforceTrialQuota(params: {
   supabase: SupabaseClient;
   orgId: string;
@@ -108,34 +141,35 @@ export async function enforceTrialQuota(params: {
 }): Promise<TrialQuotaCheck> {
   const limit = getTrialDraftCap(params.trial);
   if (!limit) {
-    return {
-      ok: true,
-      used: 0,
-      limit: 0,
-      remaining: 0,
-    };
+    // Trial is not active — no cap applies
+    return { ok: true, used: 0, limit: 0, remaining: 0 };
   }
 
   const increment = Math.max(1, params.inc ?? 1);
-  const used = await getTrialUsedEstimate({
-    supabase: params.supabase,
-    orgId: params.orgId,
+  const monthStart = getMonthStartUTC();
+
+  const { data, error } = await params.supabase.rpc('consume_trial_quota', {
+    p_org_id:      params.orgId,
+    p_month_start: monthStart,
+    p_limit:       limit,
+    p_increment:   increment,
   });
 
-  if (used + increment > limit) {
-    return {
-      ok: false,
-      reason: 'trial_cap_reached',
-      used,
-      limit,
-      remaining: Math.max(limit - used, 0),
-    };
+  if (error) {
+    // RPC missing (schema not yet migrated) — fall back to safe read-only check.
+    // This is a degraded path: prefer fail-closed (cap assumed hit) to protect
+    // against schema gaps; however, to avoid hard-blocking on first deploy we
+    // fall back to a single read and check (same previous behaviour but scoped
+    // explicitly to the migration-gap window).
+    const used = await getTrialUsedEstimate({
+      supabase: params.supabase,
+      orgId: params.orgId,
+    });
+    if (used + increment > limit) {
+      return { ok: false, reason: 'trial_cap_reached', used, limit, remaining: Math.max(limit - used, 0) };
+    }
+    return { ok: true, used, limit, remaining: Math.max(limit - used, 0) };
   }
 
-  return {
-    ok: true,
-    used,
-    limit,
-    remaining: Math.max(limit - used, 0),
-  };
+  return normalizeTrialQuotaPayload(data);
 }
