@@ -13,7 +13,7 @@ import {
   resolveVoiceCapabilities,
 } from '@/lib/lito/voice';
 import {
-  buildVoiceDraftIdempotencyKey,
+  buildVoiceDraftFingerprint,
   buildVoiceIdempotencyKey,
   getVoiceDayBucket,
 } from '@/lib/lito/voice-idempotency';
@@ -292,10 +292,44 @@ export async function POST(request: Request) {
 
     for (const seed of draftSeeds) {
       const nowIso = new Date().toISOString();
-      const draftIdempotencyKey = buildVoiceDraftIdempotencyKey({
-        clipIdempotencyKey,
+      const draftFingerprint = buildVoiceDraftFingerprint({
+        bizId: payload.biz_id,
         kind: seed.kind,
+        payload: seed.payload as Record<string, unknown>,
       });
+
+      const existingByFingerprint = await admin
+        .from('lito_action_drafts')
+        .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
+        .eq('biz_id', payload.biz_id)
+        .eq('kind', seed.kind)
+        .eq('idempotency_key', draftFingerprint)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingByFingerprint.error && existingByFingerprint.data) {
+        createdDrafts.push(existingByFingerprint.data as LitoActionDraftRow);
+        continue;
+      }
+
+      if (existingByFingerprint.error && isMissingColumnError(existingByFingerprint.error)) {
+        const existingByPayload = await admin
+          .from('lito_action_drafts')
+          .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
+          .eq('biz_id', payload.biz_id)
+          .eq('kind', seed.kind)
+          .eq('payload', seed.payload)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingByPayload.data) {
+          createdDrafts.push(existingByPayload.data as LitoActionDraftRow);
+          continue;
+        }
+      }
+
       const insertDraft = await admin
         .from('lito_action_drafts')
         .insert({
@@ -303,7 +337,7 @@ export async function POST(request: Request) {
           biz_id: payload.biz_id,
           thread_id: payload.thread_id ?? null,
           source_voice_clip_id: clipId,
-          idempotency_key: draftIdempotencyKey,
+          idempotency_key: draftFingerprint,
           kind: seed.kind,
           status: 'draft',
           payload: seed.payload,
@@ -347,7 +381,7 @@ export async function POST(request: Request) {
           .from('lito_action_drafts')
           .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
           .eq('org_id', access.orgId)
-          .eq('idempotency_key', draftIdempotencyKey)
+          .eq('idempotency_key', draftFingerprint)
           .maybeSingle();
         if (existingDataByIdempotency) {
           createdDrafts.push(existingDataByIdempotency as LitoActionDraftRow);
