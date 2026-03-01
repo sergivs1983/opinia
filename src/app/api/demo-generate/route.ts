@@ -22,6 +22,12 @@ const DEMO_ORG_ID = '00000000-0000-0000-0000-000000000000';
 const DEMO_BIZ_ID = '00000000-0000-0000-0000-000000000000';
 const RATE_LIMIT_PER_HOUR = 20;
 
+function withSecurityHeaders(response: NextResponse, requestId: string): NextResponse {
+  response.headers.set('Cache-Control', 'no-store');
+  response.headers.set('x-request-id', requestId);
+  return response;
+}
+
 export async function POST(request: Request) {
   const requestId = request.headers.get('x-request-id')?.trim() || createRequestId();
   const log = createLogger({ request_id: requestId, route: '/api/demo-generate' });
@@ -50,9 +56,12 @@ export async function POST(request: Request) {
 
     if ((count || 0) >= RATE_LIMIT_PER_HOUR) {
       log.warn('Demo rate limit hit', { ip_hash: ipHash, count });
-      return NextResponse.json(
-        { error: 'rate_limit', message: 'Has superat el límit de proves. Registra\'t per continuar!' },
-        { status: 429 }
+      return withSecurityHeaders(
+        NextResponse.json(
+          { error: 'rate_limit', message: 'Has superat el límit de proves. Registra\'t per continuar!' },
+          { status: 429 },
+        ),
+        requestId,
       );
     }
 
@@ -147,16 +156,22 @@ ONLY valid JSON:
 
     log.info('Demo generate complete', { rating, language: classification.language, has_ai: hasKey });
 
-    return NextResponse.json({
-      option_a: responses.option_a,
-      option_b: responses.option_b,
-      option_c: responses.option_c,
-      classification,
-      demo: true,
-    });
+    return withSecurityHeaders(
+      NextResponse.json({
+        option_a: responses.option_a,
+        option_b: responses.option_b,
+        option_c: responses.option_c,
+        classification,
+        demo: true,
+      }),
+      requestId,
+    );
   } catch (e: any) {
     log.error('Demo generate error', { error: e?.message });
-    return NextResponse.json({ error: 'internal_error' }, { status: 500 });
+    return withSecurityHeaders(
+      NextResponse.json({ error: 'internal_error' }, { status: 500 }),
+      requestId,
+    );
   }
 }
 

@@ -6,10 +6,27 @@ import { createHash } from 'crypto';
  * GET /api/g/[slug]
  * PUBLIC — no auth. Redirects to target_url and records click event.
  */
+
+/**
+ * Validate that a URL is an absolute http/https URL.
+ * Prevents open-redirect attacks via javascript: URLs or protocol-relative
+ * //evil.com values that could be stored in growth_links.target_url.
+ */
+function isSafeRedirectUrl(url: unknown): url is string {
+  if (typeof url !== 'string' || !url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { slug: string } }
 ) {
+  const requestId = crypto.randomUUID();
   const admin = createAdminClient();
   const { slug } = params;
 
@@ -20,8 +37,12 @@ export async function GET(
     .eq('slug', slug)
     .maybeSingle();
 
-  if (!link || !link.is_active) {
-    return NextResponse.redirect(new URL('/', request.url));
+  // Reject if not found, inactive, or target_url is not a safe absolute URL
+  if (!link || !link.is_active || !isSafeRedirectUrl(link.target_url)) {
+    const fallback = NextResponse.redirect(new URL('/', request.url));
+    fallback.headers.set('Cache-Control', 'no-store');
+    fallback.headers.set('x-request-id', requestId);
+    return fallback;
   }
 
   // Record event (non-blocking)
@@ -50,6 +71,9 @@ export async function GET(
     }).eq('id', link.id),
   ]).catch(e => console.error('[growth] Event tracking failed:', e?.message));
 
-  // 302 redirect to target
-  return NextResponse.redirect(link.target_url, { status: 302 });
+  // 302 redirect to validated target
+  const redirectResponse = NextResponse.redirect(link.target_url, { status: 302 });
+  redirectResponse.headers.set('Cache-Control', 'no-store');
+  redirectResponse.headers.set('x-request-id', requestId);
+  return redirectResponse;
 }
