@@ -569,6 +569,13 @@
         "approveError": "Could not publish the reply.",
         "generateError": "Could not regenerate the proposal."
       },
+      "approvalInbox": {
+        "title": "Review inbox (pending)",
+        "subtitle": "Team drafts waiting for owner/manager validation.",
+        "reviewCta": "Review",
+        "untitled": "Untitled draft",
+        "empty": "🎉 All clear! You have no pending drafts."
+      },
       "recommendations": {
         "title": "Recommendations of the week",
         "subtitle": "Quick ideas to keep your profile active without repeating content.",
@@ -907,6 +914,30 @@
         "copyError": "Could not copy the checklist.",
         "headerChannel": "CHANNEL: {channel}",
         "headerFormat": "FORMAT: {format}"
+      },
+      "approval": {
+        "submit": "🚀 Send for review",
+        "pending": "Pending review",
+        "approve": "✅ Approve",
+        "reject": "❌ Reject",
+        "statusLabel": "Status",
+        "staffCopyLockedHint": "Send for review to unlock copy.",
+        "submitSuccess": "Draft sent for review.",
+        "submitError": "Could not send draft for review.",
+        "approveSuccess": "Draft approved.",
+        "approveError": "Could not approve draft.",
+        "rejectSuccess": "Draft rejected.",
+        "rejectError": "Could not reject draft.",
+        "rejectDefaultNote": "Please adjust the message before publishing."
+      },
+      "review": {
+        "title": "Draft review",
+        "subtitle": "Validate and adjust team drafts pending approval.",
+        "backToLito": "Back to LITO",
+        "pendingTitle": "Pending",
+        "emptyDetail": "Select a pending draft to review it.",
+        "rejectNote": "Rejection note (optional)",
+        "loadError": "Could not load the review inbox."
       },
       "messages": {
         "quotaExceeded": "You have reached the monthly quota. You can write manually or upgrade your plan.",

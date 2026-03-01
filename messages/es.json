@@ -569,6 +569,13 @@
         "approveError": "No se pudo publicar la respuesta.",
         "generateError": "No se pudo regenerar la propuesta."
       },
+      "approvalInbox": {
+        "title": "Bandeja (pendientes)",
+        "subtitle": "Borradores del equipo que necesitan validación de manager/owner.",
+        "reviewCta": "Revisar",
+        "untitled": "Borrador sin título",
+        "empty": "🎉 ¡Todo limpio! No tienes borradores pendientes."
+      },
       "recommendations": {
         "title": "Recomendaciones de la semana",
         "subtitle": "Ideas rápidas para mantener el perfil activo sin repetir contenido.",
@@ -909,6 +916,30 @@
         "copyError": "No se pudo copiar el checklist.",
         "headerChannel": "CANAL: {channel}",
         "headerFormat": "FORMATO: {format}"
+      },
+      "approval": {
+        "submit": "🚀 Enviar a revisión",
+        "pending": "Pendiente de revisión",
+        "approve": "✅ Aprobar",
+        "reject": "❌ Rechazar",
+        "statusLabel": "Estado",
+        "staffCopyLockedHint": "Envíalo a revisión para desbloquear copiar.",
+        "submitSuccess": "Borrador enviado a revisión.",
+        "submitError": "No se pudo enviar a revisión.",
+        "approveSuccess": "Borrador aprobado.",
+        "approveError": "No se pudo aprobar el borrador.",
+        "rejectSuccess": "Borrador rechazado.",
+        "rejectError": "No se pudo rechazar el borrador.",
+        "rejectDefaultNote": "Hay que ajustar el mensaje antes de publicar."
+      },
+      "review": {
+        "title": "Revisión de borradores",
+        "subtitle": "Valida y ajusta los borradores pendientes del equipo.",
+        "backToLito": "Volver a LITO",
+        "pendingTitle": "Pendientes",
+        "emptyDetail": "Selecciona un borrador pendiente para revisarlo.",
+        "rejectNote": "Nota de rechazo (opcional)",
+        "loadError": "No se pudo cargar la bandeja de revisión."
       },
       "messages": {
         "quotaExceeded": "Has agotado la cuota mensual. Puedes escribir manualmente o ampliar el plan.",

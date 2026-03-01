@@ -23,6 +23,20 @@ type RefineMode = 'shorter' | 'premium' | 'funny';
 type FormatKey = 'post' | 'story' | 'reel';
 type PreviewChannel = 'instagram' | 'tiktok';
 type QuickRefineTrigger = { id: number; mode: RefineMode };
+type SocialDraftStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'published';
+
+type SocialDraftItem = {
+  id: string;
+  recommendation_id: string | null;
+  status: SocialDraftStatus;
+  title: string | null;
+  copy_short: string | null;
+  copy_long: string | null;
+  hashtags: string[] | null;
+  assets_needed: string[] | null;
+  review_note: string | null;
+  updated_at: string;
+};
 
 type CopyStatusPayload = {
   enabled?: boolean;
@@ -56,9 +70,25 @@ type GeneratePayload = {
   message?: string;
 };
 
+type SocialDraftListPayload = {
+  ok?: boolean;
+  items?: SocialDraftItem[];
+  error?: string;
+  message?: string;
+};
+
+type SocialDraftMutationPayload = {
+  ok?: boolean;
+  draft?: SocialDraftItem;
+  status?: SocialDraftStatus;
+  error?: string;
+  message?: string;
+};
+
 type LitoWorkbenchPaneProps = {
   t: (key: string, vars?: Record<string, string | number>) => string;
   bizId: string | null;
+  orgId: string | null;
   businessName: string;
   recommendation: LitoRecommendationItem | null;
   viewerRole: LitoViewerRole;
@@ -76,6 +106,7 @@ function normalizedFormat(value: string | undefined): FormatKey {
 export default function LitoWorkbenchPane({
   t,
   bizId,
+  orgId,
   businessName,
   recommendation,
   viewerRole,
@@ -113,6 +144,8 @@ export default function LitoWorkbenchPane({
   const [stepsDone, setStepsDone] = useState<Record<string, boolean>>({});
   const [previewChannel, setPreviewChannel] = useState<PreviewChannel>('instagram');
   const [ikeaChannel, setIkeaChannel] = useState<RecommendationChannel>('instagram');
+  const [reviewActionLoading, setReviewActionLoading] = useState<'submit' | 'approve' | 'reject' | null>(null);
+  const [currentDraft, setCurrentDraft] = useState<SocialDraftItem | null>(null);
   const lastQuickRefineHandled = useRef<number | null>(null);
 
   const recommendationTemplate = recommendation?.recommendation_template;
@@ -121,6 +154,7 @@ export default function LitoWorkbenchPane({
   const hookTitle = recommendation?.hook || recommendationTemplate?.hook || t('dashboard.home.recommendations.lito.defaultTitle');
   const localHowTo = recommendation?.how_to || recommendationTemplate?.how_to;
   const canMarkPublished = viewerRole !== 'staff';
+  const staffCopyLocked = viewerRole === 'staff' && currentDraft?.status !== 'approved';
   const settingsHref = '/dashboard/admin';
   const ikeaChecklist = useMemo(() => {
     if (!recommendation) return null;
@@ -263,6 +297,138 @@ export default function LitoWorkbenchPane({
       setPollingCopy(false);
     }
   }, [applyCopy, bizId, onQuotaChange, recommendation?.id]);
+
+  const loadCurrentDraft = useCallback(async () => {
+    if (!bizId || !recommendation?.id) {
+      setCurrentDraft(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/social/drafts?biz_id=${bizId}&recommendation_id=${recommendation.id}&limit=1`);
+      const payload = (await response.json().catch(() => ({}))) as SocialDraftListPayload;
+      if (!response.ok || payload.error) {
+        setCurrentDraft(null);
+        return;
+      }
+      setCurrentDraft((payload.items || [])[0] || null);
+    } catch {
+      setCurrentDraft(null);
+    }
+  }, [bizId, recommendation?.id]);
+
+  const submitToReview = useCallback(async () => {
+    if (!bizId || !recommendation?.id || !orgId || viewerRole !== 'staff') return;
+    setReviewActionLoading('submit');
+    try {
+      const createResponse = await fetch('/api/social/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: bizId,
+          source: 'lito',
+          recommendation_id: recommendation.id,
+          channel: previewChannel,
+          format: effectiveFormat,
+          title: hookTitle,
+          copy_short: copyShort || null,
+          copy_long: copyLong || null,
+          hashtags: hashtags.length ? hashtags : null,
+          assets_needed: assets.length ? assets : null,
+          steps: ikeaChecklist?.steps || shotlist,
+        }),
+      });
+      const createPayload = (await createResponse.json().catch(() => ({}))) as SocialDraftMutationPayload;
+      if (!createResponse.ok || createPayload.error || !createPayload.draft?.id) {
+        throw new Error(createPayload.message || t('dashboard.litoPage.approval.submitError'));
+      }
+
+      const submitResponse = await fetch(`/api/social/drafts/${createPayload.draft.id}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const submitPayload = (await submitResponse.json().catch(() => ({}))) as SocialDraftMutationPayload;
+      if (!submitResponse.ok || submitPayload.error) {
+        throw new Error(submitPayload.message || t('dashboard.litoPage.approval.submitError'));
+      }
+
+      setCurrentDraft(submitPayload.draft || { ...createPayload.draft, status: 'pending' });
+      toast(t('dashboard.litoPage.approval.submitSuccess'), 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.approval.submitError');
+      toast(message, 'error');
+    } finally {
+      setReviewActionLoading(null);
+    }
+  }, [
+    assets,
+    bizId,
+    copyLong,
+    copyShort,
+    effectiveFormat,
+    hashtags,
+    hookTitle,
+    ikeaChecklist?.steps,
+    orgId,
+    previewChannel,
+    recommendation?.id,
+    shotlist,
+    t,
+    toast,
+    viewerRole,
+  ]);
+
+  const approvePendingDraft = useCallback(async () => {
+    if (!currentDraft?.id || (viewerRole !== 'owner' && viewerRole !== 'manager')) return;
+    setReviewActionLoading('approve');
+    try {
+      const response = await fetch(`/api/social/drafts/${currentDraft.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: hookTitle,
+          copy_short: copyShort || null,
+          copy_long: copyLong || null,
+          hashtags: hashtags.length ? hashtags : null,
+          assets_needed: assets.length ? assets : null,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as SocialDraftMutationPayload;
+      if (!response.ok || payload.error || !payload.draft) {
+        throw new Error(payload.message || t('dashboard.litoPage.approval.approveError'));
+      }
+      setCurrentDraft(payload.draft);
+      toast(t('dashboard.litoPage.approval.approveSuccess'), 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.approval.approveError');
+      toast(message, 'error');
+    } finally {
+      setReviewActionLoading(null);
+    }
+  }, [assets, copyLong, copyShort, currentDraft?.id, hashtags, hookTitle, t, toast, viewerRole]);
+
+  const rejectPendingDraft = useCallback(async () => {
+    if (!currentDraft?.id || (viewerRole !== 'owner' && viewerRole !== 'manager')) return;
+    setReviewActionLoading('reject');
+    try {
+      const response = await fetch(`/api/social/drafts/${currentDraft.id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: t('dashboard.litoPage.approval.rejectDefaultNote') }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as SocialDraftMutationPayload;
+      if (!response.ok || payload.error || !payload.draft) {
+        throw new Error(payload.message || t('dashboard.litoPage.approval.rejectError'));
+      }
+      setCurrentDraft(payload.draft);
+      toast(t('dashboard.litoPage.approval.rejectSuccess'), 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.approval.rejectError');
+      toast(message, 'error');
+    } finally {
+      setReviewActionLoading(null);
+    }
+  }, [currentDraft?.id, t, toast, viewerRole]);
 
   const runGenerate = useCallback(async () => {
     if (!bizId || !recommendation?.id) return;
@@ -472,6 +638,7 @@ export default function LitoWorkbenchPane({
     setStepsDone({});
     setActiveTab('copy_short');
     setQuota(null);
+    setCurrentDraft(null);
     setAiUnavailable(false);
     setAiStatusReason('ok');
     setAiMessage('');
@@ -481,7 +648,8 @@ export default function LitoWorkbenchPane({
     hydrateFallbackPlan();
     void loadCopyStatus();
     void loadStoredCopy();
-  }, [hydrateFallbackPlan, loadCopyStatus, loadStoredCopy, recommendation?.id]);
+    void loadCurrentDraft();
+  }, [hydrateFallbackPlan, loadCopyStatus, loadCurrentDraft, loadStoredCopy, recommendation?.id]);
 
   useEffect(() => {
     if (!quickRefineTrigger || !recommendation?.id) return;
@@ -500,13 +668,14 @@ export default function LitoWorkbenchPane({
       if (detail.source === 'workbench') return;
       if (detail.bizId !== bizId || detail.recommendationId !== recommendation.id) return;
       void loadStoredCopy();
+      void loadCurrentDraft();
     };
 
     window.addEventListener(LITO_COPY_UPDATED_EVENT, onCopyUpdated as EventListener);
     return () => {
       window.removeEventListener(LITO_COPY_UPDATED_EVENT, onCopyUpdated as EventListener);
     };
-  }, [bizId, loadStoredCopy, recommendation?.id]);
+  }, [bizId, loadCurrentDraft, loadStoredCopy, recommendation?.id]);
 
   const tabValue = useMemo(() => {
     if (activeTab === 'copy_long') return copyLong;
@@ -515,6 +684,12 @@ export default function LitoWorkbenchPane({
     if (activeTab === 'image_idea') return imageIdea;
     return copyShort;
   }, [activeTab, copyLong, copyShort, hashtags, imageIdea, shotlist]);
+
+  const hasDraftContent = useMemo(() => {
+    return Boolean(copyShort.trim() || copyLong.trim() || hashtags.length || shotlist.length || imageIdea.trim());
+  }, [copyLong, copyShort, hashtags.length, imageIdea, shotlist.length]);
+
+  const hasPendingReview = currentDraft?.status === 'pending';
 
   return (
     <section className="flex min-h-[70vh] flex-col rounded-2xl border border-white/10 bg-zinc-900/45 backdrop-blur-md">
@@ -637,13 +812,30 @@ export default function LitoWorkbenchPane({
                   )}
 
                   <div className="mt-2 flex justify-end">
-                    <Button size="sm" variant="secondary" onClick={() => void handleCopyText(tabValue)}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={staffCopyLocked || !tabValue.trim()}
+                      title={staffCopyLocked ? t('dashboard.litoPage.approval.staffCopyLockedHint') : undefined}
+                      onClick={() => void handleCopyText(tabValue)}
+                    >
                       {t('dashboard.home.recommendations.lito.actions.copy')}
                     </Button>
                   </div>
                 </>
               )}
             </div>
+
+            {currentDraft ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                <p className={cn('text-xs font-medium text-white/80')}>
+                  {t('dashboard.litoPage.approval.statusLabel')}: <span className="text-white">{currentDraft.status}</span>
+                </p>
+                {currentDraft.review_note ? (
+                  <p className={cn('mt-1 text-xs text-white/70')}>{currentDraft.review_note}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="rounded-xl border border-white/10 bg-white/6 p-3">
               <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.litoPage.workbench.refineTitle')}</p>
@@ -827,24 +1019,61 @@ export default function LitoWorkbenchPane({
               ? t('dashboard.home.recommendations.lito.footerHint')
               : t('dashboard.home.recommendations.lito.staffDraftOnly')}
           </p>
-          <Button
-            size="sm"
-            loading={publishing}
-            disabled={!recommendation?.id || !canMarkPublished}
-            title={!canMarkPublished ? t('dashboard.litoPage.messages.managerRequired') : undefined}
-            onClick={() => {
-              if (!recommendation?.id) return;
-              setPublishing(true);
-              void onPublished(recommendation.id)
-                .catch((error) => {
-                  const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.feedbackError');
-                  toast(message, 'error');
-                })
-                .finally(() => setPublishing(false));
-            }}
-          >
-            {t('dashboard.home.recommendations.lito.actions.markPublished')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {viewerRole === 'staff' ? (
+              <Button
+                size="sm"
+                loading={reviewActionLoading === 'submit'}
+                disabled={!recommendation?.id || !hasDraftContent || hasPendingReview}
+                title={!hasDraftContent ? t('dashboard.litoPage.approval.staffCopyLockedHint') : undefined}
+                onClick={() => void submitToReview()}
+              >
+                {hasPendingReview
+                  ? t('dashboard.litoPage.approval.pending')
+                  : t('dashboard.litoPage.approval.submit')}
+              </Button>
+            ) : null}
+
+            {(viewerRole === 'owner' || viewerRole === 'manager') && hasPendingReview ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={reviewActionLoading === 'reject'}
+                  onClick={() => void rejectPendingDraft()}
+                >
+                  {t('dashboard.litoPage.approval.reject')}
+                </Button>
+                <Button
+                  size="sm"
+                  loading={reviewActionLoading === 'approve'}
+                  onClick={() => void approvePendingDraft()}
+                >
+                  {t('dashboard.litoPage.approval.approve')}
+                </Button>
+              </>
+            ) : null}
+
+            {canMarkPublished ? (
+              <Button
+                size="sm"
+                loading={publishing}
+                disabled={!recommendation?.id}
+                onClick={() => {
+                  if (!recommendation?.id) return;
+                  setPublishing(true);
+                  void onPublished(recommendation.id)
+                    .catch((error) => {
+                      const message = error instanceof Error ? error.message : t('dashboard.home.recommendations.feedbackError');
+                      toast(message, 'error');
+                    })
+                    .finally(() => setPublishing(false));
+                }}
+              >
+                {t('dashboard.home.recommendations.lito.actions.markPublished')}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </footer>
 

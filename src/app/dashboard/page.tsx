@@ -111,6 +111,27 @@ type RecommendationFeedbackPayload = {
   };
 };
 
+type SocialDraftInboxItem = {
+  id: string;
+  org_id: string;
+  biz_id: string;
+  recommendation_id: string | null;
+  status: 'pending' | 'draft' | 'approved' | 'rejected' | 'published';
+  channel: 'instagram' | 'tiktok' | 'facebook';
+  format: 'post' | 'story' | 'reel';
+  title: string | null;
+  created_by: string;
+  updated_at: string;
+};
+
+type SocialDraftInboxPayload = {
+  ok?: boolean;
+  items?: SocialDraftInboxItem[];
+  error?: string;
+  message?: string;
+  request_id?: string;
+};
+
 const DISMISSED_SOCIAL_MAGIC_REVIEWS_KEY = 'opinia.home.dismissedSocialMagicReviews';
 
 function pickProposalReply(rows: ReplyDraftRow[]): ReplyDraftRow | null {
@@ -172,9 +193,12 @@ export default function DashboardPage() {
   const [dismissedSocialMagicReviewIds, setDismissedSocialMagicReviewIds] = useState<string[]>([]);
   const [weeklyRecommendations, setWeeklyRecommendations] = useState<WeeklyRecommendationItem[]>([]);
   const [weeklyRecommendationsLoading, setWeeklyRecommendationsLoading] = useState(false);
+  const [weeklyViewerRole, setWeeklyViewerRole] = useState<'owner' | 'manager' | 'staff' | null>(null);
   const [weeklyRecommendationActionById, setWeeklyRecommendationActionById] = useState<Record<string, boolean>>({});
   const [weeklyRecommendationHowToOpenById, setWeeklyRecommendationHowToOpenById] = useState<Record<string, boolean>>({});
   const [weeklyRecommendationChannelById, setWeeklyRecommendationChannelById] = useState<Record<string, RecommendationChannel>>({});
+  const [pendingDraftInbox, setPendingDraftInbox] = useState<SocialDraftInboxItem[]>([]);
+  const [pendingDraftInboxLoading, setPendingDraftInboxLoading] = useState(false);
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -245,6 +269,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!biz?.id) {
       setWeeklyRecommendations([]);
+      setWeeklyViewerRole(null);
       setWeeklyRecommendationsLoading(false);
       return;
     }
@@ -259,6 +284,7 @@ export default function DashboardPage() {
           throw new Error(payload.message || t('dashboard.home.recommendations.loadError'));
         }
         if (cancelled) return;
+        setWeeklyViewerRole(payload.viewer_role || null);
         setWeeklyRecommendations(
           (payload.items || [])
             .map((item) => normalizeRecommendationItem(item))
@@ -267,6 +293,7 @@ export default function DashboardPage() {
       })
       .catch(() => {
         if (cancelled) return;
+        setWeeklyViewerRole(null);
         setWeeklyRecommendations([]);
       })
       .finally(() => {
@@ -302,6 +329,40 @@ export default function DashboardPage() {
       return next;
     });
   }, []);
+
+  const loadPendingDraftInbox = useCallback(async () => {
+    if (!biz?.id || !biz?.org_id) {
+      setPendingDraftInbox([]);
+      setPendingDraftInboxLoading(false);
+      return;
+    }
+    if (weeklyViewerRole !== 'owner' && weeklyViewerRole !== 'manager') {
+      setPendingDraftInbox([]);
+      setPendingDraftInboxLoading(false);
+      return;
+    }
+
+    setPendingDraftInboxLoading(true);
+    try {
+      const response = await fetch(
+        `/api/social/drafts/inbox?org_id=${biz.org_id}&biz_id=${biz.id}&status=pending&limit=3`,
+      );
+      const payload = (await response.json().catch(() => ({}))) as SocialDraftInboxPayload;
+      if (!response.ok || payload.error) {
+        setPendingDraftInbox([]);
+        return;
+      }
+      setPendingDraftInbox(payload.items || []);
+    } catch {
+      setPendingDraftInbox([]);
+    } finally {
+      setPendingDraftInboxLoading(false);
+    }
+  }, [biz?.id, biz?.org_id, weeklyViewerRole]);
+
+  useEffect(() => {
+    void loadPendingDraftInbox();
+  }, [loadPendingDraftInbox]);
 
   const openSuccessModal = useCallback(async (reviewId: string) => {
     if (dismissedSocialMagicReviewIds.includes(reviewId)) {
@@ -812,6 +873,59 @@ export default function DashboardPage() {
             <p className={cn('text-sm', textSub)}>{t('dashboard.home.recommendations.empty')}</p>
           )}
         </GlassCard>
+
+        {(weeklyViewerRole === 'owner' || weeklyViewerRole === 'manager') ? (
+          <GlassCard variant="strong" className="p-4 md:p-5" data-testid="dashboard-drafts-inbox">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className={cn('text-base font-semibold', textMain)}>
+                  {t('dashboard.home.approvalInbox.title')}
+                </h2>
+                <p className={cn('mt-1 text-xs', textSub)}>
+                  {t('dashboard.home.approvalInbox.subtitle')}
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                className="h-8 px-3 text-xs"
+                onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
+              >
+                {t('dashboard.home.approvalInbox.reviewCta')}
+              </Button>
+            </div>
+
+            <div className="mt-3">
+              {pendingDraftInboxLoading ? (
+                <div className="space-y-2">
+                  <div className="h-12 animate-pulse rounded-lg border border-white/8 bg-white/6" />
+                  <div className="h-12 animate-pulse rounded-lg border border-white/8 bg-white/6" />
+                </div>
+              ) : pendingDraftInbox.length > 0 ? (
+                <div className="space-y-2">
+                  {pendingDraftInbox.map((draft) => (
+                    <button
+                      key={draft.id}
+                      type="button"
+                      onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${draft.id}`)}
+                      className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-left transition-all duration-200 ease-premium hover:border-white/20 hover:bg-white/8"
+                    >
+                      <p className={cn('line-clamp-1 text-sm font-semibold text-white/90')}>
+                        {draft.title || t('dashboard.home.approvalInbox.untitled')}
+                      </p>
+                      <p className={cn('mt-1 text-xs text-white/65')}>
+                        {`${draft.channel} · ${draft.format} · ${new Date(draft.updated_at).toLocaleString(locale === 'en' ? 'en-GB' : locale === 'es' ? 'es-ES' : 'ca-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className={cn('rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100')}>
+                  {t('dashboard.home.approvalInbox.empty')}
+                </p>
+              )}
+            </div>
+          </GlassCard>
+        ) : null}
 
         {pendingCount === 0 ? (
           <div className="flex min-h-[55vh] items-center justify-center">

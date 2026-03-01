@@ -595,6 +595,15 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           <Button variant="secondary" className="h-9 px-3 text-xs" onClick={() => void openGeneralThread()}>
             {t('dashboard.litoPage.context.askLito')}
           </Button>
+          {(weeklyViewerRole === 'owner' || weeklyViewerRole === 'manager') ? (
+            <Button
+              variant="ghost"
+              className="h-9 px-3 text-xs text-white/80 hover:text-white"
+              onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
+            >
+              {t('dashboard.home.approvalInbox.reviewCta')}
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -786,6 +795,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
         <LitoWorkbenchPane
           t={t}
           bizId={biz.id}
+          orgId={biz.org_id || null}
           businessName={biz.name}
           recommendation={activeRecommendation}
           viewerRole={weeklyViewerRole}

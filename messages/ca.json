@@ -569,6 +569,13 @@
         "approveError": "No s'ha pogut publicar la resposta.",
         "generateError": "No s'ha pogut regenerar la proposta."
       },
+      "approvalInbox": {
+        "title": "Safata d'entrada (pendents)",
+        "subtitle": "Esmorzars de contingut que necessiten validació de manager/owner.",
+        "reviewCta": "Revisar",
+        "untitled": "Esborrany sense títol",
+        "empty": "🎉 Tot net! No tens cap esborrany pendent."
+      },
       "recommendations": {
         "title": "Recomanacions de la setmana",
         "subtitle": "Idees ràpides per mantenir el perfil actiu sense repetir contingut.",
@@ -909,6 +916,30 @@
         "copyError": "No s'ha pogut copiar el checklist.",
         "headerChannel": "CANAL: {channel}",
         "headerFormat": "FORMAT: {format}"
+      },
+      "approval": {
+        "submit": "🚀 Enviar a revisió",
+        "pending": "Pendent de revisió",
+        "approve": "✅ Aprovar",
+        "reject": "❌ Rebutjar",
+        "statusLabel": "Estat",
+        "staffCopyLockedHint": "Envia a revisió per desbloquejar copiar.",
+        "submitSuccess": "Esborrany enviat a revisió.",
+        "submitError": "No s'ha pogut enviar a revisió.",
+        "approveSuccess": "Esborrany aprovat.",
+        "approveError": "No s'ha pogut aprovar l'esborrany.",
+        "rejectSuccess": "Esborrany rebutjat.",
+        "rejectError": "No s'ha pogut rebutjar l'esborrany.",
+        "rejectDefaultNote": "Cal ajustar el missatge abans de publicar."
+      },
+      "review": {
+        "title": "Revisió de drafts",
+        "subtitle": "Valida i ajusta els drafts pendents de l'equip.",
+        "backToLito": "Tornar a LITO",
+        "pendingTitle": "Pendents",
+        "emptyDetail": "Selecciona un draft pendent per revisar-lo.",
+        "rejectNote": "Nota de rebuig (opcional)",
+        "loadError": "No s'ha pogut carregar la safata de revisió."
       },
       "messages": {
         "quotaExceeded": "Has esgotat la quota del mes. Pots escriure manualment o ampliar el pla.",

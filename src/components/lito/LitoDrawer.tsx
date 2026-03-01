@@ -490,6 +490,7 @@ export default function LitoDrawer({ open, onClose, enabled, reason, canActivate
             <LitoWorkbenchPane
               t={t}
               bizId={biz?.id || null}
+              orgId={biz?.org_id || null}
               businessName={biz?.name || ''}
               recommendation={activeRecommendation}
               viewerRole={weeklyViewerRole}
