@@ -248,6 +248,7 @@ export default function LitoWeeklyWizard({
   const [activeIndex, setActiveIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [showDoneNotice, setShowDoneNotice] = useState(false);
   const completedRef = useRef(false);
   const wizardStartedAtRef = useRef<number>(Date.now());
 
@@ -273,6 +274,7 @@ export default function LitoWeeklyWizard({
     setDrafts([]);
     setActiveIndex(0);
     setShowPushPrompt(false);
+    setShowDoneNotice(false);
     completedRef.current = false;
   };
 
@@ -343,6 +345,8 @@ export default function LitoWeeklyWizard({
       });
     }
     setOpen(false);
+    setShowPushPrompt(false);
+    setShowDoneNotice(false);
   };
 
   const regenerateActive = () => {
@@ -367,6 +371,25 @@ export default function LitoWeeklyWizard({
         variant: nextVariant,
       };
     }));
+  };
+
+  const rotatePhotoHint = () => {
+    if (!activeDraft) return;
+    const assets = Array.isArray(activeDraft.assets_needed) ? activeDraft.assets_needed.filter(Boolean) : [];
+    if (assets.length === 0) return;
+
+    const rotated = assets.length > 1 ? [...assets.slice(1), assets[0]] : assets;
+    updateActiveDraft({ assets_needed: rotated });
+    toast(t('dashboard.litoPage.wizard.photoChanged'), 'success');
+  };
+
+  const openVoiceFlow = () => {
+    const params = new URLSearchParams();
+    params.set('biz_id', bizId);
+    const firstRecommendation = recommendations[0]?.id;
+    if (firstRecommendation) params.set('recommendation_id', firstRecommendation);
+    closeWizard('voice_redirect');
+    router.push(`/dashboard/lito/chat?${params.toString()}`);
   };
 
   const moveStepThree = () => {
@@ -460,6 +483,7 @@ export default function LitoWeeklyWizard({
         },
       });
       setShowPushPrompt(true);
+      setShowDoneNotice(true);
       onDone?.();
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.litoPage.wizard.finalizeError');
@@ -509,6 +533,25 @@ export default function LitoWeeklyWizard({
             <div className="space-y-3">
               <p className={cn('text-sm font-semibold', textMain)}>{t('dashboard.litoPage.wizard.step1Title')}</p>
               <p className={cn('text-xs', textSub)}>{t('dashboard.litoPage.wizard.step1Subtitle')}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => {
+                    setNovelty('');
+                    startStepTwo();
+                  }}
+                >
+                  {t('dashboard.litoPage.wizard.noSpecial')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={openVoiceFlow}
+                >
+                  {t('dashboard.litoPage.wizard.useVoice')}
+                </Button>
+              </div>
               <textarea
                 value={novelty}
                 onChange={(event) => setNovelty(event.target.value)}
@@ -547,6 +590,9 @@ export default function LitoWeeklyWizard({
                     </Button>
                     <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={regenerateActive}>
                       {t('dashboard.litoPage.wizard.regenerate')}
+                    </Button>
+                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={rotatePhotoHint}>
+                      {t('dashboard.litoPage.wizard.changePhoto')}
                     </Button>
                   </div>
 
@@ -679,6 +725,20 @@ export default function LitoWeeklyWizard({
                       }}
                     >
                       {t('dashboard.litoPage.wizard.pushNo')}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {showDoneNotice ? (
+                <div className="rounded-lg border border-emerald-300/30 bg-emerald-300/10 p-3">
+                  <p className="text-sm font-semibold text-emerald-100">{t('dashboard.litoPage.wizard.doneTitle')}</p>
+                  <div className="mt-2">
+                    <Button
+                      className="h-7 px-2 text-xs"
+                      onClick={() => closeWizard('ack_done')}
+                    >
+                      {t('dashboard.litoPage.wizard.doneAck')}
                     </Button>
                   </div>
                 </div>
