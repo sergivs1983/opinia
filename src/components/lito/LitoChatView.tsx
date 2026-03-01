@@ -280,6 +280,74 @@ function extractVoiceDraftSummary(payload: Record<string, unknown>): string {
   return 'Sense resum';
 }
 
+function normalizeVoicePayload(value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) return value.map((item) => normalizeVoicePayload(item));
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => [key, normalizeVoicePayload(nested)] as const);
+    return Object.fromEntries(entries);
+  }
+  return String(value);
+}
+
+function buildVoiceDraftDedupeKey(draft: LitoVoiceActionDraft): string {
+  if (draft.idempotency_key && draft.idempotency_key.trim()) {
+    return `id:${draft.idempotency_key.trim()}`;
+  }
+  return `payload:${draft.kind}:${JSON.stringify(normalizeVoicePayload(draft.payload || {}))}`;
+}
+
+function voiceStatusScore(status: LitoVoiceActionDraft['status']): number {
+  switch (status) {
+    case 'pending_review':
+      return 5;
+    case 'approved':
+      return 4;
+    case 'draft':
+      return 3;
+    case 'rejected':
+      return 2;
+    case 'executed':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function dedupeVoiceDrafts(items: LitoVoiceActionDraft[]): LitoVoiceActionDraft[] {
+  const map = new Map<string, LitoVoiceActionDraft>();
+  for (const item of items) {
+    const key = buildVoiceDraftDedupeKey(item);
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, item);
+      continue;
+    }
+    const currentScore = voiceStatusScore(current.status);
+    const nextScore = voiceStatusScore(item.status);
+    if (nextScore > currentScore) {
+      map.set(key, item);
+      continue;
+    }
+    if (nextScore === currentScore) {
+      const currentTs = Date.parse(current.updated_at || current.created_at || '');
+      const nextTs = Date.parse(item.updated_at || item.created_at || '');
+      if (Number.isFinite(nextTs) && (!Number.isFinite(currentTs) || nextTs > currentTs)) {
+        map.set(key, item);
+      }
+    }
+  }
+  return Array.from(map.values()).sort((left, right) => {
+    const leftTs = Date.parse(left.updated_at || left.created_at || '');
+    const rightTs = Date.parse(right.updated_at || right.created_at || '');
+    return (Number.isFinite(rightTs) ? rightTs : 0) - (Number.isFinite(leftTs) ? leftTs : 0);
+  });
+}
+
 function createClientRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -542,6 +610,7 @@ export default function LitoChatView() {
   const [voicePrepareMode, setVoicePrepareMode] = useState<'record' | 'paste_transcript_only'>('paste_transcript_only');
   const [voiceAudioFile, setVoiceAudioFile] = useState<File | null>(null);
   const [voiceSttLoading, setVoiceSttLoading] = useState(false);
+  const [voiceUnavailableHint, setVoiceUnavailableHint] = useState<string | null>(null);
   const [ttsLoadingMessageId, setTtsLoadingMessageId] = useState<string | null>(null);
   const [activeSignal, setActiveSignal] = useState<LitoSignalCard | null>(null);
 
@@ -693,7 +762,7 @@ export default function LitoChatView() {
         setVoiceDrafts([]);
         return;
       }
-      setVoiceDrafts(payload.items || []);
+      setVoiceDrafts(dedupeVoiceDrafts(payload.items || []));
       if (payload.viewer_role) setVoiceViewerRole(payload.viewer_role);
     } catch {
       setVoiceDrafts([]);
@@ -991,7 +1060,9 @@ export default function LitoChatView() {
         return;
       }
       if (response.status === 503 || payload.error === 'voice_unavailable') {
-        toast(payload.message || t('dashboard.litoPage.voice.unavailable'), 'warning');
+        const message = payload.message || t('dashboard.litoPage.voice.unavailable');
+        setVoiceUnavailableHint(message);
+        toast(message, 'warning');
         return;
       }
       if (!response.ok || payload.error) {
@@ -999,6 +1070,7 @@ export default function LitoChatView() {
       }
       const nextMode = payload.mode || payload.upload?.mode || 'paste_transcript_only';
       setVoicePrepareMode(nextMode);
+      setVoiceUnavailableHint(null);
       setVoiceSheetOpen(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.litoPage.voice.prepareError');
@@ -1112,7 +1184,9 @@ export default function LitoChatView() {
         return;
       }
       if (response.status === 503 || payload.error === 'voice_unavailable') {
-        toast(payload.message || t('dashboard.litoPage.voice.unavailable'), 'warning');
+        const message = payload.message || t('dashboard.litoPage.voice.unavailable');
+        setVoiceUnavailableHint(message);
+        toast(message, 'warning');
         return;
       }
       if (!response.ok || payload.error || !payload.audio_url) {
@@ -1169,6 +1243,7 @@ export default function LitoChatView() {
       if (payload.transcript_lang) {
         setVoiceTranscriptLang(payload.transcript_lang);
       }
+      setVoiceUnavailableHint(null);
       setVoiceAudioFile(null);
       toast(t('dashboard.litoPage.voice.sttSuccess'), 'success');
     } catch (error) {
@@ -1213,6 +1288,60 @@ export default function LitoChatView() {
       toast(message, 'error');
     }
   }, [loadVoiceDrafts, router, t, toast]);
+
+  const handleDeleteVoiceDraft = useCallback(async (draftId: string) => {
+    try {
+      const response = await fetch(`/api/lito/voice/drafts/${draftId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-request-id': createClientRequestId(),
+        },
+        cache: 'no-store',
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+      };
+
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || t('dashboard.litoPage.voice.deleteError'));
+      }
+
+      setVoiceDrafts((previous) => previous.filter((item) => item.id !== draftId));
+      setMessages((previous) => previous.map((message) => {
+        if (!message.meta || typeof message.meta !== 'object' || Array.isArray(message.meta)) return message;
+        const meta = message.meta as Record<string, unknown>;
+        if (!Array.isArray(meta.inline_drafts)) return message;
+        const inlineDrafts = meta.inline_drafts.filter((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return true;
+          const raw = item as Record<string, unknown>;
+          return raw.id !== draftId;
+        });
+        return {
+          ...message,
+          meta: {
+            ...meta,
+            inline_drafts: inlineDrafts,
+            actions_count: inlineDrafts.length,
+          },
+        };
+      }));
+      if (voiceExpandedDraftId === draftId) setVoiceExpandedDraftId(null);
+      if (voiceEditingDraftId === draftId) {
+        setVoiceEditingDraftId(null);
+        setVoiceEditingSummary('');
+      }
+      toast(t('dashboard.litoPage.voice.deleteSuccess'), 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.voice.deleteError');
+      toast(message, 'error');
+    }
+  }, [router, t, toast, voiceEditingDraftId, voiceExpandedDraftId]);
 
   const handleSaveVoiceDraftEdit = useCallback(async (draft: LitoVoiceActionDraft) => {
     const nextSummary = voiceEditingSummary.trim();
@@ -1351,7 +1480,9 @@ export default function LitoChatView() {
         return;
       }
       if (response.status === 503 || payload.error === 'voice_unavailable') {
-        toast(payload.message || t('dashboard.litoPage.voice.unavailable'), 'warning');
+        const message = payload.message || t('dashboard.litoPage.voice.unavailable');
+        setVoiceUnavailableHint(message);
+        toast(message, 'warning');
         return;
       }
       if (!response.ok || payload.error) {
@@ -1367,11 +1498,10 @@ export default function LitoChatView() {
           const map = new Map<string, LitoVoiceActionDraft>();
           for (const item of previous) map.set(item.id, item);
           for (const item of payload.actions || []) map.set(item.id, item);
-          return Array.from(map.values()).sort((a, b) => (
-            Date.parse(b.updated_at || b.created_at) - Date.parse(a.updated_at || a.created_at)
-          ));
+          return dedupeVoiceDrafts(Array.from(map.values()));
         });
       }
+      setVoiceUnavailableHint(null);
 
       setActiveThreadId(threadId);
       const postedMessages = Array.isArray(postResult.payload.messages) ? postResult.payload.messages : [];
@@ -1496,7 +1626,7 @@ export default function LitoChatView() {
 
   const sendMessage = useCallback(async (content: string) => {
     const normalized = content.trim();
-    if (normalized.length < 2) return;
+    if (!normalized) return;
     if (!biz?.id) {
       toast(t('dashboard.litoPage.chat.threadRequired'), 'warning');
       return;
@@ -1800,6 +1930,7 @@ export default function LitoChatView() {
   );
   const canConfirmVoiceActions = voiceViewerRole === 'owner' || voiceViewerRole === 'manager';
   const canRecordWithBrowser = voicePrepareMode === 'record' && voiceSpeechSupported;
+  const canSendText = !sending && messageDraft.trim().length > 0;
 
   if (!biz) {
     return (
@@ -2223,6 +2354,13 @@ export default function LitoChatView() {
                               {t('dashboard.litoPage.voice.editDraft')}
                             </button>
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteVoiceDraft(draft.id)}
+                            className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+                          >
+                            {t('dashboard.litoPage.voice.deleteDraft')}
+                          </button>
                           {canApproveOrReject ? (
                             <>
                               <button
@@ -2394,6 +2532,13 @@ export default function LitoChatView() {
                                         {t('dashboard.litoPage.voice.inline.edit')}
                                       </button>
                                     ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleDeleteVoiceDraft(draft.id)}
+                                      className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+                                    >
+                                      {t('dashboard.litoPage.voice.deleteDraft')}
+                                    </button>
                                     {canApproveOrReject ? (
                                       <button
                                         type="button"
@@ -2531,7 +2676,7 @@ export default function LitoChatView() {
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
-                  if (!sending && messageDraft.trim().length >= 2) {
+                  if (canSendText) {
                     void sendMessage(messageDraft);
                   }
                 }
@@ -2555,12 +2700,17 @@ export default function LitoChatView() {
               size="sm"
               className="h-10 px-3 text-xs"
               loading={sending}
-              disabled={sending || messageDraft.trim().length < 2}
+              disabled={!canSendText}
               onClick={() => void sendMessage(messageDraft)}
             >
               {t('dashboard.home.recommendations.lito.send')}
             </Button>
           </div>
+          {voiceUnavailableHint ? (
+            <p className={cn('mt-2 text-[11px]', textSub)}>
+              {voiceUnavailableHint}
+            </p>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-2">
             {/* D1.6: on-demand IKEA toggle — only shown when a recommendation is active */}
             {activeRecommendation && ikeaChecklist ? (
