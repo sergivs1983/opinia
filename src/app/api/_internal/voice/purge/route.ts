@@ -11,6 +11,7 @@ import { log } from '@/lib/logger';
  *
  * Internal HMAC-authenticated endpoint that soft-deletes lito_voice_clips
  * rows whose TTL has elapsed (expires_at < now(), deleted_at IS NULL).
+ * This applies to both STT clips and TTS cached clips.
  *
  * Authentication: x-opin-timestamp + x-opin-signature (HMAC-SHA256).
  *   Secret  : INTERNAL_HMAC_SECRET env var.
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     }
 
     const deleted = data?.length ?? 0;
-    log.info('voice_purge_complete', { deleted, request_id: requestId });
+    log.info('voice_purge_complete', { deleted, clip_scope: 'stt+tts', request_id: requestId });
 
     return withPurgeHeaders(
       NextResponse.json({ ok: true, deleted }),
