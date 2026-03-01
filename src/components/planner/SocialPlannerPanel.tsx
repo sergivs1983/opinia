@@ -87,6 +87,15 @@ type WeeklySocialStatsPayload = {
   message?: string;
 };
 
+type PushStatusPayload = {
+  ok?: boolean;
+  subscribed?: boolean;
+  push_enabled?: boolean;
+  vapid_public_key?: string | null;
+  error?: string;
+  message?: string;
+};
+
 const SCHEDULED_STATUSES = new Set(['scheduled', 'notified', 'snoozed']);
 
 function formatDateLabel(value: string, locale: string): string {
@@ -143,6 +152,19 @@ function defaultScheduledAt(): string {
   return toLocalDateTimeInputValue(date.toISOString());
 }
 
+function browserSupportsPush(): boolean {
+  if (typeof window === 'undefined') return false;
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+function urlBase64ToBufferSource(base64Url: string): ArrayBuffer {
+  const normalized = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = normalized.length % 4;
+  const padded = padding === 0 ? normalized : `${normalized}${'='.repeat(4 - padding)}`;
+  const raw = window.atob(padded);
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0)).buffer;
+}
+
 export default function SocialPlannerPanel() {
   const router = useRouter();
   const t = useT();
@@ -169,6 +191,11 @@ export default function SocialPlannerPanel() {
     remaining: number;
     is_completed: boolean;
   } | null>(null);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushPublicKey, setPushPublicKey] = useState<string | null>(null);
+  const [pushPending, setPushPending] = useState(false);
 
   const canManageSchedules = viewerRole === 'owner' || viewerRole === 'manager';
   const canMarkPublished = viewerRole === 'owner' || viewerRole === 'manager' || viewerRole === 'staff';
@@ -176,6 +203,38 @@ export default function SocialPlannerPanel() {
   const preselectedDraftId = searchParams.get('draft_id');
   const preselectedRecommendationId = searchParams.get('recommendation_id');
   const highlightedScheduleId = searchParams.get('schedule_id');
+
+  const loadPushStatus = useCallback(async () => {
+    const supported = browserSupportsPush();
+    setPushSupported(supported);
+
+    if (!supported || !biz?.id) {
+      setPushEnabled(false);
+      setPushSubscribed(false);
+      setPushPublicKey(null);
+      return;
+    }
+
+    setPushPending(true);
+    try {
+      const response = await fetch(`/api/push/status?biz_id=${encodeURIComponent(biz.id)}`);
+      const payload = (await response.json().catch(() => ({}))) as PushStatusPayload;
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || 'push_status_failed');
+      }
+
+      setPushEnabled(Boolean(payload.push_enabled));
+      setPushSubscribed(Boolean(payload.subscribed));
+      setPushPublicKey(typeof payload.vapid_public_key === 'string' ? payload.vapid_public_key : null);
+    } catch {
+      setPushEnabled(false);
+      setPushSubscribed(false);
+      setPushPublicKey(null);
+    } finally {
+      setPushPending(false);
+    }
+  }, [biz?.id]);
 
   const loadPlannerData = useCallback(async () => {
     if (!biz?.id) {
@@ -249,6 +308,10 @@ export default function SocialPlannerPanel() {
   useEffect(() => {
     void loadPlannerData();
   }, [loadPlannerData]);
+
+  useEffect(() => {
+    void loadPushStatus();
+  }, [loadPushStatus]);
 
   useEffect(() => {
     if (!canManageSchedules) return;
@@ -407,6 +470,106 @@ export default function SocialPlannerPanel() {
     }
   }, [t, toast]);
 
+  const handleEnablePush = useCallback(async () => {
+    if (!biz?.id) return;
+    if (!browserSupportsPush()) {
+      toast('Push no disponible en aquest navegador.', 'error');
+      return;
+    }
+    if (!pushPublicKey) {
+      toast('Push no configurat al servidor.', 'error');
+      return;
+    }
+
+    setPushPending(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        toast('Cal acceptar permisos de notificació per activar recordatoris.', 'error');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToBufferSource(pushPublicKey),
+        });
+      }
+
+      const serialized = subscription.toJSON();
+      if (!serialized.endpoint || !serialized.keys?.p256dh || !serialized.keys?.auth) {
+        throw new Error('subscription_invalid');
+      }
+
+      const response = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: biz.id,
+          subscription: {
+            endpoint: serialized.endpoint,
+            keys: {
+              p256dh: serialized.keys.p256dh,
+              auth: serialized.keys.auth,
+            },
+          },
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || 'push_subscribe_failed');
+      }
+
+      toast('Push activat per aquest dispositiu.', 'success');
+      setPushSubscribed(true);
+    } catch {
+      toast('No s’ha pogut activar el push.', 'error');
+    } finally {
+      setPushPending(false);
+      void loadPushStatus();
+    }
+  }, [biz?.id, loadPushStatus, pushPublicKey, toast]);
+
+  const handleDisablePush = useCallback(async () => {
+    if (!biz?.id) return;
+    if (!browserSupportsPush()) return;
+
+    setPushPending(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      const response = await fetch('/api/push/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: biz.id,
+          endpoint: subscription?.endpoint || undefined,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || 'push_unsubscribe_failed');
+      }
+
+      if (subscription) {
+        await subscription.unsubscribe().catch(() => undefined);
+      }
+
+      toast('Push desactivat per aquest dispositiu.', 'success');
+      setPushSubscribed(false);
+    } catch {
+      toast('No s’ha pogut desactivar el push.', 'error');
+    } finally {
+      setPushPending(false);
+      void loadPushStatus();
+    }
+  }, [biz?.id, loadPushStatus, toast]);
+
   if (!biz) {
     return null;
   }
@@ -418,15 +581,39 @@ export default function SocialPlannerPanel() {
           <h2 className={cn('text-base font-semibold', textMain)}>{t('dashboard.home.socialPlanner.title')}</h2>
           <p className={cn('mt-1 text-xs', textSub)}>{t('dashboard.home.socialPlanner.subtitle')}</p>
         </div>
-        {canManageSchedules ? (
-          <Button
-            variant="secondary"
-            className="h-8 px-3 text-xs"
-            onClick={() => setFormOpen((value) => !value)}
-          >
-            {t('dashboard.home.socialPlanner.scheduleButton')}
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {pushSupported ? (
+            pushEnabled ? (
+              <Button
+                variant={pushSubscribed ? 'ghost' : 'secondary'}
+                className="h-8 px-3 text-xs"
+                loading={pushPending}
+                onClick={() => {
+                  if (pushSubscribed) {
+                    void handleDisablePush();
+                  } else {
+                    void handleEnablePush();
+                  }
+                }}
+              >
+                {pushSubscribed ? 'Push actiu' : 'Activar push'}
+              </Button>
+            ) : (
+              <span className="inline-flex h-8 items-center rounded-full border border-amber-300/35 bg-amber-300/10 px-3 text-[11px] font-semibold text-amber-100">
+                Push no configurat
+              </span>
+            )
+          ) : null}
+          {canManageSchedules ? (
+            <Button
+              variant="secondary"
+              className="h-8 px-3 text-xs"
+              onClick={() => setFormOpen((value) => !value)}
+            >
+              {t('dashboard.home.socialPlanner.scheduleButton')}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
