@@ -98,6 +98,34 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   return response;
 }
 
+const UPGRADE_URL = '/dashboard/plans';
+
+function nextUtcDayStartIso(base: Date = new Date()): string {
+  const date = new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate() + 1,
+    0,
+    0,
+    0,
+    0,
+  ));
+  return date.toISOString();
+}
+
+function nextUtcMonthStartIso(base: Date = new Date()): string {
+  const date = new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth() + 1,
+    1,
+    0,
+    0,
+    0,
+    0,
+  ));
+  return date.toISOString();
+}
+
 function normalizeVertical(value: string | null | undefined): 'general' | 'restaurant' | 'hotel' {
   const normalized = (value || '').toLowerCase();
   if (normalized === 'restaurant') return 'restaurant';
@@ -407,9 +435,34 @@ export async function POST(request: Request) {
     jobId = jobAcquire.jobId;
     const activeJobId = jobAcquire.jobId;
 
+    const nowUtc = new Date();
+    const dailyResetsAt = nextUtcDayStartIso(nowUtc);
+    const monthlyResetsAt = nextUtcMonthStartIso(nowUtc);
+
+    if (memberRole === 'staff' && Boolean(orgSettings?.lito_staff_ai_paused)) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'paused',
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'feature_locked',
+            reason: 'paused',
+            feature: 'lito_copy',
+            message: 'Funció desactivada pel manager.',
+            request_id: requestId,
+          },
+          { status: 403 },
+        ),
+        requestId,
+      );
+    }
+
     const litoAccess = canUseLitoCopy({
       role: memberRole,
-      pausedFlag: Boolean(orgSettings?.lito_staff_ai_paused),
+      pausedFlag: false,
       entitlements,
     });
 
@@ -425,9 +478,7 @@ export async function POST(request: Request) {
             error: 'feature_locked',
             feature: 'lito_copy',
             reason: litoAccess.reason || 'feature_locked',
-            message: litoAccess.reason === 'paused'
-              ? 'Funció desactivada pel manager.'
-              : 'Aquesta funció és del pla Business.',
+            message: 'Aquesta funció és del pla Business.',
             request_id: requestId,
           },
           { status: 403 },
@@ -436,7 +487,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const trial = getTrialState(orgSettings);
+    const trial = getTrialState(orgSettings, nowUtc);
     if (isSoftLocked(trial)) {
       await markLitoCopyJobFailed({
         admin,
@@ -452,37 +503,7 @@ export async function POST(request: Request) {
             trial_state: trial.state,
             trial_ends_at: trial.ends_at,
             days_left: trial.remaining_days,
-            request_id: requestId,
-          },
-          { status: 402 },
-        ),
-        requestId,
-      );
-    }
-
-    const trialQuota = await enforceTrialQuota({
-      supabase,
-      orgId: recommendation.org_id,
-      trial,
-      inc: 1,
-    });
-    if (!trialQuota.ok && trialQuota.reason === 'trial_cap_reached') {
-      await markLitoCopyJobFailed({
-        admin,
-        jobId: activeJobId,
-        error: 'trial_cap_reached',
-      });
-      return withStandardHeaders(
-        NextResponse.json(
-          {
-            error: 'trial_cap_reached',
-            message: "Has arribat al límit de drafts del trial.",
-            cap: trialQuota.limit,
-            used: trialQuota.used,
-            remaining: trialQuota.remaining,
-            trial_state: trial.state,
-            trial_ends_at: trial.ends_at,
-            days_left: trial.remaining_days,
+            upgrade_url: UPGRADE_URL,
             request_id: requestId,
           },
           { status: 402 },
@@ -541,6 +562,8 @@ export async function POST(request: Request) {
                 limit: staffLimit.limit,
                 used: staffLimit.used,
                 remaining: staffLimit.remaining,
+                resets_at: dailyResetsAt,
+                upgrade_url: UPGRADE_URL,
                 request_id: requestId,
               },
               { status: 402 },
@@ -579,6 +602,8 @@ export async function POST(request: Request) {
                 used: monthlyCap.used,
                 limit: monthlyCap.limit,
                 remaining: monthlyCap.remaining,
+                resets_at: monthlyResetsAt,
+                upgrade_url: UPGRADE_URL,
                 request_id: requestId,
               },
               { status: 402 },
@@ -610,6 +635,40 @@ export async function POST(request: Request) {
       }
     }
 
+    const trialQuota = await enforceTrialQuota({
+      supabase,
+      orgId: recommendation.org_id,
+      trial,
+      inc: 1,
+    });
+    if (!trialQuota.ok && trialQuota.reason === 'trial_cap_reached') {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'trial_cap_reached',
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'trial_cap_reached',
+            message: "Has arribat al límit de drafts del trial.",
+            cap: trialQuota.limit,
+            used: trialQuota.used,
+            limit: trialQuota.limit,
+            remaining: trialQuota.remaining,
+            resets_at: trial.ends_at || monthlyResetsAt,
+            upgrade_url: UPGRADE_URL,
+            trial_state: trial.state,
+            trial_ends_at: trial.ends_at,
+            days_left: trial.remaining_days,
+            request_id: requestId,
+          },
+          { status: 402 },
+        ),
+        requestId,
+      );
+    }
+
     const quota = await consumeOrgQuota({
       supabase,
       orgId: recommendation.org_id,
@@ -631,6 +690,8 @@ export async function POST(request: Request) {
               used: quota.used,
               limit: quota.limit,
               remaining: quota.remaining,
+              resets_at: monthlyResetsAt,
+              upgrade_url: UPGRADE_URL,
               request_id: requestId,
             },
             { status: 402 },
