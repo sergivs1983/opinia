@@ -131,9 +131,11 @@ export async function enforceStaffMonthlyCap(params: {
   }
 
   if (isSchemaMissing(error)) {
-    // Keep feature usable if migration has not been applied yet.
+    // Fail-closed: if the RPC is missing the monthly cap cannot be validated.
+    // Returning ok:true here would bypass the cap — explicitly block instead.
     return {
-      ok: true,
+      ok: false,
+      reason: 'staff_monthly_cap_unavailable',
       used: 0,
       limit: 0,
       remaining: 0,
