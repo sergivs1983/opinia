@@ -102,6 +102,28 @@ type VoiceTranscribePayload = {
   message?: string;
 };
 
+type VoiceSttPayload = {
+  ok?: boolean;
+  clip_id?: string;
+  idempotent?: boolean;
+  transcript?: string;
+  transcript_lang?: string;
+  error?: string;
+  reason?: string;
+  message?: string;
+};
+
+type VoiceTtsPayload = {
+  ok?: boolean;
+  cached?: boolean;
+  clip_id?: string;
+  audio_url?: string;
+  transcript_lang?: string;
+  error?: string;
+  reason?: string;
+  message?: string;
+};
+
 type VoiceDraftsPayload = {
   ok?: boolean;
   items?: LitoVoiceActionDraft[];
@@ -518,10 +540,15 @@ export default function LitoChatView() {
   const [voiceRecording, setVoiceRecording] = useState(false);
   const [voiceSpeechSupported, setVoiceSpeechSupported] = useState(false);
   const [voicePrepareMode, setVoicePrepareMode] = useState<'record' | 'paste_transcript_only'>('paste_transcript_only');
+  const [voiceAudioFile, setVoiceAudioFile] = useState<File | null>(null);
+  const [voiceSttLoading, setVoiceSttLoading] = useState(false);
+  const [ttsLoadingMessageId, setTtsLoadingMessageId] = useState<string | null>(null);
   const [activeSignal, setActiveSignal] = useState<LitoSignalCard | null>(null);
 
   const bootstrapRef = useRef<string | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsUrlCacheRef = useRef<Map<string, string>>(new Map());
   const queryBizId = searchParams.get('biz_id');
   const queryRecommendationId = searchParams.get('recommendation_id');
   const queryThreadId = searchParams.get('thread_id');
@@ -1034,6 +1061,124 @@ export default function LitoChatView() {
     recognitionRef.current?.stop();
   }, []);
 
+  const playAudioUrl = useCallback(async (url: string) => {
+    try {
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+      }
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      await audio.play();
+    } catch {
+      throw new Error(t('dashboard.litoPage.voice.ttsError'));
+    }
+  }, [t]);
+
+  const handlePlayMessageAudio = useCallback(async (message: LitoThreadMessage) => {
+    if (!biz?.id || message.role !== 'assistant') return;
+    if (ttsLoadingMessageId === message.id) return;
+
+    const cachedUrl = ttsUrlCacheRef.current.get(message.id);
+    if (cachedUrl) {
+      try {
+        await playAudioUrl(cachedUrl);
+        return;
+      } catch (error) {
+        const errMessage = error instanceof Error ? error.message : t('dashboard.litoPage.voice.ttsError');
+        toast(errMessage, 'error');
+        return;
+      }
+    }
+
+    setTtsLoadingMessageId(message.id);
+    try {
+      const response = await fetch('/api/lito/voice/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': createClientRequestId(),
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          biz_id: biz.id,
+          message_id: message.id,
+          lang: voiceTranscriptLang,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as VoiceTtsPayload;
+
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (response.status === 503 || payload.error === 'voice_unavailable') {
+        toast(payload.message || t('dashboard.litoPage.voice.unavailable'), 'warning');
+        return;
+      }
+      if (!response.ok || payload.error || !payload.audio_url) {
+        throw new Error(payload.message || t('dashboard.litoPage.voice.ttsError'));
+      }
+
+      ttsUrlCacheRef.current.set(message.id, payload.audio_url);
+      await playAudioUrl(payload.audio_url);
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : t('dashboard.litoPage.voice.ttsError');
+      toast(errMessage, 'error');
+    } finally {
+      setTtsLoadingMessageId(null);
+    }
+  }, [biz?.id, playAudioUrl, router, t, toast, ttsLoadingMessageId, voiceTranscriptLang]);
+
+  const handleVoiceSttFromFile = useCallback(async () => {
+    if (!voiceAudioFile || !biz?.id) {
+      toast(t('dashboard.litoPage.voice.transcriptRequired'), 'warning');
+      return;
+    }
+
+    setVoiceSttLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('biz_id', biz.id);
+      if (activeThreadId) formData.append('thread_id', activeThreadId);
+      formData.append('lang', voiceTranscriptLang);
+      formData.append('audio', voiceAudioFile);
+
+      const response = await fetch('/api/lito/voice/stt', {
+        method: 'POST',
+        headers: {
+          'x-request-id': createClientRequestId(),
+        },
+        cache: 'no-store',
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => ({}))) as VoiceSttPayload;
+
+      if (response.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (response.status === 503 || payload.error === 'voice_unavailable') {
+        toast(payload.message || t('dashboard.litoPage.voice.unavailable'), 'warning');
+        return;
+      }
+      if (!response.ok || payload.error || !payload.transcript) {
+        throw new Error(payload.message || t('dashboard.litoPage.voice.sttError'));
+      }
+
+      setVoiceTranscript(payload.transcript);
+      if (payload.transcript_lang) {
+        setVoiceTranscriptLang(payload.transcript_lang);
+      }
+      setVoiceAudioFile(null);
+      toast(t('dashboard.litoPage.voice.sttSuccess'), 'success');
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : t('dashboard.litoPage.voice.sttError');
+      toast(errMessage, 'error');
+    } finally {
+      setVoiceSttLoading(false);
+    }
+  }, [activeThreadId, biz?.id, router, t, toast, voiceAudioFile, voiceTranscriptLang]);
+
   const handleVoiceDraftMutation = useCallback(async (
     draftId: string,
     action: 'approve' | 'reject' | 'execute' | 'submit',
@@ -1266,6 +1411,7 @@ export default function LitoChatView() {
 
       setVoiceSheetOpen(false);
       setVoiceTranscript('');
+      setVoiceAudioFile(null);
       setVoiceExpandedDraftId(null);
       setVoiceEditingDraftId(null);
       setVoiceEditingSummary('');
@@ -1636,6 +1782,15 @@ export default function LitoChatView() {
   useEffect(() => () => {
     recognitionRef.current?.stop();
     recognitionRef.current = null;
+  }, []);
+
+  useEffect(() => () => {
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.src = '';
+      ttsAudioRef.current = null;
+    }
+    ttsUrlCacheRef.current.clear();
   }, []);
 
   const visibleMessages = useMemo(() => sanitizeMessages(messages), [messages]);
@@ -2342,7 +2497,21 @@ export default function LitoChatView() {
                         </button>
                       </div>
                     ) : null}
-                    <p className={cn('mt-1 text-[11px]', textSub)}>{formatThreadDate(message.created_at)}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      {message.role === 'assistant' ? (
+                        <button
+                          type="button"
+                          onClick={() => void handlePlayMessageAudio(message)}
+                          disabled={ttsLoadingMessageId === message.id}
+                          className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] text-white/80 transition-colors hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                          title={t('dashboard.litoPage.voice.ttsPlay')}
+                          aria-label={t('dashboard.litoPage.voice.ttsPlay')}
+                        >
+                          {ttsLoadingMessageId === message.id ? '…' : '🔊'}
+                        </button>
+                      ) : null}
+                      <p className={cn('text-[11px]', textSub)}>{formatThreadDate(message.created_at)}</p>
+                    </div>
                   </div>
                 );
               })}
@@ -2449,6 +2618,7 @@ export default function LitoChatView() {
                 onClick={() => {
                   setVoiceSheetOpen(false);
                   setVoiceRecording(false);
+                  setVoiceAudioFile(null);
                   recognitionRef.current?.stop();
                 }}
               >
@@ -2510,6 +2680,34 @@ export default function LitoChatView() {
               </div>
             </div>
 
+            <div className="mb-3 rounded-xl border border-white/10 bg-black/20 p-3">
+              <label className={cn('mb-2 block text-xs font-medium', textSub)} htmlFor="voice-audio-upload">
+                {t('dashboard.litoPage.voice.audioFileLabel')}
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  id="voice-audio-upload"
+                  type="file"
+                  accept="audio/*"
+                  className="max-w-full text-xs text-white/80 file:mr-2 file:rounded-md file:border-0 file:bg-white/10 file:px-2 file:py-1 file:text-xs file:text-white hover:file:bg-white/20"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setVoiceAudioFile(file);
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 px-3 text-xs"
+                  loading={voiceSttLoading}
+                  disabled={voiceSttLoading || !voiceAudioFile}
+                  onClick={() => void handleVoiceSttFromFile()}
+                >
+                  {t('dashboard.litoPage.voice.transcribeAudio')}
+                </Button>
+              </div>
+            </div>
+
             <textarea
               value={voiceTranscript}
               onChange={(event) => setVoiceTranscript(event.target.value)}
@@ -2526,6 +2724,7 @@ export default function LitoChatView() {
                 onClick={() => {
                   setVoiceSheetOpen(false);
                   setVoiceRecording(false);
+                  setVoiceAudioFile(null);
                   recognitionRef.current?.stop();
                 }}
               >
@@ -2535,7 +2734,7 @@ export default function LitoChatView() {
                 size="sm"
                 className="h-8 px-3 text-xs"
                 loading={voiceSubmitting}
-                disabled={voiceSubmitting || voiceTranscript.trim().length < 3}
+                disabled={voiceSubmitting || voiceSttLoading || voiceTranscript.trim().length < 3}
                 onClick={() => void handleVoiceTranscribe()}
               >
                 {voicePrepareMode === 'paste_transcript_only'
