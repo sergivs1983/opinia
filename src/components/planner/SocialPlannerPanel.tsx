@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import { toLocalDateTimeInputValue } from '@/lib/social/schedules';
+import { getIkeaChecklist } from '@/lib/recommendations/howto';
 
 type ViewerRole = 'owner' | 'manager' | 'staff';
 
@@ -147,6 +148,12 @@ function normalizeScheduleCopy(draft: SocialDraftItem | null | undefined): strin
   return parts.join('\n\n').trim();
 }
 
+function normalizeExecutionCopy(draft: SocialDraftItem | null | undefined, ikeaCopyText: string): string {
+  const draftText = normalizeScheduleCopy(draft);
+  if (!draftText) return ikeaCopyText;
+  return `${draftText}\n\n---\n\n${ikeaCopyText}`.trim();
+}
+
 function defaultScheduledAt(): string {
   const date = new Date(Date.now() + 60 * 60 * 1000);
   return toLocalDateTimeInputValue(date.toISOString());
@@ -181,10 +188,12 @@ export default function SocialPlannerPanel() {
   const [creating, setCreating] = useState(false);
   const [actionById, setActionById] = useState<Record<string, boolean>>({});
   const [formOpen, setFormOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedDraftId, setSelectedDraftId] = useState('');
   const [platform, setPlatform] = useState<'instagram' | 'tiktok'>('instagram');
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt());
   const [assignedUserId, setAssignedUserId] = useState('');
+  const [executionChannelByScheduleId, setExecutionChannelByScheduleId] = useState<Record<string, 'instagram' | 'tiktok'>>({});
   const [weeklyStats, setWeeklyStats] = useState<{
     published_count: number;
     goal: number;
@@ -341,9 +350,15 @@ export default function SocialPlannerPanel() {
       return;
     }
     if (preselectedDraftId) {
+      setShowAdvanced(true);
       setFormOpen(true);
     }
   }, [canManageSchedules, preselectedDraftId]);
+
+  useEffect(() => {
+    if (showAdvanced) return;
+    setFormOpen(false);
+  }, [showAdvanced]);
 
   const scheduledItems = useMemo(
     () => schedules.filter((item) => SCHEDULED_STATUSES.has(item.status)),
@@ -455,8 +470,7 @@ export default function SocialPlannerPanel() {
     }
   }, [loadPlannerData, t, toast]);
 
-  const handleCopyDraft = useCallback(async (draft: SocialDraftItem | null | undefined) => {
-    const text = normalizeScheduleCopy(draft);
+  const handleCopyDraft = useCallback(async (text: string) => {
     if (!text) {
       toast(t('dashboard.home.socialPlanner.copyError'), 'error');
       return;
@@ -604,7 +618,16 @@ export default function SocialPlannerPanel() {
               </span>
             )
           ) : null}
-          {canManageSchedules ? (
+          <Button
+            variant="ghost"
+            className="h-8 px-3 text-xs text-white/80 hover:text-white"
+            onClick={() => setShowAdvanced((value) => !value)}
+          >
+            {showAdvanced
+              ? t('dashboard.home.socialPlanner.advancedOptionsHide')
+              : t('dashboard.home.socialPlanner.advancedOptionsShow')}
+          </Button>
+          {canManageSchedules && showAdvanced ? (
             <Button
               variant="secondary"
               className="h-8 px-3 text-xs"
@@ -650,7 +673,7 @@ export default function SocialPlannerPanel() {
         ) : null}
       </div>
 
-      {canManageSchedules && formOpen ? (
+      {canManageSchedules && showAdvanced && formOpen ? (
         <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
           <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
             {t('dashboard.home.socialPlanner.scheduleModalTitle')}
@@ -708,24 +731,24 @@ export default function SocialPlannerPanel() {
 
           {approvedDrafts.length === 0 ? (
             <div className="mt-2 space-y-2">
-              <p className="text-xs text-amber-200/85">{t('dashboard.home.socialPlanner.approvedDraftsEmpty')}</p>
-              <div className="flex flex-wrap gap-2">
+                <p className="text-xs text-amber-200/85">{t('dashboard.home.socialPlanner.approvedDraftsEmpty')}</p>
+                <div className="flex flex-wrap gap-2">
                 <Button
                   variant="secondary"
                   className="h-7 px-2 text-[11px]"
                   onClick={() => router.push(`/dashboard/lito?biz_id=${biz.id}`)}
                 >
-                  {t('dashboard.home.socialPlanner.createDraftCta')}
+                    {t('dashboard.home.socialPlanner.createDraftCta')}
                 </Button>
                 <Button
                   variant="ghost"
                   className="h-7 px-2 text-[11px]"
                   onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
                 >
-                  {t('dashboard.home.socialPlanner.viewPendingCta')}
-                </Button>
+                    {t('dashboard.home.socialPlanner.viewPendingCta')}
+                  </Button>
+                </div>
               </div>
-            </div>
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -759,40 +782,50 @@ export default function SocialPlannerPanel() {
             ) : scheduledItems.length === 0 ? (
               <div className="space-y-2">
                 <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
-                {canManageSchedules ? (
-                  <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    variant="secondary"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={() => router.push(`/dashboard/lito?biz_id=${biz.id}`)}
+                  >
+                    {t('dashboard.home.socialPlanner.prepareWithLito')}
+                  </Button>
+                  {canManageSchedules && showAdvanced ? (
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       className="h-7 px-2 text-[11px]"
                       onClick={() => setFormOpen(true)}
                     >
                       {t('dashboard.home.socialPlanner.emptyScheduledCta')}
                     </Button>
-                    {approvedDrafts.length === 0 ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => router.push(`/dashboard/lito?biz_id=${biz.id}`)}
-                        >
-                          {t('dashboard.home.socialPlanner.createDraftCta')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
-                        >
-                          {t('dashboard.home.socialPlanner.viewPendingCta')}
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
+                  ) : null}
+                  {approvedDrafts.length === 0 ? (
+                    <Button
+                      variant="ghost"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
+                    >
+                      {t('dashboard.home.socialPlanner.viewPendingCta')}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : (
               scheduledItems.map((item) => {
                 const pending = Boolean(actionById[item.id]);
                 const draft = item.draft || null;
+                const executionChannel = executionChannelByScheduleId[item.id] || item.platform;
+                const ikeaChecklist = getIkeaChecklist({
+                  t,
+                  format: draft?.format || 'post',
+                  channel: executionChannel,
+                  locale: locale === 'es' || locale === 'en' ? locale : 'ca',
+                  vertical: biz.type || 'general',
+                  hook: draft?.title || '',
+                  idea: draft?.copy_short || draft?.copy_long || '',
+                  cta: t('dashboard.home.socialPlanner.ikeaCtaFallback'),
+                });
+                const executionCopy = normalizeExecutionCopy(draft, ikeaChecklist.copyText);
                 const draftTitle = draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle');
                 const assigneeLabel = assigneeNames[item.assigned_user_id] || t('dashboard.home.socialPlanner.assignedFallback');
                 return (
@@ -825,6 +858,42 @@ export default function SocialPlannerPanel() {
                     <span className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/70">
                       {t(`dashboard.home.socialPlanner.status.${item.status}`)}
                     </span>
+                    <div className="mt-2 rounded-md border border-white/10 bg-black/20 p-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-white/65">
+                        {t('dashboard.home.socialPlanner.ikeaQuickTitle')}
+                      </p>
+                      <div className="mt-1 inline-flex rounded-full border border-white/10 bg-black/30 p-0.5">
+                        <button
+                          type="button"
+                          className={cn(
+                            'rounded-full px-2 py-1 text-[10px] font-medium transition-colors',
+                            executionChannel === 'instagram'
+                              ? 'bg-white/16 text-white'
+                              : 'text-white/70 hover:text-white',
+                          )}
+                          onClick={() => setExecutionChannelByScheduleId((previous) => ({ ...previous, [item.id]: 'instagram' }))}
+                        >
+                          Instagram
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            'rounded-full px-2 py-1 text-[10px] font-medium transition-colors',
+                            executionChannel === 'tiktok'
+                              ? 'bg-white/16 text-white'
+                              : 'text-white/70 hover:text-white',
+                          )}
+                          onClick={() => setExecutionChannelByScheduleId((previous) => ({ ...previous, [item.id]: 'tiktok' }))}
+                        >
+                          TikTok
+                        </button>
+                      </div>
+                      <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] text-white/75">
+                        {ikeaChecklist.steps.slice(0, 2).map((step) => (
+                          <li key={`${item.id}-${step}`}>{step}</li>
+                        ))}
+                      </ul>
+                    </div>
                     <div className="mt-2 flex flex-wrap gap-1">
                       <Button
                         variant="secondary"
@@ -839,36 +908,26 @@ export default function SocialPlannerPanel() {
                         }}
                       >
                         {canMarkPublished
-                          ? t('dashboard.home.socialPlanner.markPublished')
+                          ? t('dashboard.home.socialPlanner.quickDone')
                           : t('dashboard.home.socialPlanner.viewItem')}
                       </Button>
-                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(draft)}>
-                        {t('dashboard.home.socialPlanner.copyText')}
+                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(executionCopy)}>
+                        {t('dashboard.home.socialPlanner.quickCopy')}
                       </Button>
-                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
-                        {t('dashboard.home.socialPlanner.openPlatform')}
+                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(executionChannel), '_blank', 'noopener,noreferrer')}>
+                        {t('dashboard.home.socialPlanner.quickOpen')}
                       </Button>
                       {canSnoozeSchedules ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            className="h-7 px-2 text-[11px]"
-                            loading={pending}
-                            onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'plus_1h' })}
-                          >
-                            {t('dashboard.home.socialPlanner.snooze1h')}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className="h-7 px-2 text-[11px]"
-                            loading={pending}
-                            onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
-                          >
-                            {t('dashboard.home.socialPlanner.snoozeTomorrow')}
-                          </Button>
-                        </>
+                        <Button
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px]"
+                          loading={pending}
+                          onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
+                        >
+                          {t('dashboard.home.socialPlanner.quickTomorrow')}
+                        </Button>
                       ) : null}
-                      {canManageSchedules ? (
+                      {canManageSchedules && showAdvanced ? (
                         <Button
                           variant="ghost"
                           className="h-7 px-2 text-[11px] text-rose-200"
@@ -914,11 +973,11 @@ export default function SocialPlannerPanel() {
                     >
                       {t('dashboard.home.socialPlanner.viewItem')}
                     </Button>
-                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(item.draft || null)}>
-                      {t('dashboard.home.socialPlanner.copyText')}
+                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(normalizeScheduleCopy(item.draft || null))}>
+                      {t('dashboard.home.socialPlanner.quickCopy')}
                     </Button>
                     <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
-                      {t('dashboard.home.socialPlanner.openPlatform')}
+                      {t('dashboard.home.socialPlanner.quickOpen')}
                     </Button>
                   </div>
                 </div>
