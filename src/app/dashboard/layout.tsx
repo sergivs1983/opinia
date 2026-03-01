@@ -9,6 +9,7 @@ import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import PaywallModal, { type PaywallAction, type PaywallTriggerReason } from '@/components/pricing/PaywallModal';
 import LitoLauncher from '@/components/lito/LitoLauncher';
+import PwaBootstrap from '@/components/pwa/PwaBootstrap';
 import { useToast } from '@/components/ui/Toast';
 import { useT } from '@/components/i18n/I18nContext';
 import { ringAccent } from '@/components/ui/glass';
@@ -1584,6 +1585,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       />
 
       <LitoLauncher />
+      <PwaBootstrap />
     </div>
   );
 }

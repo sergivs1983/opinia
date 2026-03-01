@@ -10,8 +10,10 @@ import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ToastProvider } from '@/components/ui/Toast';
 
 export const metadata: Metadata = {
+  applicationName: 'OpinIA',
   title: 'OpinIA – Respostes professionals amb IA per al teu negoci',
   description: 'Genera respostes professionals amb IA a ressenyes de restaurants, hotels i apartaments.',
+  manifest: '/manifest.webmanifest',
   openGraph: {
     title: 'OpinIA',
     description: 'Respostes professionals amb IA per al teu negoci.',
@@ -29,6 +31,11 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' }],
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'OpinIA',
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -39,6 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={locale} className="scroll-smooth" suppressHydrationWarning>
       <head>
         <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" content="#111827" />
       </head>
       <body className="min-h-screen">
         <ThemeProvider>
