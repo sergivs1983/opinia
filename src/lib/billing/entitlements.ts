@@ -95,6 +95,7 @@ const LEGACY_PLAN_MAP: Record<string, CanonicalPlanCode> = {
   scale: 'scale',
   scale_149: 'scale',
   pro_149: 'scale',
+  agency: 'scale',
   enterprise: 'scale',
 };
 

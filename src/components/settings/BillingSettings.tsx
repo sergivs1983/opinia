@@ -56,7 +56,13 @@ export default function BillingSettings({ org }: OrgProps) {
       });
       const json = await res.json();
       if (json.success) await loadBilling();
-      else if (json.action === 'stripe_checkout') alert(json.message);
+      else if (json.action === 'stripe_checkout') {
+        if (typeof json.checkout_url === 'string' && json.checkout_url.trim().length > 0) {
+          window.location.assign(json.checkout_url);
+        } else {
+          alert(json.message || 'No s\'ha pogut iniciar Stripe Checkout');
+        }
+      }
     } catch (e) { console.error(e); }
     setUpgrading(null);
   };

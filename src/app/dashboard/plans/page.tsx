@@ -105,6 +105,7 @@ function signalLabel(value: string | null | undefined): string {
 export default function DashboardPlansPage() {
   const t = useT();
   const { org, membership } = useWorkspace();
+  const stripePortalUrl = process.env.NEXT_PUBLIC_STRIPE_PORTAL_URL || null;
   const canManage = useMemo(() => {
     const role = (membership?.role || '').toLowerCase();
     return role === 'owner' || role === 'manager';
@@ -247,6 +248,19 @@ export default function DashboardPlansPage() {
       </section>
 
       <GlassCard variant="glass" className="p-4 md:p-5">
+        <p className={cn('text-sm', textSub)}>
+          Billing gestionat amb Stripe.
+          {stripePortalUrl ? (
+            <a
+              href={stripePortalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-2 text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
+            >
+              Obrir portal de facturació
+            </a>
+          ) : null}
+        </p>
         <p className={cn('text-sm', textSub)}>
           Governance staff: límit diari 10 accions, cap mensual 30% de quota org i panic toggle per owner/manager.
         </p>

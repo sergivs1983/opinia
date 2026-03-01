@@ -10,10 +10,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { trackEvent } from '@/lib/telemetry';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import {
-  isMissingSeatColumnsError,
-  mapSeatPlan,
   normalizeOrgRolesForPlan,
 } from '@/lib/seats';
+import { getEntitlementsForPlan, toLegacySeatPlanCode } from '@/lib/billing/stripe-plans';
 import {
   OrgSetPlanParamsSchema,
   OrgSetPlanSchema,
@@ -55,7 +54,7 @@ export async function POST(
       supabase,
       userId: user.id,
       orgId: routeParams.orgId,
-      allowedRoles: ['owner'],
+      allowedRoles: ['owner', 'manager'],
     });
 
     if (!hasMembership) {
@@ -64,13 +63,17 @@ export async function POST(
   }
 
   const admin = createAdminClient();
-  const seatPlan = mapSeatPlan(body.plan_code);
-  const canonicalPlanCode = normalizePlanCode(seatPlan.plan_code);
+  const canonicalPlanCode = normalizePlanCode(body.plan_code);
+  const entitlements = getEntitlementsForPlan(canonicalPlanCode);
   const payload = {
     plan_code: canonicalPlanCode,
-    seats_limit: seatPlan.seats_limit,
-    business_limit: seatPlan.business_limit,
-    plan_price_cents: seatPlan.plan_price_cents,
+    plan: canonicalPlanCode,
+    max_businesses: entitlements.locations_limit,
+    max_team_members: entitlements.seats_limit,
+    max_reviews_mo: entitlements.drafts_limit,
+    seats_limit: entitlements.seats_limit,
+    business_limit: entitlements.locations_limit,
+    plan_price_cents: entitlements.monthly_price_cents,
     billing_status: 'active',
   };
 
@@ -79,28 +82,6 @@ export async function POST(
     .update(payload)
     .eq('id', routeParams.orgId);
 
-  if (error && isMissingSeatColumnsError(error)) {
-    await trackEvent({
-      supabase: admin,
-      orgId: routeParams.orgId,
-      userId: actorUserId,
-      name: 'checkout_failed',
-      props: {
-        source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_owner',
-        plan: canonicalPlanCode,
-        reason: 'schema_missing',
-      },
-      requestId,
-    });
-    return NextResponse.json(
-      {
-        error: 'schema_missing',
-        message: "Falten columnes de límits de pla. Executa la migració '20260314030000_phase_t_plan_business_limits_social_posts.sql'.",
-      },
-      { status: 409 },
-    );
-  }
-
   if (error) {
     await trackEvent({
       supabase: admin,
@@ -108,7 +89,7 @@ export async function POST(
       userId: actorUserId,
       name: 'checkout_failed',
       props: {
-        source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_owner',
+        source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_manual_override',
         plan: canonicalPlanCode,
         reason: error.code || error.message || 'update_failed',
       },
@@ -117,10 +98,24 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  await admin.from('org_entitlements').upsert(
+    {
+      org_id: routeParams.orgId,
+      locations_limit: entitlements.locations_limit,
+      seats_limit: entitlements.seats_limit,
+      lito_drafts_limit: entitlements.drafts_limit,
+      signals_level: entitlements.signals_level,
+      staff_daily_limit: 10,
+      staff_monthly_ratio_cap: 0.3,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'org_id' },
+  );
+
   try {
     await normalizeOrgRolesForPlan(admin, {
       orgId: routeParams.orgId,
-      planCode: seatPlan.plan_code,
+      planCode: toLegacySeatPlanCode(canonicalPlanCode),
     });
   } catch (normalizeError: unknown) {
     await trackEvent({
@@ -129,7 +124,7 @@ export async function POST(
       userId: actorUserId,
       name: 'checkout_failed',
       props: {
-        source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_owner',
+        source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_manual_override',
         plan: canonicalPlanCode,
         reason: 'role_normalization_failed',
         detail: normalizeError instanceof Error ? normalizeError.message : String(normalizeError),
@@ -151,7 +146,7 @@ export async function POST(
     userId: actorUserId,
     name: 'checkout_success',
     props: {
-      source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_owner',
+      source: secretAuthorized ? 'set_plan_admin_secret' : 'set_plan_manual_override',
       plan: canonicalPlanCode,
     },
     requestId,
@@ -161,7 +156,7 @@ export async function POST(
     ok: true,
     org_id: routeParams.orgId,
     plan_code: canonicalPlanCode,
-    seats_limit: seatPlan.seats_limit,
-    business_limit: seatPlan.business_limit,
+    seats_limit: entitlements.seats_limit,
+    business_limit: entitlements.locations_limit,
   });
 }

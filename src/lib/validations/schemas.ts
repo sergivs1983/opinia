@@ -186,7 +186,20 @@ export const OrgSetPlanParamsSchema = z.object({
 });
 
 export const OrgSetPlanSchema = z.object({
-  plan_code: z.enum(['starter_49', 'pro_149']),
+  plan_code: z.enum([
+    'starter',
+    'business',
+    'scale',
+    'starter_29',
+    'starter_49',
+    'free',
+    'pro',
+    'pro_49',
+    'pro_149',
+    'scale_149',
+    'agency',
+    'enterprise',
+  ]),
 });
 
 // ────────────────────────────────────────────
