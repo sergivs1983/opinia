@@ -912,7 +912,13 @@
       },
       "messages": {
         "quotaExceeded": "Has agotado la cuota mensual. Puedes escribir manualmente o ampliar el plan.",
+        "trialEnded": "La prueba ha finalizado. Puedes seguir viendo datos, pero para generar con LITO debes activar un plan.",
+        "trialCapReached": "Has alcanzado el límite de drafts del trial.",
         "managerRequired": "Requiere manager"
+      },
+      "trial": {
+        "activeBadge": "Trial: {days} días",
+        "readOnlyBadge": "Solo lectura"
       },
       "voice": {
         "widgetTitle": "Acciones por confirmar (Voice)",
@@ -1899,10 +1905,15 @@
       "quota_exceeded_title": "Cuota mensual agotada",
       "feature_locked_title": "Función bloqueada por el plan",
       "limit_reached_title": "Límite del plan alcanzado",
+      "trial_ended_title": "La prueba ha finalizado",
+      "trial_cap_reached_title": "Límite de trial alcanzado",
       "quota_exceeded_msg": "Has agotado los Drafts LITO de este mes ({used}/{limit}).",
       "quota_exceeded_msg_simple": "Has agotado los Drafts LITO de este mes.",
       "feature_locked_msg": "Esta función es del plan Business.",
       "limit_reached_msg": "Has llegado al límite de locales/usuarios de tu plan.",
+      "trial_ended_msg": "Puedes seguir viendo datos, pero para generar con LITO debes activar un plan.",
+      "trial_cap_reached_msg": "Has alcanzado el límite de drafts del trial ({used}/{limit}).",
+      "trial_cap_reached_msg_simple": "Has alcanzado el límite de drafts del trial.",
       "close": "Cerrar",
       "view_plans": "Ver planes"
     }

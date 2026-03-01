@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
 import GlassCard from '@/components/ui/GlassCard';
+import EntitlementPaywallModal, { type EntitlementModalType } from '@/components/billing/EntitlementPaywallModal';
 import { useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useToast } from '@/components/ui/Toast';
@@ -61,6 +62,20 @@ type GeneratePayload = {
   copy?: LitoGeneratedCopy;
   error?: string;
   reason?: 'missing_api_key' | 'paused' | 'disabled' | 'ok';
+  used?: number;
+  limit?: number;
+  cap?: number;
+  message?: string;
+};
+
+type TrialStatusPayload = {
+  ok?: boolean;
+  trial_state?: 'none' | 'active' | 'ended';
+  days_left?: number;
+  trial_ends_at?: string | null;
+  cap?: number | null;
+  used_estimate?: number;
+  error?: string;
   message?: string;
 };
 
@@ -390,6 +405,12 @@ export default function LitoChatView() {
   const [copyLoading, setCopyLoading] = useState(false);
   const [copyAction, setCopyAction] = useState<'generate' | QuickRefineMode | null>(null);
   const [quickRefinePrompt, setQuickRefinePrompt] = useState('');
+  const [trialState, setTrialState] = useState<'none' | 'active' | 'ended'>('none');
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number>(0);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallType, setPaywallType] = useState<EntitlementModalType>('quota_exceeded');
+  const [paywallUsed, setPaywallUsed] = useState<number | undefined>(undefined);
+  const [paywallLimit, setPaywallLimit] = useState<number | undefined>(undefined);
   const [ikeaChannel, setIkeaChannel] = useState<RecommendationChannel>('instagram');
   // D1.6: IKEA panel is hidden by default; user opens it on-demand
   const [ikeaOpen, setIkeaOpen] = useState(false);
@@ -455,6 +476,18 @@ export default function LitoChatView() {
     return fallback || t('dashboard.home.recommendations.lito.aiUnavailable');
   }, [t]);
 
+  const openPaywall = useCallback((type: EntitlementModalType, payload?: GeneratePayload) => {
+    setPaywallType(type);
+    setPaywallUsed(typeof payload?.used === 'number' ? payload.used : undefined);
+    const resolvedLimit = typeof payload?.cap === 'number'
+      ? payload.cap
+      : typeof payload?.limit === 'number'
+        ? payload.limit
+        : undefined;
+    setPaywallLimit(resolvedLimit);
+    setPaywallOpen(true);
+  }, []);
+
   const replaceQuery = useCallback((next: { bizId?: string | null; recommendationId?: string | null; threadId?: string | null }) => {
     const params = new URLSearchParams(searchParams.toString());
     if (next.bizId) params.set('biz_id', next.bizId);
@@ -518,6 +551,29 @@ export default function LitoChatView() {
     }
   }, [biz?.id]);
 
+  const loadTrialStatus = useCallback(async () => {
+    if (!biz?.org_id) {
+      setTrialState('none');
+      setTrialDaysLeft(0);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/billing/trial?org_id=${biz.org_id}`);
+      const payload = (await response.json().catch(() => ({}))) as TrialStatusPayload;
+      if (!response.ok || payload.error) {
+        setTrialState('none');
+        setTrialDaysLeft(0);
+        return;
+      }
+      const state = payload.trial_state || 'none';
+      setTrialState(state);
+      setTrialDaysLeft(typeof payload.days_left === 'number' ? Math.max(0, payload.days_left) : 0);
+    } catch {
+      setTrialState('none');
+      setTrialDaysLeft(0);
+    }
+  }, [biz?.org_id]);
+
   const loadThreadDetail = useCallback(async (threadId: string) => {
     setMessagesLoading(true);
     try {
@@ -579,7 +635,18 @@ export default function LitoChatView() {
         toast(aiReasonMessage(payload.reason, payload.message), 'warning');
         return;
       }
-      if (response.status === 402 || payload.error === 'quota_exceeded') {
+      if (response.status === 402 && payload.error === 'trial_ended') {
+        openPaywall('trial_ended', payload);
+        toast(payload.message || t('dashboard.litoPage.messages.trialEnded'), 'warning');
+        return;
+      }
+      if (response.status === 402 && payload.error === 'trial_cap_reached') {
+        openPaywall('trial_cap_reached', payload);
+        toast(payload.message || t('dashboard.litoPage.messages.trialCapReached'), 'warning');
+        return;
+      }
+      if (payload.error === 'quota_exceeded' || (response.status === 402 && !payload.error)) {
+        openPaywall('quota_exceeded', payload);
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
         return;
       }
@@ -609,7 +676,7 @@ export default function LitoChatView() {
     } finally {
       setCopyAction(null);
     }
-  }, [activeRecommendation?.format, activeRecommendation?.id, aiReasonMessage, biz?.id, t, toast]);
+  }, [activeRecommendation?.format, activeRecommendation?.id, aiReasonMessage, biz?.id, openPaywall, t, toast]);
 
   const runQuickRefine = useCallback(async (mode: QuickRefineMode) => {
     if (!biz?.id || !activeRecommendation?.id) return;
@@ -631,7 +698,18 @@ export default function LitoChatView() {
         toast(aiReasonMessage(payload.reason, payload.message), 'warning');
         return;
       }
-      if (response.status === 402 || payload.error === 'quota_exceeded') {
+      if (response.status === 402 && payload.error === 'trial_ended') {
+        openPaywall('trial_ended', payload);
+        toast(payload.message || t('dashboard.litoPage.messages.trialEnded'), 'warning');
+        return;
+      }
+      if (response.status === 402 && payload.error === 'trial_cap_reached') {
+        openPaywall('trial_cap_reached', payload);
+        toast(payload.message || t('dashboard.litoPage.messages.trialCapReached'), 'warning');
+        return;
+      }
+      if (payload.error === 'quota_exceeded' || (response.status === 402 && !payload.error)) {
+        openPaywall('quota_exceeded', payload);
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
         return;
       }
@@ -667,7 +745,7 @@ export default function LitoChatView() {
     } finally {
       setCopyAction(null);
     }
-  }, [activeRecommendation?.id, aiReasonMessage, biz?.id, t, toast]);
+  }, [activeRecommendation?.id, aiReasonMessage, biz?.id, openPaywall, t, toast]);
 
   const handleCopyText = useCallback(async (value: string) => {
     if (!value.trim()) return;
@@ -1278,7 +1356,8 @@ export default function LitoChatView() {
     void loadWeeklyRecommendations();
     void loadThreads();
     void loadVoiceDrafts();
-  }, [biz?.id, loadThreads, loadVoiceDrafts, loadWeeklyRecommendations]);
+    void loadTrialStatus();
+  }, [biz?.id, loadThreads, loadTrialStatus, loadVoiceDrafts, loadWeeklyRecommendations]);
 
   useEffect(() => {
     if (!biz?.id) return;
@@ -1398,6 +1477,16 @@ export default function LitoChatView() {
             {t('dashboard.litoPage.chat.title')}
           </h1>
           <p className={cn('mt-1 text-sm', textSub)}>{t('dashboard.litoPage.chat.subtitle')}</p>
+          {trialState === 'active' ? (
+            <p className="mt-2 inline-flex rounded-full border border-cyan-300/35 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-medium text-cyan-200">
+              {t('dashboard.litoPage.trial.activeBadge', { days: trialDaysLeft })}
+            </p>
+          ) : null}
+          {trialState === 'ended' ? (
+            <p className="mt-2 inline-flex rounded-full border border-amber-300/35 bg-amber-500/12 px-2.5 py-1 text-[11px] font-medium text-amber-200">
+              {t('dashboard.litoPage.trial.readOnlyBadge')}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -2250,6 +2339,14 @@ export default function LitoChatView() {
           </div>
         </div>
       ) : null}
+
+      <EntitlementPaywallModal
+        isOpen={paywallOpen}
+        type={paywallType}
+        used={paywallUsed}
+        limit={paywallLimit}
+        onClose={() => setPaywallOpen(false)}
+      />
     </div>
   );
 }

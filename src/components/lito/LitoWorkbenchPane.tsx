@@ -52,6 +52,7 @@ type GeneratePayload = {
   used?: number;
   limit?: number;
   remaining?: number;
+  cap?: number;
   message?: string;
 };
 
@@ -288,9 +289,24 @@ export default function LitoWorkbenchPane({
         return;
       }
 
-      if (response.status === 402 || payload.error === 'quota_exceeded') {
+      if (payload.error === 'quota_exceeded' || (response.status === 402 && !payload.error)) {
         openPaywall('quota_exceeded', payload);
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
+        return;
+      }
+
+      if (response.status === 402 && payload.error === 'trial_ended') {
+        openPaywall('trial_ended', payload);
+        toast(payload.message || t('dashboard.litoPage.messages.trialEnded'), 'warning');
+        return;
+      }
+
+      if (response.status === 402 && payload.error === 'trial_cap_reached') {
+        openPaywall('trial_cap_reached', {
+          ...payload,
+          limit: typeof payload.cap === 'number' ? payload.cap : payload.limit,
+        });
+        toast(payload.message || t('dashboard.litoPage.messages.trialCapReached'), 'warning');
         return;
       }
 
@@ -366,9 +382,24 @@ export default function LitoWorkbenchPane({
         return;
       }
 
-      if (response.status === 402 || payload.error === 'quota_exceeded') {
+      if (payload.error === 'quota_exceeded' || (response.status === 402 && !payload.error)) {
         openPaywall('quota_exceeded', payload);
         toast(payload.message || t('dashboard.litoPage.messages.quotaExceeded'), 'warning');
+        return;
+      }
+
+      if (response.status === 402 && payload.error === 'trial_ended') {
+        openPaywall('trial_ended', payload);
+        toast(payload.message || t('dashboard.litoPage.messages.trialEnded'), 'warning');
+        return;
+      }
+
+      if (response.status === 402 && payload.error === 'trial_cap_reached') {
+        openPaywall('trial_cap_reached', {
+          ...payload,
+          limit: typeof payload.cap === 'number' ? payload.cap : payload.limit,
+        });
+        toast(payload.message || t('dashboard.litoPage.messages.trialCapReached'), 'warning');
         return;
       }
 

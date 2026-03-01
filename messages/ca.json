@@ -912,7 +912,13 @@
       },
       "messages": {
         "quotaExceeded": "Has esgotat la quota del mes. Pots escriure manualment o ampliar el pla.",
+        "trialEnded": "La prova ha finalitzat. Pots seguir veient dades, però per generar amb LITO cal activar un pla.",
+        "trialCapReached": "Has arribat al límit de drafts del trial.",
         "managerRequired": "Cal manager"
+      },
+      "trial": {
+        "activeBadge": "Trial: {days} dies",
+        "readOnlyBadge": "Read-only"
       },
       "voice": {
         "widgetTitle": "Accions per confirmar (Voice)",
@@ -1899,10 +1905,15 @@
       "quota_exceeded_title": "Quota mensual esgotada",
       "feature_locked_title": "Funció bloquejada pel pla",
       "limit_reached_title": "Límit del pla assolit",
+      "trial_ended_title": "La prova ha finalitzat",
+      "trial_cap_reached_title": "Límit de trial assolit",
       "quota_exceeded_msg": "Has esgotat els Drafts LITO d'aquest mes ({used}/{limit}).",
       "quota_exceeded_msg_simple": "Has esgotat els Drafts LITO d'aquest mes.",
       "feature_locked_msg": "Aquesta funció és del pla Business.",
       "limit_reached_msg": "Has arribat al límit de locals/usuaris del teu pla.",
+      "trial_ended_msg": "Pots seguir veient dades, però per generar amb LITO cal activar un pla.",
+      "trial_cap_reached_msg": "Has arribat al límit de drafts del trial ({used}/{limit}).",
+      "trial_cap_reached_msg_simple": "Has arribat al límit de drafts del trial.",
       "close": "Tancar",
       "view_plans": "Veure plans"
     }

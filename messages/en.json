@@ -910,7 +910,13 @@
       },
       "messages": {
         "quotaExceeded": "You have reached the monthly quota. You can write manually or upgrade your plan.",
+        "trialEnded": "Your trial has ended. You can still view data, but generating with LITO requires an active plan.",
+        "trialCapReached": "You reached the trial drafts cap.",
         "managerRequired": "Manager required"
+      },
+      "trial": {
+        "activeBadge": "Trial: {days} days",
+        "readOnlyBadge": "Read-only"
       },
       "voice": {
         "widgetTitle": "Actions to confirm (Voice)",
@@ -1897,10 +1903,15 @@
       "quota_exceeded_title": "Monthly quota exhausted",
       "feature_locked_title": "Feature locked by plan",
       "limit_reached_title": "Plan limit reached",
+      "trial_ended_title": "Trial ended",
+      "trial_cap_reached_title": "Trial cap reached",
       "quota_exceeded_msg": "You have used all your LITO Drafts for this month ({used}/{limit}).",
       "quota_exceeded_msg_simple": "You have used all your LITO Drafts for this month.",
       "feature_locked_msg": "This feature is available on the Business plan.",
       "limit_reached_msg": "You have reached the locations/seats limit for your plan.",
+      "trial_ended_msg": "You can still view data, but generating with LITO requires an active plan.",
+      "trial_cap_reached_msg": "You have reached the trial drafts cap ({used}/{limit}).",
+      "trial_cap_reached_msg_simple": "You have reached the trial drafts cap.",
       "close": "Close",
       "view_plans": "View plans"
     }

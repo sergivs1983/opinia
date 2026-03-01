@@ -88,6 +88,14 @@ type VoiceDraftsPayload = {
   message?: string;
 };
 
+type TrialStatusPayload = {
+  ok?: boolean;
+  trial_state?: 'none' | 'active' | 'ended';
+  days_left?: number;
+  error?: string;
+  message?: string;
+};
+
 function normalizeRecommendationItem(
   item: Partial<LitoRecommendationItem> & { recommendation_template?: LitoRecommendationTemplate },
 ): LitoRecommendationItem | null {
@@ -166,6 +174,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
 
   const [gbpState, setGbpState] = useState<'connected' | 'needs_reauth' | 'not_connected' | 'unknown'>('unknown');
   const [quota, setQuota] = useState<LitoQuotaState | null>(null);
+  const [trialState, setTrialState] = useState<'none' | 'active' | 'ended'>('none');
+  const [trialDaysLeft, setTrialDaysLeft] = useState(0);
   const [selectedFormat, setSelectedFormat] = useState<'post' | 'story' | 'reel'>('post');
   const [voicePendingCount, setVoicePendingCount] = useState(0);
 
@@ -318,6 +328,28 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     }
   }, [biz?.id]);
 
+  const loadTrialStatus = useCallback(async () => {
+    if (!biz?.org_id) {
+      setTrialState('none');
+      setTrialDaysLeft(0);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/billing/trial?org_id=${biz.org_id}`);
+      const payload = (await response.json().catch(() => ({}))) as TrialStatusPayload;
+      if (!response.ok || payload.error) {
+        setTrialState('none');
+        setTrialDaysLeft(0);
+        return;
+      }
+      setTrialState(payload.trial_state || 'none');
+      setTrialDaysLeft(typeof payload.days_left === 'number' ? Math.max(payload.days_left, 0) : 0);
+    } catch {
+      setTrialState('none');
+      setTrialDaysLeft(0);
+    }
+  }, [biz?.org_id]);
+
   const loadThreads = useCallback(async () => {
     if (!biz?.id) return;
     setThreadsLoading(true);
@@ -448,6 +480,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   useEffect(() => {
     if (!biz?.id) return;
     setQuota(null);
+    setTrialState('none');
+    setTrialDaysLeft(0);
     setSignals([]);
     setVoicePendingCount(0);
     void loadWeeklyRecommendations();
@@ -455,7 +489,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     void loadGoogleStatus();
     void loadSignals();
     void loadVoicePendingCount();
-  }, [biz?.id, loadGoogleStatus, loadSignals, loadThreads, loadVoicePendingCount, loadWeeklyRecommendations]);
+    void loadTrialStatus();
+  }, [biz?.id, loadGoogleStatus, loadSignals, loadThreads, loadTrialStatus, loadVoicePendingCount, loadWeeklyRecommendations]);
 
   useEffect(() => {
     if (!biz?.id || !queryBizId) return;
@@ -652,6 +687,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           recommendations={weeklyRecommendations}
           recommendationsLoading={weeklyLoading}
           quota={quota}
+          trialState={trialState}
+          trialDaysLeft={trialDaysLeft}
           voicePendingCount={voicePendingCount}
           selectedRecommendationId={selectedRecommendationId}
           onOpenGeneral={() => void openGeneralThread()}

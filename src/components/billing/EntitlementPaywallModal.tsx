@@ -6,7 +6,12 @@ import { useT } from '@/components/i18n/I18nContext';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 
-export type EntitlementModalType = 'quota_exceeded' | 'feature_locked' | 'limit_reached';
+export type EntitlementModalType =
+  | 'quota_exceeded'
+  | 'feature_locked'
+  | 'limit_reached'
+  | 'trial_ended'
+  | 'trial_cap_reached';
 
 type Props = {
   isOpen: boolean;
@@ -31,7 +36,14 @@ export default function EntitlementPaywallModal({
   const title = t(titleKey);
 
   let message: string;
-  if (type === 'quota_exceeded' && typeof used === 'number' && typeof limit === 'number') {
+  if (type === 'trial_cap_reached' && typeof used === 'number' && typeof limit === 'number') {
+    message = t('billing.entitlement.trial_cap_reached_msg', {
+      used: String(used),
+      limit: String(limit),
+    });
+  } else if (type === 'trial_cap_reached') {
+    message = t('billing.entitlement.trial_cap_reached_msg_simple');
+  } else if (type === 'quota_exceeded' && typeof used === 'number' && typeof limit === 'number') {
     message = t('billing.entitlement.quota_exceeded_msg', {
       used: String(used),
       limit: String(limit),

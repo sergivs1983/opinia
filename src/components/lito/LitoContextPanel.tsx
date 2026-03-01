@@ -15,6 +15,8 @@ type LitoContextPanelProps = {
   recommendations: LitoRecommendationItem[];
   recommendationsLoading: boolean;
   quota: LitoQuotaState | null;
+  trialState: 'none' | 'active' | 'ended';
+  trialDaysLeft: number;
   voicePendingCount: number;
   selectedRecommendationId: string | null;
   onOpenGeneral: () => void;
@@ -53,6 +55,8 @@ export default function LitoContextPanel({
   recommendations,
   recommendationsLoading,
   quota,
+  trialState,
+  trialDaysLeft,
   voicePendingCount,
   selectedRecommendationId,
   onOpenGeneral,
@@ -71,11 +75,23 @@ export default function LitoContextPanel({
         <h2 className={cn('text-sm font-semibold tracking-wide', textMain)}>
           {t('dashboard.litoPage.context.title')}
         </h2>
-        <span className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-          {quota?.limit
-            ? t('dashboard.home.recommendations.lito.quotaBadge', { used: quota.used, limit: quota.limit })
-            : t('dashboard.litoPage.context.quotaUnknown')}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+            {quota?.limit
+              ? t('dashboard.home.recommendations.lito.quotaBadge', { used: quota.used, limit: quota.limit })
+              : t('dashboard.litoPage.context.quotaUnknown')}
+          </span>
+          {trialState === 'active' ? (
+            <span className="rounded-full border border-cyan-300/35 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-medium text-cyan-200">
+              {t('dashboard.litoPage.trial.activeBadge', { days: trialDaysLeft })}
+            </span>
+          ) : null}
+          {trialState === 'ended' ? (
+            <span className="rounded-full border border-amber-300/35 bg-amber-500/12 px-2.5 py-1 text-[11px] font-medium text-amber-200">
+              {t('dashboard.litoPage.trial.readOnlyBadge')}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-3 space-y-2 rounded-xl border border-white/8 bg-black/20 p-3">
