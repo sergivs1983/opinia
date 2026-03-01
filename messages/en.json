@@ -620,6 +620,8 @@
         "copyError": "No text available to copy.",
         "validationError": "Complete draft, assignee and date/time.",
         "approvedDraftsEmpty": "There are no approved drafts available to schedule.",
+        "createDraftCta": "Create draft",
+        "viewPendingCta": "View pending",
         "status": {
           "scheduled": "Scheduled",
           "notified": "Notified",

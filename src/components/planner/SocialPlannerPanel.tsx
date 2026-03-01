@@ -707,7 +707,25 @@ export default function SocialPlannerPanel() {
           </div>
 
           {approvedDrafts.length === 0 ? (
-            <p className="mt-2 text-xs text-amber-200/85">{t('dashboard.home.socialPlanner.approvedDraftsEmpty')}</p>
+            <div className="mt-2 space-y-2">
+              <p className="text-xs text-amber-200/85">{t('dashboard.home.socialPlanner.approvedDraftsEmpty')}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => router.push(`/dashboard/lito?biz_id=${biz.id}`)}
+                >
+                  {t('dashboard.home.socialPlanner.createDraftCta')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
+                >
+                  {t('dashboard.home.socialPlanner.viewPendingCta')}
+                </Button>
+              </div>
+            </div>
           ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -742,13 +760,33 @@ export default function SocialPlannerPanel() {
               <div className="space-y-2">
                 <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
                 {canManageSchedules ? (
-                  <Button
-                    variant="secondary"
-                    className="h-7 px-2 text-[11px]"
-                    onClick={() => setFormOpen(true)}
-                  >
-                    {t('dashboard.home.socialPlanner.emptyScheduledCta')}
-                  </Button>
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      variant="secondary"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setFormOpen(true)}
+                    >
+                      {t('dashboard.home.socialPlanner.emptyScheduledCta')}
+                    </Button>
+                    {approvedDrafts.length === 0 ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => router.push(`/dashboard/lito?biz_id=${biz.id}`)}
+                        >
+                          {t('dashboard.home.socialPlanner.createDraftCta')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}`)}
+                        >
+                          {t('dashboard.home.socialPlanner.viewPendingCta')}
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             ) : (

@@ -620,6 +620,8 @@
         "copyError": "No hi ha text per copiar.",
         "validationError": "Completa draft, usuari assignat i data/hora.",
         "approvedDraftsEmpty": "No tens drafts aprovats disponibles per programar.",
+        "createDraftCta": "Crear draft",
+        "viewPendingCta": "Veure pendents",
         "status": {
           "scheduled": "Programat",
           "notified": "Avisat",

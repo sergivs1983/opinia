@@ -181,6 +181,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       active: pathname === '/dashboard/growth-hub' || pathname === '/dashboard/growth',
     },
     {
+      key: 'planner',
+      href: '/dashboard/planner',
+      label: t('nav.planner'),
+      icon: icons.planner,
+      active: pathname.startsWith('/dashboard/planner'),
+    },
+    {
       key: 'plans',
       href: '/dashboard/plans',
       label: t('nav.plans'),

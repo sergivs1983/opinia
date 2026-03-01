@@ -620,6 +620,8 @@
         "copyError": "No hay texto para copiar.",
         "validationError": "Completa draft, usuario asignado y fecha/hora.",
         "approvedDraftsEmpty": "No tienes drafts aprobados para programar.",
+        "createDraftCta": "Crear draft",
+        "viewPendingCta": "Ver pendientes",
         "status": {
           "scheduled": "Programado",
           "notified": "Avisado",
