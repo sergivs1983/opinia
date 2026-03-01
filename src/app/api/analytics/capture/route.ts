@@ -14,6 +14,7 @@ import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 
 const AllowedEventSchema = z.enum([
   'open_app',
+  'test_event_opinia',
   'start_weekly_wizard',
   'approve_draft',
   'handoff_to_planner',
@@ -34,6 +35,31 @@ const BodySchema = z.object({
 });
 
 const REDACTED_KEY_PATTERN = /text|copy|transcript|message|body|caption|draft/i;
+const SAFE_PROPERTY_KEYS = new Set([
+  'source',
+  'role',
+  'target_count',
+  'approved',
+  'index',
+  'format',
+  'edited',
+  'regenerations',
+  'platform_target',
+  'count_posts',
+  'wizard_duration_ms',
+  'scheduled_count',
+  'push_enabled',
+  'os_permission_granted',
+  'push_subscription_active',
+  'schedule_id',
+  'push_triggered',
+  'missed_count',
+  'reason',
+  'session_id',
+  'timezone',
+  'type',
+  'action',
+]);
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -47,6 +73,7 @@ function sanitizeProperties(input: Record<string, unknown> | undefined): Record<
   const next: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(input)) {
+    if (!SAFE_PROPERTY_KEYS.has(key)) continue;
     if (REDACTED_KEY_PATTERN.test(key)) continue;
 
     if (typeof value === 'string') {
@@ -107,6 +134,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const sanitized = sanitizeProperties(payload.properties);
+    const timezone = typeof sanitized.timezone === 'string' ? sanitized.timezone : undefined;
+    const sessionId = typeof sanitized.session_id === 'string' ? sanitized.session_id : undefined;
+
     const props = {
       ...buildGlobalProps({
         userId: user.id,
@@ -115,8 +146,10 @@ export async function POST(request: Request) {
         role: access.role,
         mode: payload.mode || 'basic',
         platform: 'web',
+        timezone,
+        sessionId,
       }),
-      ...sanitizeProperties(payload.properties),
+      ...sanitized,
     };
 
     await trackEvent({

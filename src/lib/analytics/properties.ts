@@ -7,6 +7,8 @@ type BuildGlobalPropsInput = {
   role?: LitoMemberRole | null;
   mode?: 'basic' | 'advanced';
   platform?: 'web' | 'mobile_web' | 'pwa';
+  timezone?: string | null;
+  sessionId?: string | null;
 };
 
 function resolveAppVersion(): string {
@@ -19,6 +21,7 @@ function resolveAppVersion(): string {
 }
 
 export function buildGlobalProps(input: BuildGlobalPropsInput): Record<string, unknown> {
+  const fallbackTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   return {
     user_id: input.userId,
     biz_id: input.bizId || null,
@@ -27,5 +30,7 @@ export function buildGlobalProps(input: BuildGlobalPropsInput): Record<string, u
     mode: input.mode || 'basic',
     platform: input.platform || 'web',
     app_version: resolveAppVersion(),
+    timezone: input.timezone || fallbackTimezone,
+    session_id: input.sessionId || null,
   };
 }
