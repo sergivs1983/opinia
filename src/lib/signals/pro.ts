@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { mapBusinessTypeToVertical, type RecommendationVertical } from '@/lib/recommendations/d0';
@@ -28,6 +29,10 @@ export type BizSignalRow = {
   severity: SignalSeverity;
   title: string;
   reason: string;
+  why: string | null;
+  severity_score: number;
+  fingerprint: string | null;
+  cooldown_until: string | null;
   data: Record<string, unknown>;
   is_active: boolean;
   signal_day: string;
@@ -46,9 +51,13 @@ export type SignalCard = {
   severity: SignalSeverity;
   title: string;
   reason: string;
+  why: string;
+  severity_score: number;
+  fingerprint: string | null;
   data: Record<string, unknown>;
   cta_label: string;
   cta_route: string;
+  cta_url: string;
   signal_day: string;
   created_at: string;
   updated_at: string;
@@ -95,8 +104,12 @@ type ComputedSignal = {
   code: SignalCode;
   kind: SignalKind;
   severity: SignalSeverity;
+  severity_score: number;
   title: string;
   reason: string;
+  why: string;
+  fingerprint: string;
+  cooldown_until: string;
   data: Record<string, unknown>;
 };
 
@@ -135,6 +148,122 @@ const TOPIC_KEYWORDS: Record<string, string[]> = {
   food: ['food', 'menjar', 'comida', 'plat', 'plato', 'dish', 'breakfast', 'dinner', 'smell'],
   ambience: ['ambience', 'ambient', 'atmosphere', 'soroll', 'noise', 'music', 'decor'],
 };
+
+const SIGNAL_COOLDOWN_DAYS = 7;
+
+const SIGNAL_SEVERITY_SCORE: Record<SignalCode, number> = {
+  REPUTATION_LEAK: 90,
+  TOPIC_RECURRENT: 80,
+  LANGUAGE_SHIFT: 60,
+  VIP_REVIEW: 50,
+  DIGITAL_SILENCE: 70,
+  OPPORTUNITY_TREND: 55,
+};
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableJson(obj[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function buildSignalFingerprint(signal: Pick<ComputedSignal, 'code' | 'kind' | 'data'>): string {
+  const data = signal.data || {};
+  let keyPayload: Record<string, unknown>;
+
+  switch (signal.code) {
+    case 'REPUTATION_LEAK':
+      keyPayload = {
+        neg_reviews_48h: asNumber(data.neg_reviews_48h) ?? 0,
+        avg_delta: asNumber(data.avg_delta) ?? 0,
+      };
+      break;
+    case 'TOPIC_RECURRENT':
+      keyPayload = {
+        topic: String(data.topic || '').toLowerCase(),
+        neg_share: asNumber(data.neg_share) ?? 0,
+      };
+      break;
+    case 'LANGUAGE_SHIFT':
+      keyPayload = {
+        dominant_lang: normalizeLang(String(data.dominant_lang || '')) || '',
+        dominant_share: asNumber(data.dominant_share) ?? 0,
+      };
+      break;
+    case 'VIP_REVIEW':
+      keyPayload = {
+        review_id: String(data.review_id || ''),
+      };
+      break;
+    case 'DIGITAL_SILENCE':
+      keyPayload = {
+        days_without_reviews: asNumber(data.days_without_reviews) ?? 0,
+      };
+      break;
+    case 'OPPORTUNITY_TREND':
+      keyPayload = {
+        topic: String(data.topic || '').toLowerCase(),
+        growth_ratio: asNumber(data.growth_ratio) ?? 0,
+      };
+      break;
+  }
+
+  const canonical = `${signal.kind}|${signal.code}|${stableJson(keyPayload)}`;
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+function buildSignalWhy(signal: Pick<ComputedSignal, 'code' | 'data'>): string {
+  const data = signal.data || {};
+  switch (signal.code) {
+    case 'REPUTATION_LEAK': {
+      const neg48 = Math.max(0, Math.round(asNumber(data.neg_reviews_48h) ?? 0));
+      const prev = asNumber(data.avg_rating_prev_7d);
+      const current = asNumber(data.avg_rating_7d);
+      if (neg48 >= 1) {
+        return `${neg48} ressenyes <3★ en 48h`;
+      }
+      if (prev !== null && current !== null) {
+        return `Mitjana 7 dies: ${prev.toFixed(1)}★ → ${current.toFixed(1)}★`;
+      }
+      return 'Senyal de reputació negativa recent';
+    }
+    case 'TOPIC_RECURRENT': {
+      const topic = String(data.topic || 'servei');
+      const share = Math.max(0, Math.round((asNumber(data.neg_share) ?? 0) * 100));
+      return `${share}% mencions negatives sobre “${topic}” (7 dies)`;
+    }
+    case 'LANGUAGE_SHIFT': {
+      const lang = String(data.dominant_lang || 'ca').toUpperCase();
+      const share = Math.max(0, Math.round((asNumber(data.dominant_share) ?? 0) * 100));
+      return `${share}% ressenyes en ${lang} (7 dies)`;
+    }
+    case 'VIP_REVIEW':
+      return 'Ressenya 5★ d’un perfil destacat';
+    case 'DIGITAL_SILENCE': {
+      const days = Math.max(1, Math.round(asNumber(data.days_without_reviews) ?? 10));
+      return `${days} dies sense ressenyes noves`;
+    }
+    case 'OPPORTUNITY_TREND': {
+      const topic = String(data.topic || 'tema');
+      const growth = asNumber(data.growth_ratio) ?? 1;
+      const pct = Math.max(0, Math.round((growth - 1) * 100));
+      return `+${pct}% mencions positives “${topic}” (7 dies)`;
+    }
+  }
+}
 
 function normalizeLang(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -442,6 +571,8 @@ function buildCurrentAndPreviousWindows(params: {
 function sortSignalsPriority(a: SignalCard, b: SignalCard): number {
   const kindDelta = signalKindRank(a.kind) - signalKindRank(b.kind);
   if (kindDelta !== 0) return kindDelta;
+  const scoreDelta = (b.severity_score || 0) - (a.severity_score || 0);
+  if (scoreDelta !== 0) return scoreDelta;
   const severityDelta = signalSeverityRank(a.severity) - signalSeverityRank(b.severity);
   if (severityDelta !== 0) return severityDelta;
   return Date.parse(b.updated_at) - Date.parse(a.updated_at);
@@ -474,11 +605,15 @@ function toSignalCard(params: { row: BizSignalRow; bizId: string }): SignalCard 
     kind: params.row.kind,
     code: params.row.code,
     severity: params.row.severity,
+    severity_score: params.row.severity_score || 0,
     title: params.row.title,
     reason: params.row.reason,
+    why: params.row.why || params.row.reason,
+    fingerprint: params.row.fingerprint,
     data: params.row.data || {},
     cta_label: DEFAULT_CTA_LABEL,
     cta_route: `/dashboard/lito/chat?${query.toString()}`,
+    cta_url: `/dashboard/lito/chat?${query.toString()}`,
     signal_day: params.row.signal_day,
     created_at: params.row.created_at,
     updated_at: params.row.updated_at,
@@ -570,11 +705,15 @@ export function buildEvergreenSignals(params: {
       kind: 'opportunity',
       code: item.code,
       severity: 'low',
+      severity_score: 20,
       title: item.title,
       reason: item.reason,
+      why: item.reason,
+      fingerprint: null,
       data: { source: 'evergreen' },
       cta_label: DEFAULT_CTA_LABEL,
       cta_route: `/dashboard/lito/chat?${query.toString()}`,
+      cta_url: `/dashboard/lito/chat?${query.toString()}`,
       signal_day: params.signalDay,
       created_at: nowIso,
       updated_at: nowIso,
@@ -763,6 +902,27 @@ function chooseOpportunityTrend(params: {
   return best;
 }
 
+function toComputedSignal(
+  signalDay: string,
+  payload: Pick<ComputedSignal, 'code' | 'kind' | 'severity' | 'title' | 'reason' | 'data'>,
+): ComputedSignal {
+  const fingerprint = buildSignalFingerprint({
+    code: payload.code,
+    kind: payload.kind,
+    data: payload.data,
+  });
+  return {
+    ...payload,
+    severity_score: SIGNAL_SEVERITY_SCORE[payload.code] || 0,
+    why: buildSignalWhy({
+      code: payload.code,
+      data: payload.data,
+    }),
+    fingerprint,
+    cooldown_until: `${addDays(signalDay, SIGNAL_COOLDOWN_DAYS)}T00:00:00.000Z`,
+  };
+}
+
 function buildSignals(params: {
   business: BusinessProfile;
   signalDay: string;
@@ -790,7 +950,7 @@ function buildSignals(params: {
       ? `${neg48.length} ressenyes negatives en les últimes 48 hores.`
       : `La mitjana de 7 dies ha baixat de ${avgPrev7?.toFixed(1)} a ${avg7?.toFixed(1)}.`;
 
-    out.push({
+    out.push(toComputedSignal(params.signalDay, {
       code: 'REPUTATION_LEAK',
       kind: 'alert',
       severity: neg48.length >= 4 ? 'high' : 'med',
@@ -803,7 +963,7 @@ function buildSignals(params: {
         avg_delta: avgDrop,
         review_ids: toSafeReviewIds(neg48),
       },
-    });
+    }));
   }
 
   // 2) TOPIC_RECURRENT
@@ -817,7 +977,7 @@ function buildSignals(params: {
 
     const recurrent = chooseTopicRecurrent(mergedStats);
     if (recurrent) {
-      out.push({
+      out.push(toComputedSignal(params.signalDay, {
         code: 'TOPIC_RECURRENT',
         kind: 'alert',
         severity: recurrent.share >= 0.5 || recurrent.neg >= 4 ? 'high' : 'med',
@@ -830,7 +990,7 @@ function buildSignals(params: {
           neg_share: recurrent.share,
           review_ids: recurrent.reviewIds,
         },
-      });
+      }));
     }
   }
 
@@ -854,7 +1014,7 @@ function buildSignals(params: {
 
     const dominant = langDominantFromDist(currentLangDist);
     if (dominant.dominant && dominant.dominant !== baseLang && dominant.share >= 0.2) {
-      out.push({
+      out.push(toComputedSignal(params.signalDay, {
         code: 'LANGUAGE_SHIFT',
         kind: 'alert',
         severity: dominant.share >= 0.5 ? 'med' : 'low',
@@ -866,7 +1026,7 @@ function buildSignals(params: {
           default_language: baseLang,
           total_reviews: dominant.total,
         },
-      });
+      }));
     }
   }
 
@@ -876,7 +1036,7 @@ function buildSignals(params: {
     const vip = sortedCurrent.find((row) => isVipReview(row));
     if (vip) {
       const author = vip.author_name?.trim() || 'Client destacat';
-      out.push({
+      out.push(toComputedSignal(params.signalDay, {
         code: 'VIP_REVIEW',
         kind: 'opportunity',
         severity: 'med',
@@ -888,7 +1048,7 @@ function buildSignals(params: {
           rating: vip.rating,
           created_at: vip.created_at,
         },
-      });
+      }));
     }
   }
 
@@ -905,7 +1065,7 @@ function buildSignals(params: {
         }
       }
 
-      out.push({
+      out.push(toComputedSignal(params.signalDay, {
         code: 'DIGITAL_SILENCE',
         kind: 'alert',
         severity: 'med',
@@ -915,7 +1075,7 @@ function buildSignals(params: {
           days_without_reviews: daysWithoutReviews,
           lookback_days: 10,
         },
-      });
+      }));
     }
   }
 
@@ -926,7 +1086,7 @@ function buildSignals(params: {
       previous: params.previousTopicStats,
     });
     if (trend) {
-      out.push({
+      out.push(toComputedSignal(params.signalDay, {
         code: 'OPPORTUNITY_TREND',
         kind: 'opportunity',
         severity: trend.growth >= 2 ? 'high' : 'med',
@@ -938,7 +1098,7 @@ function buildSignals(params: {
           previous_positive: trend.previousPos,
           growth_ratio: trend.growth,
         },
-      });
+      }));
     }
   }
 
@@ -980,13 +1140,47 @@ function toBizSignalRows(params: {
     code: signal.code,
     kind: signal.kind,
     severity: signal.severity,
+    severity_score: signal.severity_score,
     title: signal.title,
     reason: signal.reason,
+    why: signal.why,
+    fingerprint: signal.fingerprint,
+    cooldown_until: signal.cooldown_until,
     data: signal.data,
     is_active: true,
     signal_day: params.signalDay,
     updated_at: nowIso,
   }));
+}
+
+async function fetchRecentSignalFingerprints(params: {
+  admin: SupabaseClient;
+  bizId: string;
+  provider: SignalsProvider;
+  sinceIso: string;
+}): Promise<Set<string>> {
+  const { data, error } = await params.admin
+    .from('biz_signals')
+    .select('kind, fingerprint')
+    .eq('biz_id', params.bizId)
+    .eq('provider', params.provider)
+    .eq('is_active', true)
+    .gte('created_at', params.sinceIso)
+    .not('fingerprint', 'is', null);
+
+  if (error) {
+    if (isSchemaDependencyError(error)) return new Set();
+    throw new Error(error.message || 'biz_signals_recent_fingerprints_failed');
+  }
+
+  const keys = new Set<string>();
+  for (const row of (data || []) as Array<{ kind?: string | null; fingerprint?: string | null }>) {
+    const kind = String(row.kind || '').trim();
+    const fingerprint = String(row.fingerprint || '').trim();
+    if (!kind || !fingerprint) continue;
+    keys.add(`${kind}::${fingerprint}`);
+  }
+  return keys;
 }
 
 async function fetchActiveRowsForDay(params: {
@@ -997,7 +1191,7 @@ async function fetchActiveRowsForDay(params: {
 }): Promise<BizSignalRow[]> {
   const { data, error } = await params.admin
     .from('biz_signals')
-    .select('id, org_id, biz_id, provider, code, kind, severity, title, reason, data, is_active, signal_day, created_at, updated_at')
+    .select('id, org_id, biz_id, provider, code, kind, severity, severity_score, title, reason, why, fingerprint, cooldown_until, data, is_active, signal_day, created_at, updated_at')
     .eq('biz_id', params.bizId)
     .eq('provider', params.provider)
     .eq('signal_day', params.signalDay)
@@ -1065,11 +1259,26 @@ export async function runSignalsForBusiness(params: RunParams): Promise<RunResul
     insightsCurrent,
   });
 
+  const cooldownSinceIso = new Date(Date.now() - (SIGNAL_COOLDOWN_DAYS * 86400000)).toISOString();
+  const recentFingerprints = await fetchRecentSignalFingerprints({
+    admin: params.admin,
+    bizId: params.business.id,
+    provider: params.provider,
+    sinceIso: cooldownSinceIso,
+  });
+
+  const dedupedSignals = computedSignals.filter((signal) => {
+    const dedupKey = `${signal.kind}::${signal.fingerprint}`;
+    if (recentFingerprints.has(dedupKey)) return false;
+    recentFingerprints.add(dedupKey);
+    return true;
+  });
+
   const rowsToUpsert = toBizSignalRows({
     business: params.business,
     provider: params.provider,
     signalDay,
-    signals: computedSignals,
+    signals: dedupedSignals,
   });
 
   if (rowsToUpsert.length > 0) {
@@ -1117,7 +1326,7 @@ export async function runSignalsForBusiness(params: RunParams): Promise<RunResul
   });
 
   return {
-    processed: computedSignals.length,
+    processed: dedupedSignals.length,
     active: activeRows.length,
     deactivated: deactivateIds.length,
     signals: activeRows,
@@ -1134,7 +1343,7 @@ export async function listSignalsForBusiness(params: {
 }): Promise<BizSignalRow[]> {
   const { data, error } = await params.admin
     .from('biz_signals')
-    .select('id, org_id, biz_id, provider, code, kind, severity, title, reason, data, is_active, signal_day, created_at, updated_at')
+    .select('id, org_id, biz_id, provider, code, kind, severity, severity_score, title, reason, why, fingerprint, cooldown_until, data, is_active, signal_day, created_at, updated_at')
     .eq('biz_id', params.bizId)
     .eq('provider', params.provider)
     .eq('is_active', true)
@@ -1158,7 +1367,7 @@ export async function getSignalById(params: {
 }): Promise<BizSignalRow | null> {
   const { data, error } = await params.admin
     .from('biz_signals')
-    .select('id, org_id, biz_id, provider, code, kind, severity, title, reason, data, is_active, signal_day, created_at, updated_at')
+    .select('id, org_id, biz_id, provider, code, kind, severity, severity_score, title, reason, why, fingerprint, cooldown_until, data, is_active, signal_day, created_at, updated_at')
     .eq('id', params.signalId)
     .eq('biz_id', params.bizId)
     .maybeSingle();
@@ -1174,12 +1383,42 @@ export async function getSignalById(params: {
 export function toSignalCards(params: {
   rows: BizSignalRow[];
   bizId: string;
-  level: SignalsLevel;
+  level?: SignalsLevel;
 }): SignalCard[] {
-  const sorted = [...params.rows]
+  return [...params.rows]
     .map((row) => toSignalCard({ row, bizId: params.bizId }))
     .sort(sortSignalsPriority);
-  return sorted.slice(0, getSignalsLevelLimit(params.level));
+}
+
+export function pickTopSignals(cards: SignalCard[], limit = 3): SignalCard[] {
+  const safeLimit = Math.max(1, Math.min(limit, 10));
+  const sorted = [...cards].sort(sortSignalsPriority);
+  const alerts = sorted.filter((card) => card.kind === 'alert');
+  const opportunities = sorted.filter((card) => card.kind === 'opportunity');
+  const picked: SignalCard[] = [];
+  const seen = new Set<string>();
+
+  const pushIfNew = (card: SignalCard | undefined): void => {
+    if (!card || seen.has(card.id) || picked.length >= safeLimit) return;
+    picked.push(card);
+    seen.add(card.id);
+  };
+
+  pushIfNew(alerts[0]);
+
+  for (const card of opportunities) {
+    if (picked.length >= safeLimit) break;
+    pushIfNew(card);
+  }
+
+  if (picked.length < safeLimit) {
+    for (const card of alerts.slice(1)) {
+      if (picked.length >= safeLimit) break;
+      pushIfNew(card);
+    }
+  }
+
+  return picked.slice(0, safeLimit);
 }
 
 export function resolveVertical(type: string | null | undefined): RecommendationVertical {
