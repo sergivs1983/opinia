@@ -1876,6 +1876,18 @@ export default function LitoChatView() {
                   {quickRefinePrompt}
                 </p>
               ) : null}
+              {generatedCopy && activeRecommendation && canConfirmVoiceActions && biz?.id ? (
+                <div className="mt-2 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => router.push(`/dashboard/planner?biz_id=${encodeURIComponent(biz.id)}&recommendation_id=${encodeURIComponent(activeRecommendation.id)}`)}
+                  >
+                    {t('dashboard.home.socialPlanner.scheduleButton')}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

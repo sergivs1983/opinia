@@ -1,0 +1,573 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+
+import Button from '@/components/ui/Button';
+import GlassCard from '@/components/ui/GlassCard';
+import { useLocale, useT } from '@/components/i18n/I18nContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { useToast } from '@/components/ui/Toast';
+import { cn } from '@/lib/utils';
+import { textMain, textSub } from '@/components/ui/glass';
+import { toLocalDateTimeInputValue } from '@/lib/social/schedules';
+
+type ViewerRole = 'owner' | 'manager' | 'staff';
+
+type SocialDraftItem = {
+  id: string;
+  recommendation_id?: string | null;
+  title: string | null;
+  copy_short: string | null;
+  copy_long: string | null;
+  hashtags: string[] | null;
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'published';
+  format: 'post' | 'story' | 'reel';
+  channel: 'instagram' | 'tiktok' | 'facebook';
+};
+
+type TeamMember = {
+  id: string;
+  user_id: string;
+  role: string;
+  full_name: string | null;
+  invited_email: string | null;
+  accepted_at: string | null;
+};
+
+type SocialScheduleItem = {
+  id: string;
+  org_id: string;
+  biz_id: string;
+  draft_id: string;
+  assigned_user_id: string;
+  platform: 'instagram' | 'tiktok';
+  scheduled_at: string;
+  status: 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'canceled';
+  notified_at: string | null;
+  published_at: string | null;
+  snoozed_from: string | null;
+  created_at: string;
+  updated_at: string;
+  draft?: SocialDraftItem | null;
+};
+
+type SchedulesListPayload = {
+  ok?: boolean;
+  items?: SocialScheduleItem[];
+  viewer_role?: ViewerRole;
+  error?: string;
+  message?: string;
+};
+
+type SocialDraftListPayload = {
+  ok?: boolean;
+  items?: SocialDraftItem[];
+};
+
+type TeamPayload = {
+  members?: TeamMember[];
+};
+
+type ScheduleMutatePayload = {
+  ok?: boolean;
+  schedule?: SocialScheduleItem;
+  error?: string;
+  message?: string;
+};
+
+const SCHEDULED_STATUSES = new Set(['scheduled', 'notified', 'snoozed']);
+
+function formatDateLabel(value: string, locale: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const resolvedLocale = locale === 'en' ? 'en-GB' : locale === 'es' ? 'es-ES' : 'ca-ES';
+  return date.toLocaleString(resolvedLocale, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function platformUrl(platform: 'instagram' | 'tiktok'): string {
+  return platform === 'instagram' ? 'https://www.instagram.com/' : 'https://www.tiktok.com/';
+}
+
+function normalizeScheduleCopy(draft: SocialDraftItem | null | undefined): string {
+  if (!draft) return '';
+  const parts: string[] = [];
+  if (draft.title) parts.push(draft.title);
+  if (draft.copy_long) parts.push(draft.copy_long);
+  else if (draft.copy_short) parts.push(draft.copy_short);
+  if (Array.isArray(draft.hashtags) && draft.hashtags.length > 0) {
+    parts.push(draft.hashtags.join(' '));
+  }
+  return parts.join('\n\n').trim();
+}
+
+function defaultScheduledAt(): string {
+  const date = new Date(Date.now() + 60 * 60 * 1000);
+  return toLocalDateTimeInputValue(date.toISOString());
+}
+
+export default function SocialPlannerPanel() {
+  const t = useT();
+  const locale = useLocale();
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const { biz } = useWorkspace();
+
+  const [viewerRole, setViewerRole] = useState<ViewerRole | null>(null);
+  const [schedules, setSchedules] = useState<SocialScheduleItem[]>([]);
+  const [approvedDrafts, setApprovedDrafts] = useState<SocialDraftItem[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [actionById, setActionById] = useState<Record<string, boolean>>({});
+  const [formOpen, setFormOpen] = useState(false);
+  const [selectedDraftId, setSelectedDraftId] = useState('');
+  const [platform, setPlatform] = useState<'instagram' | 'tiktok'>('instagram');
+  const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt());
+  const [assignedUserId, setAssignedUserId] = useState('');
+
+  const canManageSchedules = viewerRole === 'owner' || viewerRole === 'manager';
+  const preselectedDraftId = searchParams.get('draft_id');
+  const preselectedRecommendationId = searchParams.get('recommendation_id');
+  const highlightedScheduleId = searchParams.get('schedule_id');
+
+  const loadPlannerData = useCallback(async () => {
+    if (!biz?.id) {
+      setSchedules([]);
+      setApprovedDrafts([]);
+      setTeamMembers([]);
+      setViewerRole(null);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('biz_id', biz.id);
+      params.set('limit', '200');
+
+      const schedulesResponse = await fetch(`/api/social/schedules?${params.toString()}`);
+      const schedulesPayload = (await schedulesResponse.json().catch(() => ({}))) as SchedulesListPayload;
+      if (!schedulesResponse.ok || schedulesPayload.error) {
+        throw new Error(schedulesPayload.message || 'load_failed');
+      }
+
+      const nextRole = schedulesPayload.viewer_role || null;
+      setViewerRole(nextRole);
+      setSchedules(schedulesPayload.items || []);
+
+      const draftsResponse = await fetch(`/api/social/drafts?biz_id=${biz.id}&status=approved&limit=40`);
+      const draftsPayload = (await draftsResponse.json().catch(() => ({}))) as SocialDraftListPayload;
+      if (draftsResponse.ok && Array.isArray(draftsPayload.items)) {
+        setApprovedDrafts(draftsPayload.items);
+      } else {
+        setApprovedDrafts([]);
+      }
+
+      if (nextRole === 'owner' || nextRole === 'manager') {
+        const teamResponse = await fetch(`/api/team?org_id=${biz.org_id}`);
+        const teamPayload = (await teamResponse.json().catch(() => ({}))) as TeamPayload;
+        const members = Array.isArray(teamPayload.members) ? teamPayload.members : [];
+        const eligible = members.filter((member) => (
+          member.accepted_at
+          && (member.role === 'owner' || member.role === 'manager' || member.role === 'staff')
+        ));
+        setTeamMembers(eligible);
+      } else {
+        setTeamMembers([]);
+      }
+    } catch {
+      setSchedules([]);
+      setApprovedDrafts([]);
+      setTeamMembers([]);
+      setViewerRole(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [biz?.id, biz?.org_id]);
+
+  useEffect(() => {
+    void loadPlannerData();
+  }, [loadPlannerData]);
+
+  useEffect(() => {
+    if (!canManageSchedules) return;
+    if (!formOpen) return;
+
+    if (preselectedDraftId && approvedDrafts.some((draft) => draft.id === preselectedDraftId)) {
+      setSelectedDraftId(preselectedDraftId);
+    } else if (preselectedRecommendationId) {
+      const byRecommendation = approvedDrafts.find((draft) => draft.recommendation_id === preselectedRecommendationId);
+      if (byRecommendation) {
+        setSelectedDraftId(byRecommendation.id);
+      } else if (!selectedDraftId && approvedDrafts.length > 0) {
+        setSelectedDraftId(approvedDrafts[0].id);
+      }
+    } else if (!selectedDraftId && approvedDrafts.length > 0) {
+      setSelectedDraftId(approvedDrafts[0].id);
+    }
+
+    if (!assignedUserId && teamMembers.length > 0) {
+      setAssignedUserId(teamMembers[0].user_id);
+    }
+  }, [approvedDrafts, assignedUserId, canManageSchedules, formOpen, preselectedDraftId, preselectedRecommendationId, selectedDraftId, teamMembers]);
+
+  useEffect(() => {
+    if (!canManageSchedules) {
+      setFormOpen(false);
+      return;
+    }
+    if (preselectedDraftId) {
+      setFormOpen(true);
+    }
+  }, [canManageSchedules, preselectedDraftId]);
+
+  const scheduledItems = useMemo(
+    () => schedules.filter((item) => SCHEDULED_STATUSES.has(item.status)),
+    [schedules],
+  );
+
+  const publishedItems = useMemo(
+    () => schedules.filter((item) => item.status === 'published'),
+    [schedules],
+  );
+
+  const missedItems = useMemo(
+    () => schedules.filter((item) => item.status === 'missed'),
+    [schedules],
+  );
+
+  const handleCreateSchedule = useCallback(async () => {
+    if (!biz?.id || !selectedDraftId || !assignedUserId || !scheduledAt) {
+      toast(t('dashboard.home.socialPlanner.validationError'), 'warning');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const response = await fetch('/api/social/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          biz_id: biz.id,
+          draft_id: selectedDraftId,
+          platform,
+          scheduled_at: scheduledAt,
+          assigned_user_id: assignedUserId,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as ScheduleMutatePayload;
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || t('dashboard.home.socialPlanner.createError'));
+      }
+
+      toast(t('dashboard.home.socialPlanner.createSuccess'), 'success');
+      setFormOpen(false);
+      setScheduledAt(defaultScheduledAt());
+      await loadPlannerData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.home.socialPlanner.createError');
+      toast(message, 'error');
+    } finally {
+      setCreating(false);
+    }
+  }, [assignedUserId, biz?.id, loadPlannerData, platform, scheduledAt, selectedDraftId, t, toast]);
+
+  const mutateSchedule = useCallback(async (
+    scheduleId: string,
+    action: 'publish' | 'snooze' | 'cancel',
+    body?: Record<string, unknown>,
+  ) => {
+    setActionById((previous) => ({ ...previous, [scheduleId]: true }));
+
+    try {
+      const response = await fetch(`/api/social/schedules/${scheduleId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : '{}',
+      });
+      const payload = (await response.json().catch(() => ({}))) as ScheduleMutatePayload;
+      if (!response.ok || payload.error) {
+        throw new Error(payload.message || t('dashboard.home.socialPlanner.actionError'));
+      }
+
+      toast(t('dashboard.home.socialPlanner.actionSuccess'), 'success');
+      await loadPlannerData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.home.socialPlanner.actionError');
+      toast(message, 'error');
+    } finally {
+      setActionById((previous) => {
+        const next = { ...previous };
+        delete next[scheduleId];
+        return next;
+      });
+    }
+  }, [loadPlannerData, t, toast]);
+
+  const handleCopyDraft = useCallback(async (draft: SocialDraftItem | null | undefined) => {
+    const text = normalizeScheduleCopy(draft);
+    if (!text) {
+      toast(t('dashboard.home.socialPlanner.copyError'), 'error');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(t('dashboard.home.socialPlanner.copySuccess'), 'success');
+    } catch {
+      toast(t('dashboard.home.socialPlanner.copyError'), 'error');
+    }
+  }, [t, toast]);
+
+  if (!biz) {
+    return null;
+  }
+
+  return (
+    <GlassCard variant="strong" className="p-4 md:p-5" data-testid="dashboard-social-planner">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className={cn('text-base font-semibold', textMain)}>{t('dashboard.home.socialPlanner.title')}</h2>
+          <p className={cn('mt-1 text-xs', textSub)}>{t('dashboard.home.socialPlanner.subtitle')}</p>
+        </div>
+        {canManageSchedules ? (
+          <Button
+            variant="secondary"
+            className="h-8 px-3 text-xs"
+            onClick={() => setFormOpen((value) => !value)}
+          >
+            {t('dashboard.home.socialPlanner.scheduleButton')}
+          </Button>
+        ) : null}
+      </div>
+
+      {canManageSchedules && formOpen ? (
+        <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+            {t('dashboard.home.socialPlanner.scheduleModalTitle')}
+          </p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="space-y-1">
+              <span className="text-xs text-white/70">{t('dashboard.home.socialPlanner.draftLabel')}</span>
+              <select
+                className="glass-input w-full"
+                value={selectedDraftId}
+                onChange={(event) => setSelectedDraftId(event.target.value)}
+              >
+                {approvedDrafts.map((draft) => (
+                  <option key={draft.id} value={draft.id}>
+                    {(draft.title || t('dashboard.home.approvalInbox.untitled')).slice(0, 80)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-white/70">{t('dashboard.home.socialPlanner.platformLabel')}</span>
+              <select
+                className="glass-input w-full"
+                value={platform}
+                onChange={(event) => setPlatform(event.target.value === 'tiktok' ? 'tiktok' : 'instagram')}
+              >
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-white/70">{t('dashboard.home.socialPlanner.assigneeLabel')}</span>
+              <select
+                className="glass-input w-full"
+                value={assignedUserId}
+                onChange={(event) => setAssignedUserId(event.target.value)}
+              >
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.user_id}>
+                    {member.full_name || member.invited_email || member.user_id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-white/70">{t('dashboard.home.socialPlanner.datetimeLabel')}</span>
+              <input
+                type="datetime-local"
+                className="glass-input w-full"
+                value={scheduledAt}
+                onChange={(event) => setScheduledAt(event.target.value)}
+              />
+            </label>
+          </div>
+
+          {approvedDrafts.length === 0 ? (
+            <p className="mt-2 text-xs text-amber-200/85">{t('dashboard.home.socialPlanner.approvedDraftsEmpty')}</p>
+          ) : null}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              className="h-8 px-3 text-xs"
+              onClick={() => setFormOpen(false)}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              className="h-8 px-3 text-xs"
+              loading={creating}
+              disabled={approvedDrafts.length === 0}
+              onClick={() => void handleCreateSchedule()}
+            >
+              {t('dashboard.home.socialPlanner.saveSchedule')}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+            {t('dashboard.home.socialPlanner.scheduledList')}
+          </p>
+          <div className="mt-2 space-y-2">
+            {loading ? (
+              <div className="h-16 animate-pulse rounded-lg border border-white/10 bg-white/5" />
+            ) : scheduledItems.length === 0 ? (
+              <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
+            ) : (
+              scheduledItems.map((item) => {
+                const pending = Boolean(actionById[item.id]);
+                const draft = item.draft || null;
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'rounded-lg border border-white/10 bg-black/20 p-2',
+                      highlightedScheduleId === item.id && 'border-emerald-300/50 bg-emerald-400/10',
+                    )}
+                  >
+                    <p className={cn('line-clamp-1 text-xs font-semibold text-white/90')}>
+                      {draft?.title || t('dashboard.home.approvalInbox.untitled')}
+                    </p>
+                    <p className={cn('mt-1 text-[11px] text-white/65')}>
+                      {`${formatDateLabel(item.scheduled_at, locale)} · ${item.platform}`}
+                    </p>
+                    <span className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/70">
+                      {t(`dashboard.home.socialPlanner.status.${item.status}`)}
+                    </span>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(draft)}>
+                        {t('dashboard.home.socialPlanner.copyText')}
+                      </Button>
+                      <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
+                        {t('dashboard.home.socialPlanner.openPlatform')}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="h-7 px-2 text-[11px]"
+                        loading={pending}
+                        onClick={() => void mutateSchedule(item.id, 'publish')}
+                      >
+                        {t('dashboard.home.socialPlanner.markPublished')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px]"
+                        loading={pending}
+                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'plus_1h' })}
+                      >
+                        {t('dashboard.home.socialPlanner.snooze1h')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px]"
+                        loading={pending}
+                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
+                      >
+                        {t('dashboard.home.socialPlanner.snoozeTomorrow')}
+                      </Button>
+                      {canManageSchedules ? (
+                        <Button
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px] text-rose-200"
+                          loading={pending}
+                          onClick={() => void mutateSchedule(item.id, 'cancel')}
+                        >
+                          {t('dashboard.home.socialPlanner.cancelSchedule')}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+            {t('dashboard.home.socialPlanner.publishedList')}
+          </p>
+          <div className="mt-2 space-y-2">
+            {publishedItems.length === 0 ? (
+              <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyPublished')}</p>
+            ) : (
+              publishedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'rounded-lg border border-emerald-300/20 bg-emerald-500/10 p-2',
+                    highlightedScheduleId === item.id && 'border-emerald-200/70',
+                  )}
+                >
+                  <p className={cn('line-clamp-1 text-xs font-semibold text-emerald-100')}>
+                    {item.draft?.title || t('dashboard.home.approvalInbox.untitled')}
+                  </p>
+                  <p className="mt-1 text-[11px] text-emerald-100/80">{formatDateLabel(item.published_at || item.updated_at, locale)}</p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(item.draft || null)}>
+                      {t('dashboard.home.socialPlanner.copyText')}
+                    </Button>
+                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
+                      {t('dashboard.home.socialPlanner.openPlatform')}
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+            {t('dashboard.home.socialPlanner.missedList')}
+          </p>
+          <div className="mt-2 space-y-2">
+            {missedItems.length === 0 ? (
+              <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyMissed')}</p>
+            ) : (
+              missedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'rounded-lg border border-amber-300/20 bg-amber-500/10 p-2',
+                    highlightedScheduleId === item.id && 'border-amber-100/70',
+                  )}
+                >
+                  <p className={cn('line-clamp-1 text-xs font-semibold text-amber-100')}>
+                    {item.draft?.title || t('dashboard.home.approvalInbox.untitled')}
+                  </p>
+                  <p className="mt-1 text-[11px] text-amber-100/80">{formatDateLabel(item.scheduled_at, locale)}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}

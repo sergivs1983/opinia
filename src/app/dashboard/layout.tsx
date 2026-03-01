@@ -67,6 +67,24 @@ type EngagementTriggerItem = {
   message: string;
 };
 
+type SocialReminderNotification = {
+  id: string;
+  org_id: string;
+  biz_id: string;
+  type: string;
+  payload: {
+    schedule_id?: string;
+    draft_id?: string;
+    platform?: 'instagram' | 'tiktok';
+    scheduled_at?: string;
+    draft_title?: string | null;
+    draft_format?: 'post' | 'story' | 'reel' | null;
+    kind?: 't_minus_24h' | 't_minus_1h' | 't_plus_15m';
+  } | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 type CommandPaletteItem = {
   id: string;
   type: 'route' | 'org';
@@ -83,6 +101,17 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return true;
   if (target.isContentEditable) return true;
   return Boolean(target.closest('[contenteditable="true"]'));
+}
+
+function formatShortTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -110,6 +139,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [hoursSavedThisMonth, setHoursSavedThisMonth] = useState<number | null>(null);
   const [weeklyHoursSaved, setWeeklyHoursSaved] = useState<number | null>(null);
   const [hoursSavedLoading, setHoursSavedLoading] = useState(false);
+  const [socialNotifications, setSocialNotifications] = useState<SocialReminderNotification[]>([]);
+  const [socialNotificationsUnread, setSocialNotificationsUnread] = useState(0);
+  const [socialNotificationsLoading, setSocialNotificationsLoading] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState<PaywallTriggerReason>('trial_start');
   const orgRef = useRef<HTMLDivElement>(null);
@@ -709,6 +741,61 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     };
   }, [biz?.id]);
 
+  useEffect(() => {
+    const businessId = biz?.id;
+    if (!businessId) {
+      setSocialNotifications([]);
+      setSocialNotificationsUnread(0);
+      setSocialNotificationsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const loadNotifications = async () => {
+      if (!cancelled) setSocialNotificationsLoading(true);
+      try {
+        const response = await fetch(`/api/social/notifications?biz_id=${businessId}&limit=8`);
+        const payload = (await response.json().catch(() => ({}))) as {
+          items?: SocialReminderNotification[];
+          unread_count?: number;
+          error?: string;
+        };
+
+        if (!response.ok || payload.error) {
+          if (!cancelled) {
+            setSocialNotifications([]);
+            setSocialNotificationsUnread(0);
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setSocialNotifications(Array.isArray(payload.items) ? payload.items : []);
+          setSocialNotificationsUnread(typeof payload.unread_count === 'number' ? payload.unread_count : 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setSocialNotifications([]);
+          setSocialNotificationsUnread(0);
+        }
+      } finally {
+        if (!cancelled) setSocialNotificationsLoading(false);
+      }
+    };
+
+    void loadNotifications();
+    intervalId = setInterval(() => {
+      void loadNotifications();
+    }, 60_000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [biz?.id]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
@@ -818,6 +905,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
     return items;
   }, [t, weeklyHoursSavedValue]);
+
+  const topbarNotificationCount = socialNotificationsUnread > 0
+    ? socialNotificationsUnread
+    : engagementItems.length;
 
   const handlePaywallAction = (action: PaywallAction) => {
     const plan = action === 'pro_upgrade' ? 'pro' : 'starter';
@@ -1021,9 +1112,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 data-testid="dashboard-engagement-bell"
               >
                 {icons.bell}
-                {engagementItems.length > 0 && (
+                {topbarNotificationCount > 0 && (
                   <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/15 px-1 text-[10px] font-semibold text-emerald-300">
-                    {engagementItems.length}
+                    {topbarNotificationCount}
                   </span>
                 )}
               </button>
@@ -1032,7 +1123,44 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   {t('dashboard.engagement.title')}
                 </p>
                 <div className="my-2 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                {engagementItems.length === 0 ? (
+                {socialNotificationsLoading ? (
+                  <div className="space-y-1">
+                    <div className="h-14 animate-pulse rounded-lg border border-white/10 bg-white/6" />
+                    <div className="h-14 animate-pulse rounded-lg border border-white/10 bg-white/6" />
+                  </div>
+                ) : socialNotifications.length > 0 ? (
+                  <div className="space-y-1">
+                    {socialNotifications.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-left text-sm text-zinc-200 transition-all duration-[220ms] ease-premium hover:border-white/20 hover:bg-white/8"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          const scheduleId = item.payload?.schedule_id;
+                          const bizId = item.biz_id;
+                          const query = new URLSearchParams();
+                          if (bizId) query.set('biz_id', bizId);
+                          if (scheduleId) query.set('schedule_id', scheduleId);
+                          query.set('source', 'notification');
+                          router.push(`/dashboard/planner?${query.toString()}`);
+                        }}
+                      >
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                            {t('dashboard.engagement.notificationLabel')}
+                          </span>
+                        </div>
+                        <p className="line-clamp-1 font-medium text-white/90">
+                          {item.payload?.draft_title || t('dashboard.home.approvalInbox.untitled')}
+                        </p>
+                        <p className="mt-1 text-xs text-white/65">
+                          {`${item.payload?.platform || 'instagram'} · ${formatShortTimestamp(item.created_at)}`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                ) : engagementItems.length === 0 ? (
                   <p className="px-2 pb-1 text-sm text-white/65">{t('dashboard.engagement.empty')}</p>
                 ) : (
                   <div className="space-y-1">

@@ -8,6 +8,7 @@ import { useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { cn } from '@/lib/utils';
 import { glass, glassPill, glassStrong, ringAccent } from '@/components/ui/glass';
+import SocialPlannerPanel from '@/components/planner/SocialPlannerPanel';
 import {
   getCurrentWeekStartMonday,
   normalizeWeekStartMonday,
@@ -354,6 +355,8 @@ export default function PlannerPage() {
           </div>
         )}
       </section>
+
+      <SocialPlannerPanel />
 
       {error && <div className={cn(glass, 'border border-rose-400/35 px-4 py-3 text-sm text-rose-200')}>{error}</div>}
 

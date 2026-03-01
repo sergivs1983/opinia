@@ -158,6 +158,10 @@ export default function LitoWorkbenchPane({
   const hookTitle = recommendation?.hook || recommendationTemplate?.hook || t('dashboard.home.recommendations.lito.defaultTitle');
   const localHowTo = recommendation?.how_to || recommendationTemplate?.how_to;
   const canMarkPublished = viewerRole !== 'staff';
+  const canScheduleFromDraft = (viewerRole === 'owner' || viewerRole === 'manager')
+    && Boolean(currentDraft?.id)
+    && currentDraft?.status === 'approved'
+    && Boolean(bizId);
   const staffCopyLocked = viewerRole === 'staff' && currentDraft?.status !== 'approved';
   const settingsHref = '/dashboard/admin';
   const ikeaChecklist = useMemo(() => {
@@ -1069,6 +1073,15 @@ export default function LitoWorkbenchPane({
                   {t('dashboard.litoPage.approval.approve')}
                 </Button>
               </>
+            ) : null}
+
+            {canScheduleFromDraft ? (
+              <Link
+                href={`/dashboard/planner?biz_id=${encodeURIComponent(bizId || '')}&draft_id=${encodeURIComponent(currentDraft?.id || '')}`}
+                className="inline-flex h-8 items-center rounded-[var(--radius-md)] border border-white/12 bg-white/5 px-3 text-xs font-medium text-white/85 transition-all duration-[220ms] ease-premium hover:bg-white/8"
+              >
+                {t('dashboard.home.socialPlanner.scheduleButton')}
+              </Link>
             ) : null}
 
             {canMarkPublished ? (
