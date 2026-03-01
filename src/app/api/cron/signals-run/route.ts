@@ -21,8 +21,18 @@ function jsonNoStore(body: Record<string, unknown>, requestId: string, status = 
 
 function hasValidCronSecret(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;
+  if (!expected) return false;
+
   const provided = request.headers.get('x-cron-secret');
-  return Boolean(expected && provided && provided === expected);
+  if (provided && provided === expected) return true;
+
+  const auth = request.headers.get('authorization') || '';
+  if (auth.startsWith('Bearer ')) {
+    const token = auth.slice('Bearer '.length).trim();
+    return token === expected;
+  }
+
+  return false;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
