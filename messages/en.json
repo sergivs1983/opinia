@@ -630,7 +630,16 @@
           "published": "Published",
           "missed": "Missed",
           "cancelled": "Canceled"
-        }
+        },
+        "advancedOptionsShow": "Advanced options ···",
+        "advancedOptionsHide": "Hide advanced options",
+        "prepareWithLito": "Prepare with LITO",
+        "quickDone": "✅ Done",
+        "quickCopy": "📋 Copy",
+        "quickOpen": "📲 Open",
+        "quickTomorrow": "⏰ Tomorrow instead",
+        "ikeaQuickTitle": "IKEA mode (execution)",
+        "ikeaCtaFallback": "Publish it and mark it as done."
       },
       "recommendations": {
         "title": "Recommendations of the week",
@@ -1083,6 +1092,51 @@
         "bannerPaused": "Feature disabled by the manager.",
         "goToSettings": "Go to Settings",
         "ownerManagerOnly": "Owner/Manager only"
+      },
+      "wizard": {
+        "heroTitle": "LITO weekly ritual",
+        "heroSubtitle": "Prepare this week’s content in under 2 minutes.",
+        "prepareThree": "✨ Prepare 3 posts for this week",
+        "surprise": "Surprise me",
+        "step1Title": "Step 1 · Any update?",
+        "step1Subtitle": "Leave it blank or add a short update to adapt drafts.",
+        "noveltyPlaceholder": "Example: this week we launch a new menu or lunch promo.",
+        "continue": "Continue",
+        "step2Title": "Step 2 · Review and approve drafts",
+        "step2Counter": "{current}/{total}",
+        "approve": "✅ Approve",
+        "approved": "✅ Approved",
+        "regenerate": "↺ Regenerate",
+        "inlineEdit": "Edit one sentence",
+        "recommendedDay": "Recommended day",
+        "recommendedSlot": "Time slot",
+        "days": {
+          "mon": "Mon",
+          "wed": "Wed",
+          "fri": "Fri"
+        },
+        "slots": {
+          "morning": "Morning",
+          "afternoon": "Afternoon"
+        },
+        "step3Title": "Step 3 · Leave everything ready",
+        "step3Summary": "{count} approved draft(s) ready to prepare.",
+        "finalCta": "✅ Leave everything ready",
+        "finalizeSuccess": "Week prepared with drafts and schedules.",
+        "finalizeDraftOnlySuccess": "Drafts created. Send them for review or pass to a manager.",
+        "finalizeError": "Could not complete the weekly ritual.",
+        "needOneApproved": "Approve at least one draft to continue.",
+        "pushTitle": "Do you want a reminder when it is time to publish?",
+        "pushSubtitle": "Enable push reminders and execute in 1-2 taps.",
+        "pushYes": "Yes, notify me",
+        "pushNo": "Not now",
+        "microGuideTitle": "IKEA mode",
+        "microGuideBody": "Copy → Open Instagram/TikTok → Done.",
+        "variantFast": "fast version",
+        "variantQuestion": "What if we do",
+        "noveltyPrefix": "Weekly update: {value}.",
+        "assetOne": "Real photo of {business}",
+        "assetTwo": "Short vertical clip or detail capture"
       }
     },
     "layout": {

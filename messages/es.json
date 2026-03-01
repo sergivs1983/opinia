@@ -630,7 +630,16 @@
           "published": "Publicado",
           "missed": "Caducado",
           "cancelled": "Cancelado"
-        }
+        },
+        "advancedOptionsShow": "Opciones avanzadas ···",
+        "advancedOptionsHide": "Ocultar opciones avanzadas",
+        "prepareWithLito": "Preparar con LITO",
+        "quickDone": "✅ Hecho",
+        "quickCopy": "📋 Copiar",
+        "quickOpen": "📲 Abrir",
+        "quickTomorrow": "⏰ Mejor mañana",
+        "ikeaQuickTitle": "Modo IKEA (ejecución)",
+        "ikeaCtaFallback": "Publícalo y márcalo como hecho."
       },
       "recommendations": {
         "title": "Recomendaciones de la semana",
@@ -1085,6 +1094,51 @@
         "bannerPaused": "Función desactivada por el manager.",
         "goToSettings": "Ir a Configuración",
         "ownerManagerOnly": "Solo Owner/Manager"
+      },
+      "wizard": {
+        "heroTitle": "Ritual semanal LITO",
+        "heroSubtitle": "Prepara contenido de la semana en menos de 2 minutos.",
+        "prepareThree": "✨ Preparar 3 posts para esta semana",
+        "surprise": "Sorpréndeme",
+        "step1Title": "Paso 1 · ¿Alguna novedad?",
+        "step1Subtitle": "Puedes dejarlo en blanco o añadir una novedad breve para adaptar los drafts.",
+        "noveltyPlaceholder": "Ej: esta semana lanzamos menú nuevo o tenemos promo de mediodía.",
+        "continue": "Continuar",
+        "step2Title": "Paso 2 · Revisa y aprueba drafts",
+        "step2Counter": "{current}/{total}",
+        "approve": "✅ Aprobar",
+        "approved": "✅ Aprobado",
+        "regenerate": "↺ Regenerar",
+        "inlineEdit": "Edita una frase",
+        "recommendedDay": "Día recomendado",
+        "recommendedSlot": "Franja",
+        "days": {
+          "mon": "Lun",
+          "wed": "Mié",
+          "fri": "Vie"
+        },
+        "slots": {
+          "morning": "Mañana",
+          "afternoon": "Tarde"
+        },
+        "step3Title": "Paso 3 · Dejarlo todo listo",
+        "step3Summary": "Hay {count} draft(s) aprobados para preparar.",
+        "finalCta": "✅ Dejarlo todo listo",
+        "finalizeSuccess": "Semana preparada con drafts y programaciones.",
+        "finalizeDraftOnlySuccess": "Drafts creados. Envíalos a revisión o pásalo a un manager.",
+        "finalizeError": "No se pudo completar el ritual semanal.",
+        "needOneApproved": "Aprueba al menos un draft para continuar.",
+        "pushTitle": "¿Quieres que te avise cuando toque publicar?",
+        "pushSubtitle": "Activa recordatorios push y ejecútalo en 1-2 toques.",
+        "pushYes": "Sí, avísame",
+        "pushNo": "Ahora no",
+        "microGuideTitle": "Modo IKEA",
+        "microGuideBody": "Copiar → Abrir Instagram/TikTok → Hecho.",
+        "variantFast": "versión rápida",
+        "variantQuestion": "¿Y si hacemos",
+        "noveltyPrefix": "Novedad de la semana: {value}.",
+        "assetOne": "Foto real de {business}",
+        "assetTwo": "Clip vertical corto o captura de detalle"
       }
     },
     "layout": {

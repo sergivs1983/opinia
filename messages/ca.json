@@ -630,7 +630,16 @@
           "published": "Publicat",
           "missed": "Caducat",
           "cancelled": "Cancel·lat"
-        }
+        },
+        "advancedOptionsShow": "Opcions avançades ···",
+        "advancedOptionsHide": "Amagar opcions avançades",
+        "prepareWithLito": "Preparar amb LITO",
+        "quickDone": "✅ Fet",
+        "quickCopy": "📋 Copiar",
+        "quickOpen": "📲 Obrir",
+        "quickTomorrow": "⏰ Demà millor",
+        "ikeaQuickTitle": "Mode IKEA (execució)",
+        "ikeaCtaFallback": "Publica-ho i marca-ho com a fet."
       },
       "recommendations": {
         "title": "Recomanacions de la setmana",
@@ -1085,6 +1094,51 @@
         "bannerPaused": "Funció desactivada pel manager.",
         "goToSettings": "Anar a Configuració",
         "ownerManagerOnly": "Només Owner/Manager"
+      },
+      "wizard": {
+        "heroTitle": "Ritual setmanal LITO",
+        "heroSubtitle": "Prepara contingut de la setmana en menys de 2 minuts.",
+        "prepareThree": "✨ Preparar 3 posts per aquesta setmana",
+        "surprise": "Sorprèn-me",
+        "step1Title": "Pas 1 · Alguna novetat?",
+        "step1Subtitle": "Pots deixar-ho en blanc o afegir una novetat curta per adaptar els drafts.",
+        "noveltyPlaceholder": "Ex: aquesta setmana llancem menú nou o tenim promo de migdia.",
+        "continue": "Continuar",
+        "step2Title": "Pas 2 · Revisa i aprova drafts",
+        "step2Counter": "{current}/{total}",
+        "approve": "✅ Aprovar",
+        "approved": "✅ Aprovat",
+        "regenerate": "↺ Regenerar",
+        "inlineEdit": "Edita una frase",
+        "recommendedDay": "Dia recomanat",
+        "recommendedSlot": "Franja",
+        "days": {
+          "mon": "Dl",
+          "wed": "Dc",
+          "fri": "Dv"
+        },
+        "slots": {
+          "morning": "Matí",
+          "afternoon": "Tarda"
+        },
+        "step3Title": "Pas 3 · Deixar-ho tot llest",
+        "step3Summary": "Hi ha {count} draft(s) aprovats per preparar.",
+        "finalCta": "✅ Deixar-ho tot llest",
+        "finalizeSuccess": "Setmana preparada amb drafts i programacions.",
+        "finalizeDraftOnlySuccess": "Drafts creats. Envia’ls a revisió o passa-ho a un manager.",
+        "finalizeError": "No s’ha pogut completar el ritual setmanal.",
+        "needOneApproved": "Aprova almenys un draft per continuar.",
+        "pushTitle": "Vols que t’avisi quan toqui publicar?",
+        "pushSubtitle": "Activa recordatoris push i executa-ho amb 1-2 taps.",
+        "pushYes": "Sí, avisa’m",
+        "pushNo": "Ara no",
+        "microGuideTitle": "Mode IKEA",
+        "microGuideBody": "Copiar → Obrir Instagram/TikTok → Fet.",
+        "variantFast": "versió ràpida",
+        "variantQuestion": "I si fem",
+        "noveltyPrefix": "Novetat de la setmana: {value}.",
+        "assetOne": "Foto real de {business}",
+        "assetTwo": "Clip curt vertical o captura de detall"
       }
     },
     "layout": {
