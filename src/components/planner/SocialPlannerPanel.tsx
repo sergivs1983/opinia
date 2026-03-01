@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 
 import Button from '@/components/ui/Button';
@@ -76,6 +77,16 @@ type ScheduleMutatePayload = {
   message?: string;
 };
 
+type WeeklySocialStatsPayload = {
+  ok?: boolean;
+  published_count?: number;
+  goal?: number;
+  remaining?: number;
+  is_completed?: boolean;
+  error?: string;
+  message?: string;
+};
+
 const SCHEDULED_STATUSES = new Set(['scheduled', 'notified', 'snoozed']);
 
 function formatDateLabel(value: string, locale: string): string {
@@ -87,6 +98,27 @@ function formatDateLabel(value: string, locale: string): string {
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+function formatTimeLabel(value: string, locale: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--:--';
+  const resolvedLocale = locale === 'en' ? 'en-GB' : locale === 'es' ? 'es-ES' : 'ca-ES';
+  return date.toLocaleTimeString(resolvedLocale, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDayLabel(value: string, locale: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const resolvedLocale = locale === 'en' ? 'en-GB' : locale === 'es' ? 'es-ES' : 'ca-ES';
+  return date.toLocaleDateString(resolvedLocale, {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
   });
 }
 
@@ -112,6 +144,7 @@ function defaultScheduledAt(): string {
 }
 
 export default function SocialPlannerPanel() {
+  const router = useRouter();
   const t = useT();
   const locale = useLocale();
   const { toast } = useToast();
@@ -130,8 +163,15 @@ export default function SocialPlannerPanel() {
   const [platform, setPlatform] = useState<'instagram' | 'tiktok'>('instagram');
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt());
   const [assignedUserId, setAssignedUserId] = useState('');
+  const [weeklyStats, setWeeklyStats] = useState<{
+    published_count: number;
+    goal: number;
+    remaining: number;
+    is_completed: boolean;
+  } | null>(null);
 
   const canManageSchedules = viewerRole === 'owner' || viewerRole === 'manager';
+  const canMarkPublished = viewerRole === 'owner' || viewerRole === 'manager' || viewerRole === 'staff';
   const preselectedDraftId = searchParams.get('draft_id');
   const preselectedRecommendationId = searchParams.get('recommendation_id');
   const highlightedScheduleId = searchParams.get('schedule_id');
@@ -161,6 +201,19 @@ export default function SocialPlannerPanel() {
       setViewerRole(nextRole);
       setSchedules(schedulesPayload.items || []);
 
+      const statsResponse = await fetch(`/api/social/stats/weekly?biz_id=${biz.id}`);
+      const statsPayload = (await statsResponse.json().catch(() => ({}))) as WeeklySocialStatsPayload;
+      if (statsResponse.ok && !statsPayload.error) {
+        setWeeklyStats({
+          published_count: typeof statsPayload.published_count === 'number' ? statsPayload.published_count : 0,
+          goal: typeof statsPayload.goal === 'number' ? statsPayload.goal : 3,
+          remaining: typeof statsPayload.remaining === 'number' ? statsPayload.remaining : 0,
+          is_completed: Boolean(statsPayload.is_completed),
+        });
+      } else {
+        setWeeklyStats(null);
+      }
+
       const draftsResponse = await fetch(`/api/social/drafts?biz_id=${biz.id}&status=approved&limit=40`);
       const draftsPayload = (await draftsResponse.json().catch(() => ({}))) as SocialDraftListPayload;
       if (draftsResponse.ok && Array.isArray(draftsPayload.items)) {
@@ -186,6 +239,7 @@ export default function SocialPlannerPanel() {
       setApprovedDrafts([]);
       setTeamMembers([]);
       setViewerRole(null);
+      setWeeklyStats(null);
     } finally {
       setLoading(false);
     }
@@ -241,6 +295,32 @@ export default function SocialPlannerPanel() {
     () => schedules.filter((item) => item.status === 'missed'),
     [schedules],
   );
+
+  const weeklyStatsProgress = useMemo(() => {
+    if (!weeklyStats || weeklyStats.goal <= 0) return 0;
+    const ratio = weeklyStats.published_count / weeklyStats.goal;
+    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  }, [weeklyStats]);
+
+  const assigneeNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const member of teamMembers) {
+      names[member.user_id] = member.full_name || member.invited_email || member.user_id;
+    }
+    return names;
+  }, [teamMembers]);
+
+  const todayPendingCount = useMemo(() => {
+    const now = new Date();
+    const nowY = now.getFullYear();
+    const nowM = now.getMonth();
+    const nowD = now.getDate();
+    return scheduledItems.filter((item) => {
+      const date = new Date(item.scheduled_at);
+      if (Number.isNaN(date.getTime())) return false;
+      return date.getFullYear() === nowY && date.getMonth() === nowM && date.getDate() === nowD;
+    }).length;
+  }, [scheduledItems]);
 
   const handleCreateSchedule = useCallback(async () => {
     if (!biz?.id || !selectedDraftId || !assignedUserId || !scheduledAt) {
@@ -348,6 +428,40 @@ export default function SocialPlannerPanel() {
         ) : null}
       </div>
 
+      <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+            {t('dashboard.home.weeklyConsistency.title')}
+          </p>
+          <p className="text-sm font-semibold text-white/90">
+            {weeklyStats
+              ? t('dashboard.home.weeklyConsistency.value', {
+                done: weeklyStats.published_count,
+                goal: weeklyStats.goal,
+              })
+              : '—/—'}
+          </p>
+        </div>
+        <div className="mt-2 h-2 rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-emerald-300/80 transition-all duration-300"
+            style={{ width: `${weeklyStatsProgress}%` }}
+          />
+        </div>
+        <p className={cn('mt-2 text-xs', textSub)}>
+          {weeklyStats
+            ? weeklyStats.is_completed
+              ? t('dashboard.home.weeklyConsistency.completed')
+              : t('dashboard.home.weeklyConsistency.remaining', { count: weeklyStats.remaining })
+            : t('dashboard.home.weeklyConsistency.unavailable')}
+        </p>
+        {todayPendingCount === 0 ? (
+          <p className="mt-1 text-xs text-emerald-200/90">
+            {t('dashboard.home.socialPlanner.todayDone')}
+          </p>
+        ) : null}
+      </div>
+
       {canManageSchedules && formOpen ? (
         <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
           <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
@@ -431,17 +545,30 @@ export default function SocialPlannerPanel() {
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
           <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
-            {t('dashboard.home.socialPlanner.scheduledList')}
+            {`${t('dashboard.home.socialPlanner.scheduledList')} (${scheduledItems.length})`}
           </p>
           <div className="mt-2 space-y-2">
             {loading ? (
               <div className="h-16 animate-pulse rounded-lg border border-white/10 bg-white/5" />
             ) : scheduledItems.length === 0 ? (
-              <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
+              <div className="space-y-2">
+                <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
+                {canManageSchedules ? (
+                  <Button
+                    variant="secondary"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={() => setFormOpen(true)}
+                  >
+                    {t('dashboard.home.socialPlanner.emptyScheduledCta')}
+                  </Button>
+                ) : null}
+              </div>
             ) : (
               scheduledItems.map((item) => {
                 const pending = Boolean(actionById[item.id]);
                 const draft = item.draft || null;
+                const draftTitle = draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle');
+                const assigneeLabel = assigneeNames[item.assigned_user_id] || t('dashboard.home.socialPlanner.assignedFallback');
                 return (
                   <div
                     key={item.id}
@@ -450,29 +577,50 @@ export default function SocialPlannerPanel() {
                       highlightedScheduleId === item.id && 'border-emerald-300/50 bg-emerald-400/10',
                     )}
                   >
-                    <p className={cn('line-clamp-1 text-xs font-semibold text-white/90')}>
-                      {draft?.title || t('dashboard.home.approvalInbox.untitled')}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-lg font-semibold leading-none text-white/92">
+                          {formatTimeLabel(item.scheduled_at, locale)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-white/65">
+                          {formatDayLabel(item.scheduled_at, locale)}
+                        </p>
+                      </div>
+                      <span className="inline-flex rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">
+                        {item.platform === 'instagram' ? 'IG' : 'TikTok'}
+                      </span>
+                    </div>
+                    <p className={cn('mt-2 line-clamp-2 text-xs font-semibold text-white/90')}>
+                      {draftTitle}
                     </p>
                     <p className={cn('mt-1 text-[11px] text-white/65')}>
-                      {`${formatDateLabel(item.scheduled_at, locale)} · ${item.platform}`}
+                      {t('dashboard.home.socialPlanner.assignedTo', { name: assigneeLabel })}
                     </p>
                     <span className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/70">
                       {t(`dashboard.home.socialPlanner.status.${item.status}`)}
                     </span>
                     <div className="mt-2 flex flex-wrap gap-1">
+                      <Button
+                        variant="secondary"
+                        className="h-7 px-2 text-[11px]"
+                        loading={pending}
+                        onClick={() => {
+                          if (canMarkPublished) {
+                            void mutateSchedule(item.id, 'publish');
+                            return;
+                          }
+                          router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`);
+                        }}
+                      >
+                        {canMarkPublished
+                          ? t('dashboard.home.socialPlanner.markPublished')
+                          : t('dashboard.home.socialPlanner.viewItem')}
+                      </Button>
                       <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(draft)}>
                         {t('dashboard.home.socialPlanner.copyText')}
                       </Button>
                       <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
                         {t('dashboard.home.socialPlanner.openPlatform')}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="h-7 px-2 text-[11px]"
-                        loading={pending}
-                        onClick={() => void mutateSchedule(item.id, 'publish')}
-                      >
-                        {t('dashboard.home.socialPlanner.markPublished')}
                       </Button>
                       <Button
                         variant="ghost"
@@ -510,7 +658,7 @@ export default function SocialPlannerPanel() {
 
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
           <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
-            {t('dashboard.home.socialPlanner.publishedList')}
+            {`${t('dashboard.home.socialPlanner.publishedList')} (${publishedItems.length})`}
           </p>
           <div className="mt-2 space-y-2">
             {publishedItems.length === 0 ? (
@@ -525,10 +673,17 @@ export default function SocialPlannerPanel() {
                   )}
                 >
                   <p className={cn('line-clamp-1 text-xs font-semibold text-emerald-100')}>
-                    {item.draft?.title || t('dashboard.home.approvalInbox.untitled')}
+                    {item.draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle')}
                   </p>
                   <p className="mt-1 text-[11px] text-emerald-100/80">{formatDateLabel(item.published_at || item.updated_at, locale)}</p>
                   <div className="mt-2 flex flex-wrap gap-1">
+                    <Button
+                      variant="secondary"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`)}
+                    >
+                      {t('dashboard.home.socialPlanner.viewItem')}
+                    </Button>
                     <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(item.draft || null)}>
                       {t('dashboard.home.socialPlanner.copyText')}
                     </Button>
@@ -544,7 +699,7 @@ export default function SocialPlannerPanel() {
 
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
           <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
-            {t('dashboard.home.socialPlanner.missedList')}
+            {`${t('dashboard.home.socialPlanner.missedList')} (${missedItems.length})`}
           </p>
           <div className="mt-2 space-y-2">
             {missedItems.length === 0 ? (
@@ -559,9 +714,27 @@ export default function SocialPlannerPanel() {
                   )}
                 >
                   <p className={cn('line-clamp-1 text-xs font-semibold text-amber-100')}>
-                    {item.draft?.title || t('dashboard.home.approvalInbox.untitled')}
+                    {item.draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle')}
                   </p>
                   <p className="mt-1 text-[11px] text-amber-100/80">{formatDateLabel(item.scheduled_at, locale)}</p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <Button
+                      variant="secondary"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`)}
+                    >
+                      {t('dashboard.home.socialPlanner.viewItem')}
+                    </Button>
+                    {canMarkPublished ? (
+                      <Button
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
+                      >
+                        {t('dashboard.home.socialPlanner.snoozeTomorrow')}
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ))
             )}

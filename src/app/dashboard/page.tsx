@@ -102,6 +102,20 @@ type WeeklyRecommendationsPayload = {
   request_id?: string;
 };
 
+type WeeklySocialStatsPayload = {
+  ok?: boolean;
+  scope?: 'org' | 'biz';
+  week_start_utc?: string;
+  week_end_utc?: string;
+  published_count?: number;
+  goal?: number;
+  remaining?: number;
+  is_completed?: boolean;
+  error?: string;
+  message?: string;
+  request_id?: string;
+};
+
 type RecommendationFeedbackPayload = {
   error?: string;
   message?: string;
@@ -200,6 +214,13 @@ export default function DashboardPage() {
   const [weeklyRecommendationChannelById, setWeeklyRecommendationChannelById] = useState<Record<string, RecommendationChannel>>({});
   const [pendingDraftInbox, setPendingDraftInbox] = useState<SocialDraftInboxItem[]>([]);
   const [pendingDraftInboxLoading, setPendingDraftInboxLoading] = useState(false);
+  const [weeklyConsistency, setWeeklyConsistency] = useState<{
+    published_count: number;
+    goal: number;
+    remaining: number;
+    is_completed: boolean;
+  } | null>(null);
+  const [weeklyConsistencyLoading, setWeeklyConsistencyLoading] = useState(false);
 
   const { reviews, loading, error, refetch } = useReviews({
     bizId: biz?.id,
@@ -306,6 +327,45 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [biz?.id, t]);
+
+  useEffect(() => {
+    if (!biz?.id) {
+      setWeeklyConsistency(null);
+      setWeeklyConsistencyLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setWeeklyConsistencyLoading(true);
+
+    void fetch(`/api/social/stats/weekly?biz_id=${biz.id}`)
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as WeeklySocialStatsPayload;
+        if (!response.ok || payload.error) {
+          throw new Error(payload.message || 'load_failed');
+        }
+
+        if (cancelled) return;
+        setWeeklyConsistency({
+          published_count: typeof payload.published_count === 'number' ? payload.published_count : 0,
+          goal: typeof payload.goal === 'number' ? payload.goal : 3,
+          remaining: typeof payload.remaining === 'number' ? payload.remaining : 0,
+          is_completed: Boolean(payload.is_completed),
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setWeeklyConsistency(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setWeeklyConsistencyLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [biz?.id]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -643,6 +703,12 @@ export default function DashboardPage() {
     }
   }, [locale, t, toast]);
 
+  const weeklyConsistencyProgress = useMemo(() => {
+    if (!weeklyConsistency || weeklyConsistency.goal <= 0) return 0;
+    const ratio = weeklyConsistency.published_count / weeklyConsistency.goal;
+    return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  }, [weeklyConsistency]);
+
   if (!biz) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -700,6 +766,42 @@ export default function DashboardPage() {
             </p>
           )}
         </header>
+
+        <GlassCard variant="strong" className="p-4 md:p-5" data-testid="dashboard-weekly-consistency">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className={cn('text-base font-semibold', textMain)}>
+                {t('dashboard.home.weeklyConsistency.title')}
+              </h2>
+              <p className={cn('mt-1 text-xs', textSub)}>
+                {t('dashboard.home.weeklyConsistency.subtitle')}
+              </p>
+            </div>
+            <p className="text-lg font-semibold text-white/92">
+              {weeklyConsistency
+                ? t('dashboard.home.weeklyConsistency.value', {
+                  done: weeklyConsistency.published_count,
+                  goal: weeklyConsistency.goal,
+                })
+                : '—/—'}
+            </p>
+          </div>
+          <div className="mt-3 h-2 rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-emerald-300/80 transition-all duration-300"
+              style={{ width: `${weeklyConsistencyProgress}%` }}
+            />
+          </div>
+          <p className={cn('mt-2 text-xs', textSub)}>
+            {weeklyConsistencyLoading
+              ? t('common.loading')
+              : weeklyConsistency
+                ? weeklyConsistency.is_completed
+                  ? t('dashboard.home.weeklyConsistency.completed')
+                  : t('dashboard.home.weeklyConsistency.remaining', { count: weeklyConsistency.remaining })
+                : t('dashboard.home.weeklyConsistency.unavailable')}
+          </p>
+        </GlassCard>
 
         <GlassCard variant="strong" className="p-4 md:p-5" data-testid="dashboard-weekly-recommendations">
           <div className="mb-3 flex items-start justify-between gap-3">
