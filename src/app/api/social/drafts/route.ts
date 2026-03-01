@@ -10,7 +10,7 @@ import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody, validateQuery } from '@/lib/validations';
-import { withStandardHeaders } from '@/app/api/social/drafts/_shared';
+import { SOCIAL_DRAFT_SELECT, withStandardHeaders } from '@/app/api/social/drafts/_shared';
 
 const StatusSchema = z.enum(['draft', 'pending', 'approved', 'rejected', 'published']);
 
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
     let queryBuilder = admin
       .from('social_drafts')
-      .select('id, org_id, biz_id, source, recommendation_id, thread_id, status, channel, format, title, copy_short, copy_long, hashtags, steps, assets_needed, created_by, reviewed_by, review_note, created_at, updated_at')
+      .select(SOCIAL_DRAFT_SELECT)
       .eq('biz_id', payload.biz_id)
       .order('updated_at', { ascending: false })
       .limit(payload.limit ?? 20);
@@ -190,6 +190,10 @@ export async function POST(request: Request) {
       created_by: user.id,
       reviewed_by: null,
       review_note: null,
+      rejection_note: null,
+      version: 1,
+      submitted_at: null,
+      reviewed_at: null,
       created_at: nowIso,
       updated_at: nowIso,
     };
@@ -197,7 +201,7 @@ export async function POST(request: Request) {
     const { data, error } = await admin
       .from('social_drafts')
       .insert(insertPayload)
-      .select('id, org_id, biz_id, source, recommendation_id, thread_id, status, channel, format, title, copy_short, copy_long, hashtags, steps, assets_needed, created_by, reviewed_by, review_note, created_at, updated_at')
+      .select(SOCIAL_DRAFT_SELECT)
       .single();
 
     if (error || !data) {

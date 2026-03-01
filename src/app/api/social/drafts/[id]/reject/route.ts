@@ -6,16 +6,16 @@ import { z } from 'zod';
 
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { validateBody, validateParams } from '@/lib/validations';
-import { loadSocialDraftContext, withStandardHeaders } from '@/app/api/social/drafts/_shared';
+import { loadSocialDraftContext, runOptimisticTransition, withStandardHeaders } from '@/app/api/social/drafts/_shared';
 
 const ParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
 const BodySchema = z.object({
-  note: z.string().trim().min(1).max(500).optional(),
+  version: z.number().int().min(1),
+  note: z.string().trim().min(3).max(500),
 });
 
 export async function POST(
@@ -50,45 +50,63 @@ export async function POST(
       );
     }
 
-    if (ctx.draft.status !== 'pending') {
+    const nowIso = new Date().toISOString();
+    const transition = await runOptimisticTransition({
+      draft: ctx.draft,
+      expectedVersion: payload.version,
+      expectedStatus: 'pending',
+      toStatus: 'rejected',
+      actorId: ctx.userId,
+      eventType: 'rejected',
+      eventNote: payload.note,
+      update: {
+        reviewed_by: ctx.userId,
+        reviewed_at: nowIso,
+        submitted_at: ctx.draft.submitted_at || nowIso,
+        rejection_note: payload.note,
+        review_note: payload.note,
+      },
+    });
+
+    if (!transition.ok) {
+      if (transition.kind === 'version_conflict') {
+        return withStandardHeaders(
+          NextResponse.json(
+            {
+              error: 'version_conflict',
+              message: 'El draft ha canviat. Refresca i torna-ho a provar.',
+              request_id: requestId,
+              current_version: transition.draft.version,
+              current_status: transition.draft.status,
+            },
+            { status: 409 },
+          ),
+          requestId,
+        );
+      }
       return withStandardHeaders(
         NextResponse.json(
-          { error: 'invalid_state', message: 'Només es poden rebutjar drafts pendents', request_id: requestId },
-          { status: 409 },
+          {
+            error: 'invalid_transition',
+            message: 'Transició d’estat no permesa.',
+            request_id: requestId,
+            current_version: transition.draft.version,
+            current_status: transition.draft.status,
+          },
+          { status: 422 },
         ),
         requestId,
       );
     }
 
-    const nowIso = new Date().toISOString();
-    const admin = createAdminClient();
-
-    const { data, error } = await admin
-      .from('social_drafts')
-      .update({
-        status: 'rejected',
-        reviewed_by: ctx.userId,
-        review_note: payload.note || null,
-        updated_at: nowIso,
-      })
-      .eq('id', ctx.draft.id)
-      .select('id, org_id, biz_id, source, recommendation_id, thread_id, status, channel, format, title, copy_short, copy_long, hashtags, steps, assets_needed, created_by, reviewed_by, review_note, created_at, updated_at')
-      .single();
-
-    if (error || !data) {
-      log.error('social_draft_reject_failed', {
-        error_code: error?.code || null,
-        error: error?.message || null,
-        draft_id: ctx.draft.id,
-      });
-      return withStandardHeaders(
-        NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
-        requestId,
-      );
-    }
-
     return withStandardHeaders(
-      NextResponse.json({ ok: true, status: data.status, draft: data, request_id: requestId }),
+      NextResponse.json({
+        ok: true,
+        status: transition.draft.status,
+        draft: transition.draft,
+        request_id: requestId,
+        idempotent: transition.idempotent,
+      }),
       requestId,
     );
   } catch (error) {

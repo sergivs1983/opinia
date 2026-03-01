@@ -121,6 +121,7 @@ type SocialDraftInboxItem = {
   format: 'post' | 'story' | 'reel';
   title: string | null;
   created_by: string;
+  version?: number;
   updated_at: string;
 };
 

@@ -29,6 +29,10 @@ type SocialDraftReviewItem = {
   hashtags: string[] | null;
   created_by: string;
   review_note: string | null;
+  rejection_note?: string | null;
+  version: number;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
   updated_at: string;
 };
 
@@ -62,6 +66,7 @@ export default function LitoReviewPage() {
   const [hashtagsText, setHashtagsText] = useState('');
   const [rejectNote, setRejectNote] = useState('');
   const [acting, setActing] = useState<'approve' | 'reject' | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   const queryBizId = searchParams.get('biz_id');
   const queryDraftId = searchParams.get('draft_id');
@@ -140,6 +145,7 @@ export default function LitoReviewPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          version: selectedDraft.version,
           copy_short: copyShort || null,
           copy_long: copyLong || null,
           hashtags: hashtagsText
@@ -172,7 +178,10 @@ export default function LitoReviewPage() {
       const response = await fetch(`/api/social/drafts/${selectedDraft.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: rejectNote || null }),
+        body: JSON.stringify({
+          version: selectedDraft.version,
+          note: rejectNote.trim() || t('dashboard.litoPage.approval.rejectDefaultNote'),
+        }),
       });
       const payload = (await response.json().catch(() => ({}))) as SocialDraftMutationPayload;
       if (!response.ok || payload.error || !payload.draft) {
@@ -200,6 +209,31 @@ export default function LitoReviewPage() {
       toast(t('dashboard.home.recommendations.lito.copyError'), 'error');
     }
   }, [copyLong, t, toast]);
+
+  const publishDraft = useCallback(async () => {
+    if (!selectedDraft || selectedDraft.status !== 'approved') return;
+    setPublishing(true);
+    try {
+      const response = await fetch(`/api/social/drafts/${selectedDraft.id}/publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: selectedDraft.version }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as SocialDraftMutationPayload;
+      if (!response.ok || payload.error || !payload.draft) {
+        throw new Error(payload.message || t('dashboard.litoPage.approval.publishError'));
+      }
+      setItems((previous) => previous.map((item) => (
+        item.id === selectedDraft.id ? payload.draft as SocialDraftReviewItem : item
+      )));
+      toast(t('dashboard.litoPage.approval.publishSuccess'), 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('dashboard.litoPage.approval.publishError');
+      toast(message, 'error');
+    } finally {
+      setPublishing(false);
+    }
+  }, [selectedDraft, t, toast]);
 
   if (!biz) {
     return (
@@ -321,6 +355,15 @@ export default function LitoReviewPage() {
                 {selectedDraft.status === 'approved' ? (
                   <Button variant="secondary" className="h-9 px-3 text-xs" onClick={() => void copyApproved()}>
                     {t('dashboard.home.recommendations.lito.actions.copy')}
+                  </Button>
+                ) : null}
+                {selectedDraft.status === 'approved' ? (
+                  <Button
+                    className="h-9 px-3 text-xs"
+                    loading={publishing}
+                    onClick={() => void publishDraft()}
+                  >
+                    {t('dashboard.litoPage.approval.publish')}
                   </Button>
                 ) : null}
                 <Button

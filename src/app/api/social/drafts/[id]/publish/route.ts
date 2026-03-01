@@ -15,24 +15,14 @@ const ParamsSchema = z.object({
 
 const BodySchema = z.object({
   version: z.number().int().min(1),
-  title: z.string().trim().min(1).max(140).optional().nullable(),
-  copy_short: z.string().trim().max(500).optional().nullable(),
-  copy_long: z.string().trim().max(4000).optional().nullable(),
-  hashtags: z.array(z.string().trim().min(1).max(80)).max(30).optional().nullable(),
-  assets_needed: z.array(z.string().trim().min(1).max(120)).max(30).optional().nullable(),
 });
-
-function normalizeList(values?: string[] | null): string[] | null {
-  if (!values || values.length === 0) return null;
-  return values.map((entry) => entry.trim()).filter(Boolean);
-}
 
 export async function POST(
   request: Request,
   { params }: { params: { id: string } },
 ) {
   const requestId = getRequestIdFromHeaders(request.headers);
-  const log = createLogger({ request_id: requestId, route: 'POST /api/social/drafts/[id]/approve' });
+  const log = createLogger({ request_id: requestId, route: 'POST /api/social/drafts/[id]/publish' });
 
   try {
     const [routeParams, paramsErr] = validateParams(params, ParamsSchema);
@@ -45,7 +35,7 @@ export async function POST(
     const ctx = await loadSocialDraftContext({
       requestId,
       draftId: routeParams.id,
-      route: 'POST /api/social/drafts/[id]/approve',
+      route: 'POST /api/social/drafts/[id]/publish',
     });
 
     if (ctx.response || !ctx.draft || !ctx.userId || !ctx.role) {
@@ -63,21 +53,14 @@ export async function POST(
     const transition = await runOptimisticTransition({
       draft: ctx.draft,
       expectedVersion: payload.version,
-      expectedStatus: 'pending',
-      toStatus: 'approved',
+      expectedStatus: 'approved',
+      toStatus: 'published',
       actorId: ctx.userId,
-      eventType: 'approved',
+      eventType: 'published',
       update: {
         reviewed_by: ctx.userId,
         reviewed_at: nowIso,
         submitted_at: ctx.draft.submitted_at || nowIso,
-        review_note: null,
-        rejection_note: null,
-        title: payload.title !== undefined ? (payload.title || null) : ctx.draft.title,
-        copy_short: payload.copy_short !== undefined ? (payload.copy_short || null) : ctx.draft.copy_short,
-        copy_long: payload.copy_long !== undefined ? (payload.copy_long || null) : ctx.draft.copy_long,
-        hashtags: payload.hashtags !== undefined ? normalizeList(payload.hashtags) : ctx.draft.hashtags,
-        assets_needed: payload.assets_needed !== undefined ? normalizeList(payload.assets_needed) : ctx.draft.assets_needed,
       },
     });
 
@@ -123,7 +106,7 @@ export async function POST(
       requestId,
     );
   } catch (error) {
-    log.error('social_draft_approve_unhandled', {
+    log.error('social_draft_publish_unhandled', {
       error: error instanceof Error ? error.message : String(error),
     });
     return withStandardHeaders(

@@ -10,7 +10,7 @@ import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateQuery } from '@/lib/validations';
-import { withStandardHeaders } from '@/app/api/social/drafts/_shared';
+import { SOCIAL_DRAFT_SELECT, withStandardHeaders } from '@/app/api/social/drafts/_shared';
 
 const QuerySchema = z.object({
   org_id: z.string().uuid(),
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
     let queryBuilder = admin
       .from('social_drafts')
-      .select('id, org_id, biz_id, recommendation_id, thread_id, status, channel, format, title, copy_short, copy_long, hashtags, steps, assets_needed, created_by, reviewed_by, review_note, created_at, updated_at')
+      .select(SOCIAL_DRAFT_SELECT)
       .eq('org_id', payload.org_id)
       .eq('status', payload.status || 'pending')
       .order('updated_at', { ascending: false })

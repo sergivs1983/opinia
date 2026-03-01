@@ -930,6 +930,9 @@
         "approveError": "No se pudo aprobar el borrador.",
         "rejectSuccess": "Borrador rechazado.",
         "rejectError": "No se pudo rechazar el borrador.",
+        "publish": "✅ Publicar",
+        "publishSuccess": "Borrador marcado como publicado.",
+        "publishError": "No se pudo publicar el borrador.",
         "rejectDefaultNote": "Hay que ajustar el mensaje antes de publicar."
       },
       "review": {

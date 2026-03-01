@@ -35,6 +35,10 @@ type SocialDraftItem = {
   hashtags: string[] | null;
   assets_needed: string[] | null;
   review_note: string | null;
+  rejection_note?: string | null;
+  version: number;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
   updated_at: string;
 };
 
@@ -321,38 +325,47 @@ export default function LitoWorkbenchPane({
     if (!bizId || !recommendation?.id || !orgId || viewerRole !== 'staff') return;
     setReviewActionLoading('submit');
     try {
-      const createResponse = await fetch('/api/social/drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          biz_id: bizId,
-          source: 'lito',
-          recommendation_id: recommendation.id,
-          channel: previewChannel,
-          format: effectiveFormat,
-          title: hookTitle,
-          copy_short: copyShort || null,
-          copy_long: copyLong || null,
-          hashtags: hashtags.length ? hashtags : null,
-          assets_needed: assets.length ? assets : null,
-          steps: ikeaChecklist?.steps || shotlist,
-        }),
-      });
-      const createPayload = (await createResponse.json().catch(() => ({}))) as SocialDraftMutationPayload;
-      if (!createResponse.ok || createPayload.error || !createPayload.draft?.id) {
-        throw new Error(createPayload.message || t('dashboard.litoPage.approval.submitError'));
+      const draftForSubmit = currentDraft?.status === 'draft' || currentDraft?.status === 'rejected'
+        ? currentDraft
+        : null;
+
+      let targetDraft = draftForSubmit;
+      if (!targetDraft) {
+        const createResponse = await fetch('/api/social/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            biz_id: bizId,
+            source: 'lito',
+            recommendation_id: recommendation.id,
+            channel: previewChannel,
+            format: effectiveFormat,
+            title: hookTitle,
+            copy_short: copyShort || null,
+            copy_long: copyLong || null,
+            hashtags: hashtags.length ? hashtags : null,
+            assets_needed: assets.length ? assets : null,
+            steps: ikeaChecklist?.steps || shotlist,
+          }),
+        });
+        const createPayload = (await createResponse.json().catch(() => ({}))) as SocialDraftMutationPayload;
+        if (!createResponse.ok || createPayload.error || !createPayload.draft?.id) {
+          throw new Error(createPayload.message || t('dashboard.litoPage.approval.submitError'));
+        }
+        targetDraft = createPayload.draft;
       }
 
-      const submitResponse = await fetch(`/api/social/drafts/${createPayload.draft.id}/submit`, {
+      const submitResponse = await fetch(`/api/social/drafts/${targetDraft.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: targetDraft.version }),
       });
       const submitPayload = (await submitResponse.json().catch(() => ({}))) as SocialDraftMutationPayload;
       if (!submitResponse.ok || submitPayload.error) {
         throw new Error(submitPayload.message || t('dashboard.litoPage.approval.submitError'));
       }
 
-      setCurrentDraft(submitPayload.draft || { ...createPayload.draft, status: 'pending' });
+      setCurrentDraft(submitPayload.draft || targetDraft);
       toast(t('dashboard.litoPage.approval.submitSuccess'), 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.litoPage.approval.submitError');
@@ -386,6 +399,7 @@ export default function LitoWorkbenchPane({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          version: currentDraft.version,
           title: hookTitle,
           copy_short: copyShort || null,
           copy_long: copyLong || null,
@@ -414,7 +428,10 @@ export default function LitoWorkbenchPane({
       const response = await fetch(`/api/social/drafts/${currentDraft.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: t('dashboard.litoPage.approval.rejectDefaultNote') }),
+        body: JSON.stringify({
+          version: currentDraft.version,
+          note: t('dashboard.litoPage.approval.rejectDefaultNote'),
+        }),
       });
       const payload = (await response.json().catch(() => ({}))) as SocialDraftMutationPayload;
       if (!response.ok || payload.error || !payload.draft) {

@@ -930,6 +930,9 @@
         "approveError": "No s'ha pogut aprovar l'esborrany.",
         "rejectSuccess": "Esborrany rebutjat.",
         "rejectError": "No s'ha pogut rebutjar l'esborrany.",
+        "publish": "✅ Publicar",
+        "publishSuccess": "Esborrany marcat com a publicat.",
+        "publishError": "No s'ha pogut publicar l'esborrany.",
         "rejectDefaultNote": "Cal ajustar el missatge abans de publicar."
       },
       "review": {

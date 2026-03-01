@@ -928,6 +928,9 @@
         "approveError": "Could not approve draft.",
         "rejectSuccess": "Draft rejected.",
         "rejectError": "Could not reject draft.",
+        "publish": "✅ Publish",
+        "publishSuccess": "Draft marked as published.",
+        "publishError": "Could not publish draft.",
         "rejectDefaultNote": "Please adjust the message before publishing."
       },
       "review": {
