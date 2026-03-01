@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { createLogger } from '@/lib/logger';
+import { sendWebPush } from '@/lib/push/webpush';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { validateHmacHeader } from '@/lib/security/hmac';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -42,6 +43,20 @@ type DraftRow = {
   format: 'post' | 'story' | 'reel';
   channel: 'instagram' | 'tiktok' | 'facebook';
 };
+
+type PushSubscriptionRow = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  revoked_at: string | null;
+};
+
+function isMissingPushSubscriptionsTable(error: unknown): boolean {
+  const code = (error as { code?: string })?.code || '';
+  const message = ((error as { message?: string })?.message || '').toLowerCase();
+  return code === '42P01' || message.includes('push_subscriptions') || message.includes('relation');
+}
 
 function withNoStore(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('Cache-Control', 'no-store');
@@ -110,6 +125,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let sent = 0;
     let cancelled = 0;
     let notified = 0;
+    let pushSent = 0;
+    let pushFailed = 0;
+    let pushSkipped = 0;
+    let pushFeatureUnavailableLogged = false;
+    let pushTableMissingLogged = false;
 
     const missedBeforeIso = nowMinus24hIso(now);
     const { data: missedSchedules } = await admin
@@ -174,6 +194,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const draftsMap = new Map<string, DraftRow>();
     for (const draft of (draftsData || []) as DraftRow[]) draftsMap.set(draft.id, draft);
+    const subscriptionsCache = new Map<string, PushSubscriptionRow[]>();
 
     for (const reminder of reminders) {
       const schedule = schedulesMap.get(reminder.schedule_id);
@@ -223,6 +244,96 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
       });
 
+      const subscriptionsKey = `${schedule.biz_id}:${schedule.assigned_user_id}`;
+      let subscriptions = subscriptionsCache.get(subscriptionsKey);
+      if (!subscriptions) {
+        const { data: subscriptionsData, error: subscriptionsError } = await admin
+          .from('push_subscriptions')
+          .select('id, endpoint, p256dh, auth, revoked_at')
+          .eq('org_id', schedule.org_id)
+          .eq('biz_id', schedule.biz_id)
+          .eq('user_id', schedule.assigned_user_id)
+          .is('revoked_at', null);
+
+        if (subscriptionsError) {
+          if (isMissingPushSubscriptionsTable(subscriptionsError)) {
+            if (!pushTableMissingLogged) {
+              log.warn('social_reminders_push_table_missing', {
+                error_code: subscriptionsError.code || null,
+                error: subscriptionsError.message || null,
+              });
+              pushTableMissingLogged = true;
+            }
+          } else {
+            log.warn('social_reminders_push_subscriptions_fetch_failed', {
+              error_code: subscriptionsError.code || null,
+              error: subscriptionsError.message || null,
+              schedule_id: schedule.id,
+            });
+          }
+          subscriptions = [];
+        } else {
+          subscriptions = (subscriptionsData || []) as PushSubscriptionRow[];
+        }
+
+        subscriptionsCache.set(subscriptionsKey, subscriptions);
+      }
+
+      if (subscriptions.length > 0) {
+        const pushPayload = {
+          title: 'Recordatori de publicació',
+          body: `${draftTitle} · ${platformLabel}`,
+          url: ctaUrl,
+          schedule_id: schedule.id,
+          biz_id: schedule.biz_id,
+          platform: schedule.platform,
+        } as const;
+
+        for (const subscription of subscriptions) {
+          const pushResult = await sendWebPush({
+            subscription: {
+              id: subscription.id,
+              endpoint: subscription.endpoint,
+              p256dh: subscription.p256dh,
+              auth: subscription.auth,
+            },
+            payload: pushPayload,
+          });
+
+          if (pushResult.ok) {
+            pushSent += 1;
+            continue;
+          }
+
+          if (pushResult.providerUnavailable) {
+            pushSkipped += 1;
+            if (!pushFeatureUnavailableLogged) {
+              log.warn('social_reminders_push_unavailable', { reason: pushResult.reason || null });
+              pushFeatureUnavailableLogged = true;
+            }
+            continue;
+          }
+
+          if (pushResult.expired) {
+            await admin
+              .from('push_subscriptions')
+              .update({ revoked_at: nowIso })
+              .eq('id', subscription.id)
+              .is('revoked_at', null);
+            pushSkipped += 1;
+            continue;
+          }
+
+          pushFailed += 1;
+          log.warn('social_reminders_push_send_failed', {
+            schedule_id: schedule.id,
+            subscription_id: subscription.id,
+            status: pushResult.status || null,
+            reason: pushResult.reason || null,
+          });
+        }
+      }
+
       if (schedule.status === 'scheduled' || schedule.status === 'snoozed') {
         const { data: updatedNotified } = await admin
           .from('social_schedules')
@@ -254,6 +365,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         cancelled,
         missed,
         notified,
+        push_sent: pushSent,
+        push_failed: pushFailed,
+        push_skipped: pushSkipped,
         request_id: requestId,
       }),
       requestId,
