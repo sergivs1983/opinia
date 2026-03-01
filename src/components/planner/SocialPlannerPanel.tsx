@@ -444,6 +444,7 @@ export default function SocialPlannerPanel() {
     scheduleId: string,
     action: 'publish' | 'snooze' | 'cancel',
     body?: Record<string, unknown>,
+    analytics?: { platformTarget?: 'instagram' | 'tiktok'; pushTriggered?: boolean },
   ) => {
     setActionById((previous) => ({ ...previous, [scheduleId]: true }));
 
@@ -475,7 +476,8 @@ export default function SocialPlannerPanel() {
           mode: showAdvanced ? 'advanced' : 'basic',
           properties: {
             schedule_id: scheduleId,
-            source: 'planner_basic',
+            platform_target: analytics?.platformTarget || null,
+            push_triggered: analytics?.pushTriggered ?? null,
           },
         });
       } else if (action === 'snooze') {
@@ -494,7 +496,7 @@ export default function SocialPlannerPanel() {
           mode: showAdvanced ? 'advanced' : 'basic',
           properties: {
             schedule_id: scheduleId,
-            source: 'planner_basic',
+            platform_target: analytics?.platformTarget || null,
           },
         });
       }
@@ -557,7 +559,9 @@ export default function SocialPlannerPanel() {
         event: 'enable_push',
         mode: showAdvanced ? 'advanced' : 'basic',
         properties: {
-          result: 'blocked',
+          push_enabled: false,
+          os_permission_granted: false,
+          push_subscription_active: false,
           reason: 'unsupported_browser',
         },
       });
@@ -570,7 +574,9 @@ export default function SocialPlannerPanel() {
         event: 'enable_push',
         mode: showAdvanced ? 'advanced' : 'basic',
         properties: {
-          result: 'blocked',
+          push_enabled: false,
+          os_permission_granted: false,
+          push_subscription_active: false,
           reason: 'missing_vapid_key',
         },
       });
@@ -587,7 +593,9 @@ export default function SocialPlannerPanel() {
           event: 'enable_push',
           mode: showAdvanced ? 'advanced' : 'basic',
           properties: {
-            result: 'denied',
+            push_enabled: false,
+            os_permission_granted: false,
+            push_subscription_active: false,
             reason: 'permission_denied',
           },
         });
@@ -635,7 +643,9 @@ export default function SocialPlannerPanel() {
         event: 'enable_push',
         mode: showAdvanced ? 'advanced' : 'basic',
         properties: {
-          result: 'accepted',
+          push_enabled: true,
+          os_permission_granted: true,
+          push_subscription_active: true,
         },
       });
     } catch {
@@ -645,7 +655,9 @@ export default function SocialPlannerPanel() {
         event: 'enable_push',
         mode: showAdvanced ? 'advanced' : 'basic',
         properties: {
-          result: 'blocked',
+          push_enabled: false,
+          os_permission_granted: true,
+          push_subscription_active: false,
           reason: 'subscribe_failed',
         },
       });
@@ -1028,7 +1040,10 @@ export default function SocialPlannerPanel() {
                         loading={pending}
                         onClick={() => {
                           if (canMarkPublished) {
-                            void mutateSchedule(item.id, 'publish');
+                            void mutateSchedule(item.id, 'publish', undefined, {
+                              platformTarget: executionChannel,
+                              pushTriggered: pushSubscribed,
+                            });
                             return;
                           }
                           router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`);
@@ -1049,7 +1064,9 @@ export default function SocialPlannerPanel() {
                           variant="ghost"
                           className="h-7 px-2 text-[11px]"
                           loading={pending}
-                          onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
+                          onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' }, {
+                            platformTarget: executionChannel,
+                          })}
                         >
                           {t('dashboard.home.socialPlanner.quickTomorrow')}
                         </Button>
@@ -1145,7 +1162,9 @@ export default function SocialPlannerPanel() {
                       <Button
                         variant="ghost"
                         className="h-7 px-2 text-[11px]"
-                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
+                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' }, {
+                          platformTarget: item.platform,
+                        })}
                       >
                         {t('dashboard.home.socialPlanner.snoozeTomorrow')}
                       </Button>

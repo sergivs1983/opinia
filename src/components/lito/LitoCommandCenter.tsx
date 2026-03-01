@@ -13,7 +13,6 @@ import LitoWeeklyWizard from '@/components/lito/LitoWeeklyWizard';
 import { buildFallbackRecommendation } from '@/components/lito/recommendation-fallback';
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
-import { captureClientEvent } from '@/lib/analytics/client';
 import type {
   LitoQuotaState,
   LitoRecommendationItem,
@@ -201,7 +200,6 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const [recalculateSignalsLoading, setRecalculateSignalsLoading] = useState(false);
 
   const bootstrapRef = useRef<string | null>(null);
-  const openAppTrackedRef = useRef<string | null>(null);
 
   const queryBizId = embedded ? null : searchParams.get('biz_id');
   const queryRecommendationId = embedded ? null : searchParams.get('recommendation_id');
@@ -638,22 +636,6 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     if (!activeThreadId) return;
     void loadThreadDetail(activeThreadId);
   }, [activeThreadId, loadThreadDetail]);
-
-  useEffect(() => {
-    if (!biz?.id) return;
-    const marker = `${biz.id}:${weeklyViewerRole || 'none'}`;
-    if (openAppTrackedRef.current === marker) return;
-    openAppTrackedRef.current = marker;
-    void captureClientEvent({
-      bizId: biz.id,
-      event: 'open_app',
-      mode: 'basic',
-      properties: {
-        source: 'lito_command_center',
-        role: weeklyViewerRole || null,
-      },
-    });
-  }, [biz?.id, weeklyViewerRole]);
 
   if (!biz) {
     return (

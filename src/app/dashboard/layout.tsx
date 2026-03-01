@@ -62,6 +62,8 @@ const SIDEBAR_COLLAPSED_KEY = 'opinia.sidebar.collapsed';
 const SIDEBAR_PINNED_KEY = 'opinia.sidebar.pinned';
 const TOPBAR_CHIP_CLASS =
   'inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg border px-3 text-xs font-medium leading-none backdrop-blur-xl transition-all duration-[220ms] ease-premium';
+const ANALYTICS_OPEN_APP_SESSION_KEY = 'opinia.analytics.open_app.sent';
+const ANALYTICS_TEST_EVENT_SESSION_KEY = 'opinia.analytics.test_event_opinia.sent';
 
 type EngagementTriggerItem = {
   id: 'monday' | 'thursday' | 'friday';
@@ -154,6 +156,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const commandInputRef = useRef<HTMLInputElement>(null);
   const logoCacheRef = useRef<Map<string, string>>(new Map());
   const sidebarCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openAppTrackedRef = useRef(false);
+  const testEventTrackedRef = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
   const supabase = useMemo(() => createClient(), []);
@@ -811,6 +815,56 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       if (intervalId) clearInterval(intervalId);
     };
   }, [biz?.id]);
+
+  useEffect(() => {
+    if (!biz?.id) return;
+
+    let sessionOpenSent = false;
+    let sessionTestSent = false;
+    try {
+      sessionOpenSent = window.sessionStorage.getItem(ANALYTICS_OPEN_APP_SESSION_KEY) === '1';
+      sessionTestSent = window.sessionStorage.getItem(ANALYTICS_TEST_EVENT_SESSION_KEY) === '1';
+    } catch {
+      sessionOpenSent = false;
+      sessionTestSent = false;
+    }
+
+    if (!openAppTrackedRef.current && !sessionOpenSent) {
+      openAppTrackedRef.current = true;
+      try {
+        window.sessionStorage.setItem(ANALYTICS_OPEN_APP_SESSION_KEY, '1');
+      } catch {
+        // Ignore storage errors.
+      }
+      void captureClientEvent({
+        bizId: biz.id,
+        event: 'open_app',
+        mode: 'basic',
+        properties: {
+          source: 'dashboard_layout',
+          role: membership?.role || null,
+        },
+      });
+    }
+
+    if (!testEventTrackedRef.current && !sessionTestSent) {
+      testEventTrackedRef.current = true;
+      try {
+        window.sessionStorage.setItem(ANALYTICS_TEST_EVENT_SESSION_KEY, '1');
+      } catch {
+        // Ignore storage errors.
+      }
+      void captureClientEvent({
+        bizId: biz.id,
+        event: 'test_event_opinia',
+        mode: 'basic',
+        properties: {
+          source: 'dashboard_layout',
+          role: membership?.role || null,
+        },
+      });
+    }
+  }, [biz?.id, membership?.role]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

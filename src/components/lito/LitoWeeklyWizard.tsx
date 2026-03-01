@@ -249,6 +249,7 @@ export default function LitoWeeklyWizard({
   const [saving, setSaving] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
   const completedRef = useRef(false);
+  const wizardStartedAtRef = useRef<number>(Date.now());
 
   const canSchedule = viewerRole === 'owner' || viewerRole === 'manager';
 
@@ -257,6 +258,7 @@ export default function LitoWeeklyWizard({
   const approvedCount = useMemo(() => drafts.filter((item) => item.approved).length, [drafts]);
 
   const openWizard = (target: 1 | 3 | 5 | 'surprise') => {
+    wizardStartedAtRef.current = Date.now();
     void captureClientEvent({
       bizId,
       event: 'start_weekly_wizard',
@@ -315,6 +317,9 @@ export default function LitoWeeklyWizard({
           approved: partial.approved,
           index: activeIndex + 1,
           format: activeDraft?.format || null,
+          edited: Object.prototype.hasOwnProperty.call(partial, 'copy_short'),
+          regenerations: activeDraft?.variant || 0,
+          platform_target: activeDraft?.channel || 'instagram',
         },
       });
     }
@@ -448,9 +453,10 @@ export default function LitoWeeklyWizard({
         event: 'handoff_to_planner',
         mode: 'basic',
         properties: {
-          approved_count: approvedDrafts.length,
+          count_posts: approvedDrafts.length,
+          wizard_duration_ms: Math.max(0, Date.now() - wizardStartedAtRef.current),
+          platform_target: approvedDrafts[0]?.channel || 'instagram',
           scheduled_count: canSchedule && assignee ? approvedDrafts.length : 0,
-          role: viewerRole || null,
         },
       });
       setShowPushPrompt(true);
@@ -644,7 +650,9 @@ export default function LitoWeeklyWizard({
                           mode: 'basic',
                           properties: {
                             source: 'wizard_prompt',
-                            decision: 'accepted',
+                            push_enabled: true,
+                            os_permission_granted: null,
+                            push_subscription_active: null,
                           },
                         });
                         router.push(`/dashboard/planner?biz_id=${encodeURIComponent(bizId)}`);
@@ -662,7 +670,9 @@ export default function LitoWeeklyWizard({
                           mode: 'basic',
                           properties: {
                             source: 'wizard_prompt',
-                            decision: 'declined',
+                            push_enabled: false,
+                            os_permission_granted: null,
+                            push_subscription_active: false,
                           },
                         });
                         setShowPushPrompt(false);
