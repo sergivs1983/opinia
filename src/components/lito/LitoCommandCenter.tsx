@@ -33,9 +33,12 @@ type SignalCard = {
   code: string;
   title: string;
   reason: string;
+  why?: string;
+  severity_score?: number;
   severity: SignalSeverity;
   cta_label: string;
   cta_route: string;
+  cta_url?: string;
   data?: Record<string, unknown>;
 };
 
@@ -651,7 +654,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
                       ? 'Oportunitat'
                       : 'Evergreen';
 
-                const ctaHref = signal.cta_route || `/dashboard/lito/chat?biz_id=${biz.id}&signal_id=${signal.id}`;
+                const ctaHref = signal.cta_route || signal.cta_url || `/dashboard/lito/chat?biz_id=${biz.id}&signal_id=${signal.id}`;
 
                 return (
                   <div
@@ -672,6 +675,9 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
                       </p>
                       <p className={cn('mt-0.5 line-clamp-2 text-[11px] leading-relaxed', textSub)}>
                         {signal.reason}
+                      </p>
+                      <p className={cn('mt-1 line-clamp-1 text-[11px] font-medium leading-relaxed text-white/70')}>
+                        {`Per què? ${signal.why || signal.reason}`}
                       </p>
                     </div>
                     <button
