@@ -74,6 +74,10 @@ export async function track(
     });
 
     if (!response.ok) {
+      console.error('posthog_capture_failed', {
+        status: response.status,
+        event,
+      });
       log.warn('posthog_server_track_failed', {
         event,
         http_status: response.status,
