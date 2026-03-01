@@ -80,3 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return jsonNoStore({ ok: false, code: 'cron_unavailable', request_id: requestId }, requestId, 503);
   }
 }
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  return POST(request);
+}

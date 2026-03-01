@@ -74,18 +74,18 @@ fi
 
 echo ""
 echo "1) Guard cron secret (404)"
-perform_request -X POST "${BASE}/api/cron/social-reminders" -H "Content-Type: application/json" -d '{}'
+perform_request "${BASE}/api/cron/social-reminders"
 if [ "${REQ_CODE}" = "404" ]; then
-  report_ok "POST /api/cron/social-reminders sense x-cron-secret (404)"
+  report_ok "GET /api/cron/social-reminders sense x-cron-secret (404)"
 else
-  report_fail "POST /api/cron/social-reminders sense x-cron-secret (expected 404)"
+  report_fail "GET /api/cron/social-reminders sense x-cron-secret (expected 404)"
 fi
 
-perform_request -X POST "${BASE}/api/cron/signals-run" -H "Content-Type: application/json" -d '{}'
+perform_request "${BASE}/api/cron/signals-run"
 if [ "${REQ_CODE}" = "404" ]; then
-  report_ok "POST /api/cron/signals-run sense x-cron-secret (404)"
+  report_ok "GET /api/cron/signals-run sense x-cron-secret (404)"
 else
-  report_fail "POST /api/cron/signals-run sense x-cron-secret (expected 404)"
+  report_fail "GET /api/cron/signals-run sense x-cron-secret (expected 404)"
 fi
 
 echo ""
@@ -94,34 +94,28 @@ if [ -z "${D2_5_CRON_SECRET}" ]; then
   report_ok "SKIP (defineix D2_5_CRON_SECRET per provar 503/200)"
 else
   if [ "${D2_5_EXPECT_MISSING_INTERNAL}" = "1" ]; then
-    perform_request -X POST "${BASE}/api/cron/social-reminders" \
-      -H "Content-Type: application/json" \
-      -H "x-cron-secret: ${D2_5_CRON_SECRET}" \
-      -d '{}'
+    perform_request "${BASE}/api/cron/social-reminders" \
+      -H "x-cron-secret: ${D2_5_CRON_SECRET}"
     if [ "${REQ_CODE}" = "503" ] && [ "$(json_field "${REQ_BODY}" "code")" = "cron_unavailable" ]; then
-      report_ok "POST /api/cron/social-reminders amb secret però sense INTERNAL_HMAC_SECRET (503 cron_unavailable)"
+      report_ok "GET /api/cron/social-reminders amb secret però sense INTERNAL_HMAC_SECRET (503 cron_unavailable)"
     else
-      report_fail "POST /api/cron/social-reminders missing internal secret (expected 503 cron_unavailable)"
+      report_fail "GET /api/cron/social-reminders missing internal secret (expected 503 cron_unavailable)"
     fi
   else
-    perform_request -X POST "${BASE}/api/cron/social-reminders" \
-      -H "Content-Type: application/json" \
-      -H "x-cron-secret: ${D2_5_CRON_SECRET}" \
-      -d '{}'
+    perform_request "${BASE}/api/cron/social-reminders" \
+      -H "x-cron-secret: ${D2_5_CRON_SECRET}"
     if [ "${REQ_CODE}" = "200" ]; then
-      report_ok "POST /api/cron/social-reminders amb secret (200)"
+      report_ok "GET /api/cron/social-reminders amb secret (200)"
     else
-      report_fail "POST /api/cron/social-reminders amb secret (expected 200)"
+      report_fail "GET /api/cron/social-reminders amb secret (expected 200)"
     fi
 
-    perform_request -X POST "${BASE}/api/cron/signals-run" \
-      -H "Content-Type: application/json" \
-      -H "x-cron-secret: ${D2_5_CRON_SECRET}" \
-      -d '{}'
+    perform_request "${BASE}/api/cron/signals-run" \
+      -H "x-cron-secret: ${D2_5_CRON_SECRET}"
     if [ "${REQ_CODE}" = "200" ]; then
-      report_ok "POST /api/cron/signals-run amb secret (200)"
+      report_ok "GET /api/cron/signals-run amb secret (200)"
     else
-      report_fail "POST /api/cron/signals-run amb secret (expected 200)"
+      report_fail "GET /api/cron/signals-run amb secret (expected 200)"
     fi
   fi
 fi

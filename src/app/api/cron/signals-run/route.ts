@@ -172,3 +172,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     200,
   );
 }
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  return POST(request);
+}
