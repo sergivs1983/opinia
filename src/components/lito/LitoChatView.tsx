@@ -117,6 +117,28 @@ type VoiceDraftMutationPayload = {
   message?: string;
 };
 
+type LitoSignalCard = {
+  id: string;
+  source: 'signal' | 'evergreen';
+  kind: 'alert' | 'opportunity';
+  code: string;
+  severity: 'low' | 'med' | 'high';
+  title: string;
+  reason: string;
+  data?: Record<string, unknown>;
+  cta_label: string;
+  cta_route: string;
+};
+
+type SignalsProPayload = {
+  ok?: boolean;
+  signals?: LitoSignalCard[];
+  signal?: LitoSignalCard | null;
+  source?: 'signal' | 'evergreen';
+  error?: string;
+  message?: string;
+};
+
 type InlineActionDraft = {
   id: string;
   kind: LitoVoiceActionDraft['kind'];
@@ -360,6 +382,72 @@ function detectFormatFromTitle(title: string): 'Post' | 'Story' | 'Reel' | null 
   return null;
 }
 
+function normalizeSignalFormat(signal: LitoSignalCard | null): 'post' | 'story' | 'reel' {
+  const raw = signal?.data && typeof signal.data === 'object'
+    ? (signal.data as Record<string, unknown>).format
+    : null;
+  if (raw === 'story' || raw === 'reel') return raw;
+  return 'post';
+}
+
+function signalRecommendationId(signal: LitoSignalCard | null): string | null {
+  const raw = signal?.data && typeof signal.data === 'object'
+    ? (signal.data as Record<string, unknown>).recommendation_id
+    : null;
+  return typeof raw === 'string' && raw.length > 0 ? raw : null;
+}
+
+function buildSignalKickoffMessage(signal: LitoSignalCard): string {
+  const nowSteps = (() => {
+    switch (signal.code) {
+      case 'REPUTATION_LEAK':
+        return [
+          '1) Respon primer les 2 ressenyes més crítiques amb to empàtic.',
+          '2) Publica un missatge curt explicant la millora immediata.',
+        ];
+      case 'TOPIC_RECURRENT':
+        return [
+          '1) Ataca el tema recurrent amb una resposta clara i concreta.',
+          '2) Publica una peça curta mostrant la solució en marxa.',
+        ];
+      case 'LANGUAGE_SHIFT':
+        return [
+          '1) Adapta la resposta al nou idioma dominant detectat.',
+          '2) Publica una versió curta en aquest idioma per connectar millor.',
+        ];
+      case 'VIP_REVIEW':
+        return [
+          '1) Reaprofita la ressenya VIP com a prova social.',
+          '2) Llença un post breu amb CTA a reserva/visita.',
+        ];
+      case 'DIGITAL_SILENCE':
+        return [
+          '1) Reactiva conversa amb un contingut simple de valor local.',
+          '2) Tanca amb pregunta directa per generar interacció.',
+        ];
+      case 'OPPORTUNITY_TREND':
+        return [
+          '1) Publica avui sobre el tema en tendència positiva.',
+          '2) Afegeix CTA curt per convertir interacció en acció.',
+        ];
+      default:
+        return [
+          '1) Llença una peça curta i clara avui mateix.',
+          '2) Tanca amb CTA concret per moure una acció.',
+        ];
+    }
+  })();
+
+  return [
+    `Què he detectat: ${signal.title}. ${signal.reason}`,
+    '',
+    'Ara mateix:',
+    ...nowSteps,
+    '',
+    'Vols resposta curta o més detall? (A/B)',
+  ].join('\n');
+}
+
 function resolveQuickRefineModeFromText(value: string): QuickRefineMode | null {
   const text = value.toLowerCase();
   if (
@@ -430,12 +518,14 @@ export default function LitoChatView() {
   const [voiceRecording, setVoiceRecording] = useState(false);
   const [voiceSpeechSupported, setVoiceSpeechSupported] = useState(false);
   const [voicePrepareMode, setVoicePrepareMode] = useState<'record' | 'paste_transcript_only'>('paste_transcript_only');
+  const [activeSignal, setActiveSignal] = useState<LitoSignalCard | null>(null);
 
   const bootstrapRef = useRef<string | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const queryBizId = searchParams.get('biz_id');
   const queryRecommendationId = searchParams.get('recommendation_id');
   const queryThreadId = searchParams.get('thread_id');
+  const querySignalId = searchParams.get('signal_id');
 
   const activeRecommendation = useMemo(() => {
     if (!activeThread?.recommendation_id) return null;
@@ -488,7 +578,12 @@ export default function LitoChatView() {
     setPaywallOpen(true);
   }, []);
 
-  const replaceQuery = useCallback((next: { bizId?: string | null; recommendationId?: string | null; threadId?: string | null }) => {
+  const replaceQuery = useCallback((next: {
+    bizId?: string | null;
+    recommendationId?: string | null;
+    threadId?: string | null;
+    signalId?: string | null;
+  }) => {
     const params = new URLSearchParams(searchParams.toString());
     if (next.bizId) params.set('biz_id', next.bizId);
     else params.delete('biz_id');
@@ -496,6 +591,8 @@ export default function LitoChatView() {
     else params.delete('recommendation_id');
     if (next.threadId) params.set('thread_id', next.threadId);
     else params.delete('thread_id');
+    if (next.signalId) params.set('signal_id', next.signalId);
+    else params.delete('signal_id');
     const qs = params.toString();
     router.replace(qs ? `/dashboard/lito/chat?${qs}` : '/dashboard/lito/chat');
   }, [router, searchParams]);
@@ -515,6 +612,31 @@ export default function LitoChatView() {
       setWeeklyRecommendations([]);
     }
   }, [biz?.id]);
+
+  const loadSignalContext = useCallback(async (signalId: string): Promise<LitoSignalCard | null> => {
+    if (!biz?.id) return null;
+    try {
+      const response = await fetch(
+        `/api/lito/signals-pro?biz_id=${biz.id}&signal_id=${signalId}&range_days=7`,
+        { cache: 'no-store' },
+      );
+      const payload = (await response.json().catch(() => ({}))) as SignalsProPayload;
+      if (response.status === 401) {
+        router.push('/login');
+        return null;
+      }
+      if (!response.ok || payload.error) {
+        setActiveSignal(null);
+        return null;
+      }
+      const signal = payload.signal || payload.signals?.[0] || null;
+      setActiveSignal(signal || null);
+      return signal || null;
+    } catch {
+      setActiveSignal(null);
+      return null;
+    }
+  }, [biz?.id, router]);
 
   const loadThreads = useCallback(async () => {
     if (!biz?.id) return;
@@ -772,6 +894,7 @@ export default function LitoChatView() {
     title?: string | null;
     format?: 'post' | 'story' | 'reel' | null;
     hook?: string | null;
+    signalId?: string | null;
   }) => {
     if (!biz?.id) return null;
     try {
@@ -799,6 +922,7 @@ export default function LitoChatView() {
         bizId: biz.id,
         recommendationId: thread.recommendation_id,
         threadId: thread.id,
+        signalId: options.signalId ?? null,
       });
       return thread;
     } catch (error) {
@@ -1000,6 +1124,7 @@ export default function LitoChatView() {
           ? activeRecommendation.format
           : 'post',
         hook: activeRecommendation?.hook || null,
+        signalId: activeSignal?.id ?? querySignalId ?? null,
       } as const;
 
       let threadId = activeThreadId;
@@ -1157,6 +1282,7 @@ export default function LitoChatView() {
     activeRecommendation?.format,
     activeRecommendation?.hook,
     activeRecommendation?.id,
+    activeSignal?.id,
     activeThreadId,
     biz?.id,
     loadThreads,
@@ -1165,6 +1291,7 @@ export default function LitoChatView() {
     router,
     t,
     toast,
+    querySignalId,
     voiceTranscript,
     voiceTranscriptLang,
   ]);
@@ -1235,6 +1362,7 @@ export default function LitoChatView() {
         ? activeRecommendation.format
         : 'post',
       hook: activeRecommendation?.hook || null,
+      signalId: activeSignal?.id ?? querySignalId ?? null,
     } as const;
 
     setSending(true);
@@ -1328,6 +1456,7 @@ export default function LitoChatView() {
     activeRecommendation?.format,
     activeRecommendation?.hook,
     activeRecommendation?.id,
+    activeSignal?.id,
     activeThreadId,
     biz?.id,
     generatedCopy,
@@ -1338,6 +1467,7 @@ export default function LitoChatView() {
     runQuickRefine,
     t,
     toast,
+    querySignalId,
   ]);
 
   useEffect(() => {
@@ -1378,6 +1508,19 @@ export default function LitoChatView() {
       });
       return;
     }
+    if (querySignalId) {
+      void (async () => {
+        const signal = await loadSignalContext(querySignalId);
+        const recommendationId = signalRecommendationId(signal);
+        await openOrCreateThread({
+          recommendationId,
+          format: normalizeSignalFormat(signal),
+          hook: signal?.title || null,
+          signalId: querySignalId,
+        });
+      })();
+      return;
+    }
     if (threads.length > 0) {
       setActiveThreadId(threads[0].id);
       replaceQuery({
@@ -1393,7 +1536,9 @@ export default function LitoChatView() {
     openGeneralThread,
     openOrCreateThread,
     queryRecommendationId,
+    querySignalId,
     queryThreadId,
+    loadSignalContext,
     replaceQuery,
     t,
     threads,
@@ -1405,6 +1550,51 @@ export default function LitoChatView() {
     if (!activeThreadId) return;
     void loadThreadDetail(activeThreadId);
   }, [activeThreadId, loadThreadDetail]);
+
+  useEffect(() => {
+    if (!biz?.id || !querySignalId) {
+      setActiveSignal(null);
+      return;
+    }
+    void loadSignalContext(querySignalId);
+  }, [biz?.id, loadSignalContext, querySignalId]);
+
+  useEffect(() => {
+    if (!activeSignal || !activeThreadId) return;
+    const alreadyExists = messages.some((message) => {
+      if (message.role !== 'assistant' || !message.meta || typeof message.meta !== 'object' || Array.isArray(message.meta)) {
+        return false;
+      }
+      const meta = message.meta as Record<string, unknown>;
+      return meta.type === 'signal_kickoff' && meta.signal_id === activeSignal.id;
+    });
+    if (alreadyExists) return;
+
+    const kickoffMessage: LitoThreadMessage = {
+      id: `signal-kickoff-${activeSignal.id}-${activeThreadId}`,
+      thread_id: activeThreadId,
+      role: 'assistant',
+      content: buildSignalKickoffMessage(activeSignal),
+      meta: {
+        type: 'signal_kickoff',
+        signal_id: activeSignal.id,
+        signal_code: activeSignal.code,
+      },
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((previous) => {
+      const exists = previous.some((message) => {
+        if (message.role !== 'assistant' || !message.meta || typeof message.meta !== 'object' || Array.isArray(message.meta)) {
+          return false;
+        }
+        const meta = message.meta as Record<string, unknown>;
+        return meta.type === 'signal_kickoff' && meta.signal_id === activeSignal.id;
+      });
+      if (exists) return previous;
+      return [...previous, kickoffMessage];
+    });
+  }, [activeSignal, activeThreadId, messages]);
 
   useEffect(() => {
     void loadStoredCopy();
@@ -1477,6 +1667,11 @@ export default function LitoChatView() {
             {t('dashboard.litoPage.chat.title')}
           </h1>
           <p className={cn('mt-1 text-sm', textSub)}>{t('dashboard.litoPage.chat.subtitle')}</p>
+          {activeSignal ? (
+            <p className="mt-2 inline-flex rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2.5 py-1 text-[11px] font-medium text-emerald-100">
+              Context carregat: {activeSignal.title}
+            </p>
+          ) : null}
           {trialState === 'active' ? (
             <p className="mt-2 inline-flex rounded-full border border-cyan-300/35 bg-cyan-500/12 px-2.5 py-1 text-[11px] font-medium text-cyan-200">
               {t('dashboard.litoPage.trial.activeBadge', { days: trialDaysLeft })}

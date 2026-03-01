@@ -28,17 +28,23 @@ type SignalSeverity = 'high' | 'med' | 'low';
 
 type SignalCard = {
   id: string;
-  type: SignalType;
+  source: 'signal' | 'evergreen';
+  kind: Exclude<SignalType, 'evergreen'>;
+  code: string;
   title: string;
   reason: string;
   severity: SignalSeverity;
   cta_label: string;
-  action: { kind: 'open_thread'; recommendation_id?: string };
+  cta_route: string;
+  data?: Record<string, unknown>;
 };
 
 type SignalsPayload = {
   ok?: boolean;
   signals?: SignalCard[];
+  signal?: SignalCard | null;
+  source?: 'signal' | 'evergreen';
+  signals_level?: 'basic' | 'advanced' | 'full';
   error?: string;
   message?: string;
 };
@@ -203,8 +209,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
 
   /** 3 cards: 1 alert (highest severity) + up to 2 opportunities/evergreen */
   const displaySignals = useMemo(() => {
-    const alerts = signals.filter((s) => s.type === 'alert');
-    const others = signals.filter((s) => s.type !== 'alert');
+    const alerts = signals.filter((s) => s.kind === 'alert');
+    const others = signals.filter((s) => s.kind !== 'alert');
     const result: SignalCard[] = [];
     if (alerts.length > 0) {
       const top =
@@ -295,7 +301,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     if (!biz?.id) return;
     setSignalsLoading(true);
     try {
-      const response = await fetch(`/api/lito/signals?biz_id=${biz.id}`);
+      const response = await fetch(`/api/lito/signals-pro?biz_id=${biz.id}&range_days=7`, { cache: 'no-store' });
       const payload = (await response.json().catch(() => ({}))) as SignalsPayload;
       if (!response.ok || payload.error) {
         // Signals are non-critical: silently fallback to empty
@@ -618,8 +624,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
                 />
               ))
             : displaySignals.map((signal) => {
-                const isAlert = signal.type === 'alert';
-                const isOpportunity = signal.type === 'opportunity';
+                const isAlert = signal.kind === 'alert';
+                const isOpportunity = signal.kind === 'opportunity';
                 const severityBorder =
                   isAlert && signal.severity === 'high'
                     ? 'border-rose-500/40'
@@ -637,19 +643,15 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
                         ? 'bg-emerald-500/20 text-emerald-300'
                         : 'bg-white/10 text-white/50';
                 const badgeLabel =
-                  signal.type === 'alert'
+                  signal.source === 'evergreen'
+                    ? 'Evergreen'
+                    : signal.kind === 'alert'
                     ? 'Alerta'
-                    : signal.type === 'opportunity'
+                    : signal.kind === 'opportunity'
                       ? 'Oportunitat'
                       : 'Evergreen';
 
-                const ctaParams = new URLSearchParams();
-                ctaParams.set('biz_id', biz.id);
-                ctaParams.set('signal_id', signal.id);
-                if (signal.action.recommendation_id) {
-                  ctaParams.set('recommendation_id', signal.action.recommendation_id);
-                }
-                const ctaHref = `/dashboard/lito/chat?${ctaParams.toString()}`;
+                const ctaHref = signal.cta_route || `/dashboard/lito/chat?biz_id=${biz.id}&signal_id=${signal.id}`;
 
                 return (
                   <div
