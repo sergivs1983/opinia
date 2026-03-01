@@ -5,6 +5,7 @@ type TrackInput = {
   props: Record<string, unknown>;
   distinctId: string;
 };
+const POSTHOG_TIMEOUT_MS = 2500;
 
 function isPosthogEnabled(): boolean {
   const value = (process.env.POSTHOG_ENABLED || 'true').trim().toLowerCase();
@@ -64,14 +65,22 @@ export async function track(
       },
     };
 
-    const response = await fetch(`${resolvePosthogHost()}/capture/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), POSTHOG_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${resolvePosthogHost()}/capture/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       console.error('posthog_capture_failed', {
@@ -84,8 +93,27 @@ export async function track(
       });
     }
   } catch (error) {
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    console.error('posthog_capture_failed', {
+      status: isTimeout ? 'timeout' : 'error',
+      event: typeof eventOrInput === 'string' ? eventOrInput : eventOrInput.event,
+    });
     log.warn('posthog_server_track_unhandled', {
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+export function trackAsync(event: string, props: Record<string, unknown>, distinctId: string): void;
+export function trackAsync(input: TrackInput): void;
+export function trackAsync(
+  eventOrInput: string | TrackInput,
+  propsArg?: Record<string, unknown>,
+  distinctIdArg?: string,
+): void {
+  if (typeof eventOrInput === 'string') {
+    void track(eventOrInput, propsArg || {}, distinctIdArg || '');
+    return;
+  }
+  void track(eventOrInput);
 }

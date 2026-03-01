@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 
-import { track } from '@/lib/analytics/posthog-server';
+import { trackAsync } from '@/lib/analytics/posthog-server';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 
 function withHeaders(response: NextResponse, requestId: string): NextResponse {
@@ -15,7 +15,7 @@ function withHeaders(response: NextResponse, requestId: string): NextResponse {
 export async function GET(request: Request): Promise<NextResponse> {
   const requestId = getRequestIdFromHeaders(request.headers);
 
-  await track('test_event_opinia_debug', { where: 'api_debug' }, 'debug-user-1');
+  trackAsync('test_event_opinia_debug', { where: 'api_debug' }, 'debug-user-1');
 
   return withHeaders(
     NextResponse.json({ ok: true, request_id: requestId }),
