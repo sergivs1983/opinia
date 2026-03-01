@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { getAcceptedOrgMembership } from '@/lib/authz';
 import { getOrgEntitlements } from '@/lib/billing/entitlements';
-import { getDraftUsage } from '@/lib/ai/quota';
+import { getDraftUsage, getOrgPlanConfig } from '@/lib/ai/quota';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -61,17 +61,32 @@ export async function GET(request: Request) {
       getDraftUsage(supabase, orgId),
     ]);
 
+    const planConfig = getOrgPlanConfig(entitlements.plan_code);
+    const usageLimit = usage?.limit && usage.limit > 0 ? usage.limit : planConfig.drafts_limit;
+    const usageUsed = usage?.used && usage.used > 0 ? usage.used : 0;
+    const usageMonth = usage?.month || new Date().toISOString().slice(0, 7) + '-01';
+    const seatsByPlan = {
+      starter: 1,
+      business: 3,
+      scale: 10,
+    } as const;
+
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
         org_id: orgId,
         plan_code: entitlements.plan_code,
         entitlements,
-        usage: usage || {
-          used: 0,
-          limit: entitlements.lito_drafts_limit,
-          remaining: Math.max(entitlements.lito_drafts_limit, 0),
-          month: new Date().toISOString().slice(0, 7) + '-01',
+        plan_limits: {
+          drafts_limit: planConfig.drafts_limit,
+          max_locals: planConfig.max_locals,
+          seats_limit: seatsByPlan[entitlements.plan_code] ?? 1,
+        },
+        usage: {
+          used: usageUsed,
+          limit: usageLimit,
+          remaining: Math.max(usageLimit - usageUsed, 0),
+          month: usageMonth,
         },
         request_id: requestId,
       }),
