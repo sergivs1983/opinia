@@ -938,6 +938,16 @@
         "executeAction": "Ejecutar",
         "cancelAction": "Cancelar",
         "submitReview": "Enviar a revisión",
+        "inline": {
+          "title": "Borradores de accion (Voice)",
+          "view_draft": "Ver borrador",
+          "edit": "Editar",
+          "submit_review": "Enviar a revision",
+          "confirm": "Confirmar",
+          "executed_toast": "Accion ejecutada.",
+          "submitted_toast": "Accion enviada a revision.",
+          "summaryFallback": "He preparado {count} borradores de accion a partir de tu dictado."
+        },
         "unavailable": "LITO Voice no está disponible ahora mismo.",
         "prepareError": "No se pudo preparar LITO Voice.",
         "speechUnsupported": "Este navegador no soporta dictado directo.",

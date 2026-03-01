@@ -936,6 +936,16 @@
         "executeAction": "Execute",
         "cancelAction": "Cancel",
         "submitReview": "Send for review",
+        "inline": {
+          "title": "Voice action drafts",
+          "view_draft": "View draft",
+          "edit": "Edit",
+          "submit_review": "Send for review",
+          "confirm": "Confirm",
+          "executed_toast": "Action executed.",
+          "submitted_toast": "Action sent for review.",
+          "summaryFallback": "I prepared {count} action drafts from your dictation."
+        },
         "unavailable": "LITO Voice is not available right now.",
         "prepareError": "Could not prepare LITO Voice.",
         "speechUnsupported": "This browser does not support direct dictation.",

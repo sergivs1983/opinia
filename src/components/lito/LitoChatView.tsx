@@ -102,6 +102,15 @@ type VoiceDraftMutationPayload = {
   message?: string;
 };
 
+type InlineActionDraft = {
+  id: string;
+  kind: LitoVoiceActionDraft['kind'];
+  status: LitoVoiceActionDraft['status'];
+  title?: string;
+  summary?: string;
+  payload?: Record<string, unknown>;
+};
+
 type QuickRefineMode = 'shorter' | 'premium' | 'funny';
 
 type BrowserSpeechRecognitionResult = {
@@ -210,6 +219,116 @@ function extractVoiceDraftSummary(payload: Record<string, unknown>): string {
   const action = payload.action;
   if (typeof action === 'string' && action.trim().length > 0) return action.trim();
   return 'Sense resum';
+}
+
+function createClientRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isVoiceDraftKind(value: unknown): value is LitoVoiceActionDraft['kind'] {
+  return value === 'gbp_update' || value === 'social_post' || value === 'customer_email';
+}
+
+function isVoiceDraftStatus(value: unknown): value is LitoVoiceActionDraft['status'] {
+  return value === 'draft'
+    || value === 'pending_review'
+    || value === 'approved'
+    || value === 'rejected'
+    || value === 'executed';
+}
+
+function extractInlineVoiceDrafts(meta: unknown): InlineActionDraft[] {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return [];
+  const data = meta as Record<string, unknown>;
+  if (!Array.isArray(data.inline_drafts)) return [];
+
+  return data.inline_drafts
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const raw = item as Record<string, unknown>;
+      if (typeof raw.id !== 'string' || !isVoiceDraftKind(raw.kind) || !isVoiceDraftStatus(raw.status)) return null;
+      return {
+        id: raw.id,
+        kind: raw.kind,
+        status: raw.status,
+        title: typeof raw.title === 'string' ? raw.title : undefined,
+        summary: typeof raw.summary === 'string' ? raw.summary : undefined,
+        payload: raw.payload && typeof raw.payload === 'object' && !Array.isArray(raw.payload)
+          ? raw.payload as Record<string, unknown>
+          : undefined,
+      } as InlineActionDraft;
+    })
+    .filter((item): item is InlineActionDraft => Boolean(item));
+}
+
+function withInlineVoiceDrafts(params: {
+  messages: LitoThreadMessage[] | undefined;
+  actions: LitoVoiceActionDraft[] | undefined;
+  clipId?: string;
+}): LitoThreadMessage[] {
+  const baseMessages = Array.isArray(params.messages) ? params.messages : [];
+  const actions = Array.isArray(params.actions) ? params.actions : [];
+  if (baseMessages.length === 0 || actions.length === 0) return baseMessages;
+
+  const inlineDrafts = actions.map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    status: item.status,
+    summary: extractVoiceDraftSummary(item.payload || {}),
+    payload: (item.payload || {}) as Record<string, unknown>,
+  }));
+
+  return baseMessages.map((message) => {
+    if (message.role !== 'assistant') return message;
+    const existingInline = extractInlineVoiceDrafts(message.meta);
+    if (existingInline.length > 0) return message;
+
+    const metaBase = message.meta && typeof message.meta === 'object' && !Array.isArray(message.meta)
+      ? message.meta as Record<string, unknown>
+      : {};
+
+    return {
+      ...message,
+      meta: {
+        ...metaBase,
+        type: typeof metaBase.type === 'string' ? metaBase.type : 'voice_actions_summary',
+        clip_id: typeof metaBase.clip_id === 'string' ? metaBase.clip_id : params.clipId,
+        inline_drafts: inlineDrafts,
+      },
+    };
+  });
+}
+
+function resolveInlineVoiceDrafts(params: {
+  message: LitoThreadMessage;
+  bizId: string;
+  voiceDraftById: Map<string, LitoVoiceActionDraft>;
+}): LitoVoiceActionDraft[] {
+  const inlineDrafts = extractInlineVoiceDrafts(params.message.meta);
+  if (inlineDrafts.length === 0) return [];
+
+  return inlineDrafts.map((inlineDraft) => {
+    const liveDraft = params.voiceDraftById.get(inlineDraft.id);
+    if (liveDraft) return liveDraft;
+
+    return {
+      id: inlineDraft.id,
+      org_id: '',
+      biz_id: params.bizId,
+      thread_id: params.message.thread_id,
+      source_voice_clip_id: null,
+      kind: inlineDraft.kind,
+      status: inlineDraft.status,
+      payload: inlineDraft.payload || (inlineDraft.summary ? { human_summary: inlineDraft.summary } : {}),
+      created_by: '',
+      reviewed_by: null,
+      created_at: params.message.created_at,
+      updated_at: params.message.created_at,
+    };
+  });
 }
 
 /**
@@ -627,7 +746,10 @@ export default function LitoChatView() {
     try {
       const response = await fetch('/api/lito/voice/prepare', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': createClientRequestId(),
+        },
         cache: 'no-store',
         body: JSON.stringify({
           biz_id: biz.id,
@@ -717,7 +839,10 @@ export default function LitoChatView() {
     try {
       const response = await fetch(`/api/lito/action-drafts/${draftId}/${action}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': createClientRequestId(),
+        },
         cache: 'no-store',
       });
       const payload = (await response.json().catch(() => ({}))) as VoiceDraftMutationPayload;
@@ -730,7 +855,12 @@ export default function LitoChatView() {
       }
       setVoiceDrafts((previous) => previous.map((item) => (item.id === payload.draft!.id ? payload.draft! : item)));
       await loadVoiceDrafts();
-      toast(t('dashboard.litoPage.voice.actionSuccess'), 'success');
+      const successMessage = action === 'submit'
+        ? t('dashboard.litoPage.voice.inline.submitted_toast')
+        : action === 'execute'
+          ? t('dashboard.litoPage.voice.inline.executed_toast')
+          : t('dashboard.litoPage.voice.actionSuccess');
+      toast(successMessage, 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : t('dashboard.litoPage.voice.actionError');
       toast(message, 'error');
@@ -751,7 +881,10 @@ export default function LitoChatView() {
     try {
       const response = await fetch(`/api/lito/action-drafts/${draft.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': createClientRequestId(),
+        },
         cache: 'no-store',
         body: JSON.stringify({ payload: nextPayload }),
       });
@@ -806,14 +939,11 @@ export default function LitoChatView() {
         response: Response;
         payload: { messages?: LitoThreadMessage[]; error?: string; message?: string };
       }> => {
-        const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         const response = await fetch(`/api/lito/threads/${targetThreadId}/messages`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-request-id': requestId,
+            'x-request-id': createClientRequestId(),
           },
           cache: 'no-store',
           body: JSON.stringify({ content: transcript }),
@@ -853,7 +983,10 @@ export default function LitoChatView() {
 
       const response = await fetch('/api/lito/voice/transcribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-request-id': createClientRequestId(),
+        },
         cache: 'no-store',
         body: JSON.stringify({
           biz_id: biz.id,
@@ -897,8 +1030,35 @@ export default function LitoChatView() {
       if (postedMessages.length > 0) {
         setMessages((previous) => [...previous, ...postedMessages]);
       }
-      if (payload.messages && payload.messages.length > 0) {
-        setMessages((previous) => [...previous, ...payload.messages!]);
+      const voiceMessages = withInlineVoiceDrafts({
+        messages: payload.messages,
+        actions: payload.actions,
+        clipId: payload.clip_id,
+      });
+      if (voiceMessages.length > 0) {
+        setMessages((previous) => [...previous, ...voiceMessages]);
+      } else if (payload.actions && payload.actions.length > 0) {
+        const inlineDrafts = payload.actions.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          status: item.status,
+          summary: extractVoiceDraftSummary(item.payload || {}),
+          payload: (item.payload || {}) as Record<string, unknown>,
+        }));
+        const fallbackAssistantMessage: LitoThreadMessage = {
+          id: `voice-inline-${payload.clip_id || Date.now()}`,
+          thread_id: threadId,
+          role: 'assistant',
+          content: t('dashboard.litoPage.voice.inline.summaryFallback', { count: String(payload.actions.length) }),
+          meta: {
+            type: 'voice_actions_summary',
+            clip_id: payload.clip_id || null,
+            actions_count: payload.actions.length,
+            inline_drafts: inlineDrafts,
+          },
+          created_at: new Date().toISOString(),
+        };
+        setMessages((previous) => [...previous, fallbackAssistantMessage]);
       }
 
       setVoiceSheetOpen(false);
@@ -1210,6 +1370,10 @@ export default function LitoChatView() {
   }, []);
 
   const visibleMessages = useMemo(() => sanitizeMessages(messages), [messages]);
+  const voiceDraftById = useMemo(
+    () => new Map(voiceDrafts.map((draft) => [draft.id, draft])),
+    [voiceDrafts],
+  );
   const canConfirmVoiceActions = voiceViewerRole === 'owner' || voiceViewerRole === 'manager';
   const canRecordWithBrowser = voicePrepareMode === 'record' && voiceSpeechSupported;
 
@@ -1702,45 +1866,190 @@ export default function LitoChatView() {
             </div>
           ) : visibleMessages.length > 0 ? (
             <div className="space-y-2.5">
-              {visibleMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    'max-w-[88%] rounded-2xl border px-3 py-2 text-sm',
-                    message.role === 'user'
-                      ? 'ml-auto border-emerald-300/30 bg-emerald-500/12 text-emerald-100'
-                      : 'border-white/10 bg-white/6 text-white/88',
-                  )}
-                >
-                  <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                  {message.role === 'assistant' && activeThread?.recommendation_id ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.shorter'))}
-                        className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
-                      >
-                        {t('dashboard.home.recommendations.lito.refine.shorter')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.premium'))}
-                        className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
-                      >
-                        {t('dashboard.home.recommendations.lito.refine.premium')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.funny'))}
-                        className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
-                      >
-                        {t('dashboard.home.recommendations.lito.refine.funny')}
-                      </button>
-                    </div>
-                  ) : null}
-                  <p className={cn('mt-1 text-[11px]', textSub)}>{formatThreadDate(message.created_at)}</p>
-                </div>
-              ))}
+              {visibleMessages.map((message) => {
+                const inlineVoiceDrafts = message.role === 'assistant'
+                  ? resolveInlineVoiceDrafts({
+                    message,
+                    bizId: biz.id,
+                    voiceDraftById,
+                  })
+                  : [];
+
+                return (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      'max-w-[88%] rounded-2xl border px-3 py-2 text-sm',
+                      message.role === 'user'
+                        ? 'ml-auto border-emerald-300/30 bg-emerald-500/12 text-emerald-100'
+                        : 'border-white/10 bg-white/6 text-white/88',
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+
+                    {inlineVoiceDrafts.length > 0 ? (
+                      <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-500/8 p-2.5">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className={cn('text-xs font-semibold uppercase tracking-wide text-amber-100/90')}>
+                            {t('dashboard.litoPage.voice.inline.title')}
+                          </p>
+                          <span className="rounded-full border border-amber-300/30 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100">
+                            {inlineVoiceDrafts.length}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {inlineVoiceDrafts.map((draft) => {
+                            const payload = (draft.payload || {}) as Record<string, unknown>;
+                            const summary = extractVoiceDraftSummary(payload);
+                            const isExpanded = voiceExpandedDraftId === draft.id;
+                            const isEditing = voiceEditingDraftId === draft.id;
+                            const isStaff = voiceViewerRole === 'staff';
+                            const isStaffOwnDraft = isStaff && Boolean(draft.created_by) && draft.status === 'draft';
+                            const canSubmitForReview = Boolean(isStaffOwnDraft);
+                            const canApproveOrReject = canConfirmVoiceActions && (draft.status === 'draft' || draft.status === 'pending_review');
+                            const canExecute = canConfirmVoiceActions && draft.status === 'approved';
+                            const canEditDraft = canConfirmVoiceActions || Boolean(isStaffOwnDraft);
+
+                            return (
+                              <div key={`${message.id}-${draft.id}`} className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div>
+                                    <p className="text-xs font-semibold text-white/90">
+                                      {humanizeVoiceDraftKind(draft.kind)}
+                                    </p>
+                                    <p className={cn('text-[11px]', textSub)}>
+                                      {voiceDraftStatusLabel(draft.status)}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setVoiceExpandedDraftId((prev) => (prev === draft.id ? null : draft.id))}
+                                      className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+                                    >
+                                      {isExpanded
+                                        ? t('dashboard.litoPage.voice.hideDraft')
+                                        : t('dashboard.litoPage.voice.inline.view_draft')}
+                                    </button>
+                                    {canEditDraft ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setVoiceEditingDraftId(draft.id);
+                                          setVoiceEditingSummary(summary);
+                                        }}
+                                        className="rounded-full border border-white/15 bg-white/6 px-2 py-0.5 text-[11px] font-medium text-white/75 transition-colors hover:bg-white/12 hover:text-white"
+                                      >
+                                        {t('dashboard.litoPage.voice.inline.edit')}
+                                      </button>
+                                    ) : null}
+                                    {canApproveOrReject ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVoiceDraftMutation(draft.id, 'approve')}
+                                        className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/18"
+                                      >
+                                        {t('dashboard.litoPage.voice.inline.confirm')}
+                                      </button>
+                                    ) : null}
+                                    {canExecute ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVoiceDraftMutation(draft.id, 'execute')}
+                                        className="rounded-full border border-teal-300/35 bg-teal-500/12 px-2 py-0.5 text-[11px] font-semibold text-teal-200 transition-colors hover:bg-teal-500/18"
+                                      >
+                                        {t('dashboard.litoPage.voice.executeAction')}
+                                      </button>
+                                    ) : null}
+                                    {!canConfirmVoiceActions && canSubmitForReview ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleVoiceDraftMutation(draft.id, 'submit')}
+                                        className="rounded-full border border-cyan-300/35 bg-cyan-500/12 px-2 py-0.5 text-[11px] font-semibold text-cyan-200 transition-colors hover:bg-cyan-500/18"
+                                      >
+                                        {t('dashboard.litoPage.voice.inline.submit_review')}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                {isEditing ? (
+                                  <div className="mt-2 space-y-2">
+                                    <textarea
+                                      value={voiceEditingSummary}
+                                      onChange={(event) => setVoiceEditingSummary(event.target.value)}
+                                      rows={3}
+                                      className="w-full rounded-lg border border-white/12 bg-black/35 px-2.5 py-2 text-xs text-white outline-none transition-colors duration-200 ease-premium focus:border-emerald-300/35"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="h-7 px-2.5 text-[11px]"
+                                        onClick={() => void handleSaveVoiceDraftEdit(draft)}
+                                      >
+                                        {t('dashboard.litoPage.chat.renameSave')}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 px-2.5 text-[11px]"
+                                        onClick={() => {
+                                          setVoiceEditingDraftId(null);
+                                          setVoiceEditingSummary('');
+                                        }}
+                                      >
+                                        {t('dashboard.litoPage.chat.renameCancel')}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className={cn('mt-2 text-xs', textSub)}>{summary}</p>
+                                )}
+
+                                {isExpanded ? (
+                                  <div className="mt-2 space-y-1 rounded-md border border-white/10 bg-white/4 px-2.5 py-2 text-[11px] text-white/75">
+                                    {typeof payload.human_summary === 'string' ? <p><strong>Resum:</strong> {payload.human_summary}</p> : null}
+                                    {typeof payload.action === 'string' ? <p><strong>Accio:</strong> {payload.action}</p> : null}
+                                    {typeof payload.channel === 'string' ? <p><strong>Canal:</strong> {payload.channel}</p> : null}
+                                    {typeof payload.format === 'string' ? <p><strong>Format:</strong> {payload.format}</p> : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {message.role === 'assistant' && activeThread?.recommendation_id ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.shorter'))}
+                          className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
+                        >
+                          {t('dashboard.home.recommendations.lito.refine.shorter')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.premium'))}
+                          className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
+                        >
+                          {t('dashboard.home.recommendations.lito.refine.premium')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void sendMessage(t('dashboard.litoPage.chat.quickPrompts.funny'))}
+                          className="rounded-full border border-white/15 bg-white/6 px-2.5 py-1 text-[11px] font-medium text-white/80 transition-colors hover:bg-white/12 hover:text-white"
+                        >
+                          {t('dashboard.home.recommendations.lito.refine.funny')}
+                        </button>
+                      </div>
+                    ) : null}
+                    <p className={cn('mt-1 text-[11px]', textSub)}>{formatThreadDate(message.created_at)}</p>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <p className={cn('rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-sm', textSub)}>

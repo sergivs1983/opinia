@@ -401,6 +401,16 @@ export async function POST(request: Request) {
         transcript: transcriptText,
         drafts: createdDrafts.map((item) => ({ kind: item.kind, status: item.status })),
       });
+      const inlineDrafts = createdDrafts.map((item) => {
+        const payload = (item.payload || {}) as Record<string, unknown>;
+        return {
+          id: item.id,
+          kind: item.kind,
+          status: item.status,
+          summary: typeof payload.human_summary === 'string' ? payload.human_summary : '',
+          payload,
+        };
+      });
       const { data: assistantMessageData } = await admin
         .from('lito_messages')
         .insert({
@@ -411,6 +421,7 @@ export async function POST(request: Request) {
             type: 'voice_actions_summary',
             clip_id: clipId,
             actions_count: createdDrafts.length,
+            inline_drafts: inlineDrafts,
           },
         })
         .select('id, thread_id, role, content, meta, created_at')

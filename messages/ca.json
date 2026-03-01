@@ -938,6 +938,16 @@
         "executeAction": "Executar",
         "cancelAction": "Cancel·lar",
         "submitReview": "Enviar a revisio",
+        "inline": {
+          "title": "Drafts d'accio (Voice)",
+          "view_draft": "Veure draft",
+          "edit": "Editar",
+          "submit_review": "Enviar a revisio",
+          "confirm": "Confirmar",
+          "executed_toast": "Accio executada.",
+          "submitted_toast": "Accio enviada a revisio.",
+          "summaryFallback": "He preparat {count} drafts d'accio a partir del teu dictat."
+        },
         "unavailable": "LITO Voice no esta disponible ara mateix.",
         "prepareError": "No s'ha pogut preparar LITO Voice.",
         "speechUnsupported": "Aquest navegador no suporta dictat directe.",
