@@ -22,6 +22,7 @@ import {
   type LitoQuickRefineMode,
 } from '@/lib/ai/lito-copy';
 import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
+import { sanitizeThreadContext } from '@/lib/ai/sanitize';
 import { consumeOrgQuota, consumeStaffDaily, enforceStaffMonthlyCap } from '@/lib/ai/staff-guards';
 import { litoCopyUnavailableMessage, resolveLitoCopyStatus } from '@/lib/ai/copy-status';
 import { resolveProvider } from '@/lib/ai/provider';
@@ -106,7 +107,11 @@ type OrganizationSettingsRow = {
 };
 
 const SYSTEM_PROMPT =
-  "Ets LITO, assistent de social media per negocis locals. No inventis dades. Respon en l'idioma demanat. Retorna NOMÉS JSON vàlid segons l'esquema.";
+  "Ets LITO, assistent de social media per negocis locals. " +
+  "No inventis dades. " +
+  "No esmentis ni facis servir noms, emails, telèfons, adreces, ni cap dada personal de clients o tercers. " +
+  "Respon en l'idioma demanat. " +
+  "Retorna NOMÉS JSON vàlid segons l'esquema.";
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -611,6 +616,20 @@ export async function POST(request: Request) {
             requestId,
           );
         }
+        if (monthlyCap.reason === 'staff_monthly_cap_unavailable') {
+          return withStandardHeaders(
+            NextResponse.json(
+              {
+                error: 'quota_unavailable',
+                reason: 'staff_monthly_cap_unavailable',
+                message: "No s'ha pogut validar el límit mensual de staff. Torna-ho a provar.",
+                request_id: requestId,
+              },
+              { status: 503 },
+            ),
+            requestId,
+          );
+        }
         return withStandardHeaders(
           NextResponse.json(
             { error: 'internal', message: "No s'ha pogut validar el límit mensual de staff.", request_id: requestId },
@@ -662,7 +681,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const threadContext = await loadThreadContext(admin, payload.biz_id, payload.recommendation_id);
+    const threadContextRaw = await loadThreadContext(admin, payload.biz_id, payload.recommendation_id);
+    // Sanitize thread messages before injecting into LLM prompt (RGPD — data minimisation)
+    const threadContext = sanitizeThreadContext(threadContextRaw, 10);
     const contextInstruction = threadContext.length > 0
       ? `${instruction}\n\nContext recent:\n${threadContext.map((line) => `- ${line}`).join('\n')}`
       : instruction;

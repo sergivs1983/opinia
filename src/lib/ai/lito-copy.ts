@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { buildIkeaPayload, type IkeaVertical } from '@/lib/lito/ikea';
+import { sanitizeForLLM, sanitizeThreadContext } from '@/lib/ai/sanitize';
 
 export type LitoCopyFormat = 'post' | 'story' | 'reel';
 export type LitoCopyChannel = 'instagram' | 'tiktok' | 'facebook';
@@ -306,7 +307,12 @@ export function buildGeneratePrompt(params: {
   aiInstructions?: string | null;
   threadContext?: string[];
 }): string {
-  const contextLines = (params.threadContext || []).slice(0, 10);
+  // Sanitize free-text fields before sending to LLM (RGPD — data minimisation)
+  const sanitizedInstructions = params.aiInstructions
+    ? sanitizeForLLM(params.aiInstructions)
+    : '-';
+  const sanitizedContext = sanitizeThreadContext(params.threadContext || [], 10);
+
   return [
     `Negoci: ${params.businessName}`,
     `Vertical: ${params.vertical || 'general'}`,
@@ -321,10 +327,12 @@ export function buildGeneratePrompt(params: {
     `- Idea: ${params.template.idea}`,
     `- CTA: ${params.template.cta}`,
     '',
-    `Instruccions de negoci: ${params.aiInstructions || '-'}`,
+    `Instruccions de negoci: ${sanitizedInstructions}`,
     '',
     `Context recent (si n'hi ha):`,
-    ...(contextLines.length > 0 ? contextLines.map((line, idx) => `${idx + 1}. ${line}`) : ['- cap']),
+    ...(sanitizedContext.length > 0
+      ? sanitizedContext.map((line, idx) => `${idx + 1}. ${line}`)
+      : ['- cap']),
     '',
     'Retorna NOMÉS JSON vàlid amb aquest esquema:',
     '{"caption_short":"...<=280","caption_long":"...<=500","hashtags":["#..."],"shotlist":["..."],"image_idea":"...","execution_checklist":["..."],"stickers":["poll"]}',

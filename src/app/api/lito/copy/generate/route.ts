@@ -86,7 +86,11 @@ type OrganizationSettingsRow = {
 };
 
 const SYSTEM_PROMPT =
-  "Ets LITO, assistent de social media per negocis locals. No inventis dades. Respon en l'idioma demanat. Retorna NOMÉS JSON vàlid segons l'esquema.";
+  "Ets LITO, assistent de social media per negocis locals. " +
+  "No inventis dades. " +
+  "No esmentis ni facis servir noms, emails, telèfons, adreces, ni cap dada personal de clients o tercers. " +
+  "Respon en l'idioma demanat. " +
+  "Retorna NOMÉS JSON vàlid segons l'esquema.";
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -578,6 +582,20 @@ export async function POST(request: Request) {
                 request_id: requestId,
               },
               { status: 402 },
+            ),
+            requestId,
+          );
+        }
+        if (monthlyCap.reason === 'staff_monthly_cap_unavailable') {
+          return withStandardHeaders(
+            NextResponse.json(
+              {
+                error: 'quota_unavailable',
+                reason: 'staff_monthly_cap_unavailable',
+                message: "No s'ha pogut validar el límit mensual de staff. Torna-ho a provar.",
+                request_id: requestId,
+              },
+              { status: 503 },
             ),
             requestId,
           );
