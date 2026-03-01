@@ -46,6 +46,7 @@ const nextConfig = {
         { source: '/api/_internal/rules/run', destination: '/api/internal/rules/run' },
         { source: '/api/_internal/insights/rollup', destination: '/api/internal/insights/rollup' },
         { source: '/api/_internal/signals/run', destination: '/api/internal/signals/run' },
+        { source: '/api/_internal/signals/backfill', destination: '/api/internal/signals/backfill' },
         { source: '/api/_internal/signals/to-weekly', destination: '/api/internal/signals/to-weekly' },
       ],
     };
