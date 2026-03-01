@@ -105,6 +105,7 @@ export default function PlannerPage() {
   const [exportSignedUrl, setExportSignedUrl] = useState<string | null>(null);
   const [exportRequestId, setExportRequestId] = useState<string | null>(null);
   const [language, setLanguage] = useState<ContentLanguage>('ca');
+  const [showAdvancedManual, setShowAdvancedManual] = useState(false);
 
   useEffect(() => {
     if (!biz) return;
@@ -302,136 +303,153 @@ export default function PlannerPage() {
 
   return (
     <div className="space-y-4" data-testid="planner-page">
-      <section className={cn(glassStrong, 'border border-white/10 p-5 shadow-glass space-y-3')}>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-white/92">{t('dashboard.growth.planner')}</h1>
-            <p className="text-sm text-white/65">{t('dashboard.growth.subtitle')}</p>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="text-sm text-white/72">
-              Week
-              <input
-                type="date"
-                value={weekStart}
-                onChange={(event) => setWeekStart(normalizeWeekStartMonday(event.target.value))}
-                className={cn('glass-input mt-1 block w-44 px-3 py-2 text-sm', ringAccent)}
-                data-testid="planner-week-picker"
-              />
-            </label>
-            <button
-              onClick={() => void handleWeeklyExport()}
-              className={cn(glassPill, 'px-3 py-2 text-sm transition-all duration-[220ms] ease-premium hover:bg-white/15 disabled:opacity-50', ringAccent)}
-              disabled={exportingWeekly}
-              data-testid="export-weekly-btn"
-            >
-              {t('dashboard.growth.exportWeekly')}
-            </button>
-          </div>
-        </div>
-
-        {exportingWeekly && (
-          <p className="text-sm text-white/68" data-testid="export-weekly-loading">
-            {t('dashboard.growth.exportLoading')}
-          </p>
-        )}
-
-        {exportSignedUrl && (
-          <div className={cn(glass, 'border border-emerald-300/35 px-3 py-2 text-sm text-emerald-200')}>
-            <div className="flex flex-wrap items-center gap-2">
-              <a href={exportSignedUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2" data-testid="export-weekly-link">
-                {t('dashboard.growth.exportDownload')}
-              </a>
-              <button
-                type="button"
-                onClick={() => void copyText('export-link', exportSignedUrl)}
-                className={cn(glassPill, 'px-2 py-1 text-xs transition-all duration-[220ms] ease-premium hover:bg-white/15', ringAccent)}
-                data-testid="export-weekly-copy"
-              >
-                {copiedKey === 'export-link' ? t('dashboard.studio.copied') : t('dashboard.growth.exportCopyLink')}
-              </button>
-            </div>
-            {exportRequestId && <p className="mt-1 text-[11px] text-emerald-300">ID: {exportRequestId}</p>}
-          </div>
-        )}
-      </section>
-
       <SocialPlannerPanel />
 
-      {error && <div className={cn(glass, 'border border-rose-400/35 px-4 py-3 text-sm text-rose-200')}>{error}</div>}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className={cn(glassPill, 'px-3 py-1.5 text-xs transition-all duration-[220ms] ease-premium hover:bg-white/12', ringAccent)}
+          onClick={() => setShowAdvancedManual((value) => !value)}
+          data-testid="planner-advanced-toggle"
+        >
+          {showAdvancedManual
+            ? t('dashboard.home.socialPlanner.advancedOptionsHide')
+            : t('dashboard.home.socialPlanner.advancedOptionsShow')}
+        </button>
+      </div>
 
-      <section className={cn(glassStrong, 'border border-white/10 p-5 shadow-glass space-y-3')}>
-        {plannerLoading && <p className="text-sm text-white/68">{t('common.loading')}</p>}
-
-        {!plannerLoading && plannerItems.length === 0 && (
-          <p className="text-sm text-white/68">{t('dashboard.growth.noPlannerItems')}</p>
-        )}
-
-        <div className="space-y-2">
-          {plannerItems.map((item) => (
-            <div key={item.id} className={cn(glass, 'border border-white/10 px-4 py-3 shadow-glass transition-all duration-[220ms] ease-premium hover:border-white/15 hover:shadow-float flex items-center justify-between gap-3')} data-testid="planner-item">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-white/88">{toLocalPlannerLabel(item.scheduled_at)}</p>
-                <p className="text-xs text-white/68">{item.title}</p>
-                <div className="flex items-center gap-2">
-                  <span className={cn(glassPill, 'px-2 py-0.5 text-[11px]')} data-testid="planner-channel-badge">
-                    {plannerChannelLabel(item.channel)}
-                  </span>
-                  <span className="text-[11px] text-white/68">
-                    {item.status === 'published' ? t('dashboard.growth.publishedStatus') : t('dashboard.growth.plannedStatus')}
-                  </span>
-                </div>
-                {webhookStatusByItem[item.id] && (
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/72" data-testid="planner-webhook-status">
-                    <span>
-                      {webhookStatusByItem[item.id].status === 'sent'
-                        ? t('dashboard.growth.webhookSent')
-                        : webhookStatusByItem[item.id].status === 'failed'
-                          ? t('dashboard.growth.webhookFailed')
-                          : t('dashboard.growth.webhookSkipped')}
-                      {webhookStatusByItem[item.id].requestId ? ` · ID: ${webhookStatusByItem[item.id].requestId}` : ''}
-                    </span>
-                    {webhookStatusByItem[item.id].requestId && (
-                      <button
-                        type="button"
-                        onClick={() => void copyText(`webhook-${item.id}`, webhookStatusByItem[item.id].requestId)}
-                        className={cn(glassPill, 'px-1.5 py-0.5 text-[10px] transition-all duration-[220ms] ease-premium hover:bg-white/12', ringAccent)}
-                        data-testid="planner-webhook-copy-id"
-                      >
-                        {copiedKey === `webhook-${item.id}` ? 'Copiat' : 'Copiar ID'}
-                      </button>
-                    )}
-                  </div>
-                )}
+      {showAdvancedManual ? (
+        <>
+          <section className={cn(glassStrong, 'border border-white/10 p-5 shadow-glass space-y-3')}>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h1 className="text-xl font-semibold text-white/92">{t('dashboard.growth.planner')}</h1>
+                <p className="text-sm text-white/65">{t('dashboard.growth.subtitle')}</p>
               </div>
-              <div className="flex flex-wrap gap-2 justify-end">
-                {webhookEnabled && webhookChannels.includes(item.channel) && (
-                  <button
-                    onClick={() => void sendPlannerWebhook(item.id)}
-                    disabled={webhookPendingId === item.id}
-                    className={cn(glassPill, 'px-3 py-1.5 text-xs font-medium transition-all duration-[220ms] ease-premium hover:bg-white/12 disabled:opacity-50', ringAccent)}
-                    data-testid="planner-send-webhook"
-                  >
-                    {webhookPendingId === item.id ? '...' : t('dashboard.growth.sendToPublish')}
-                  </button>
-                )}
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="text-sm text-white/72">
+                  Week
+                  <input
+                    type="date"
+                    value={weekStart}
+                    onChange={(event) => setWeekStart(normalizeWeekStartMonday(event.target.value))}
+                    className={cn('glass-input mt-1 block w-44 px-3 py-2 text-sm', ringAccent)}
+                    data-testid="planner-week-picker"
+                  />
+                </label>
                 <button
-                  onClick={() => void markPlannerPublished(item.id)}
-                  disabled={item.status === 'published' || plannerPendingKey === `publish-${item.id}`}
-                  className={cn(glassPill, 'px-3 py-1.5 text-xs font-medium transition-all duration-[220ms] ease-premium hover:bg-white/12 disabled:opacity-50', ringAccent)}
-                  data-testid="planner-mark-published"
+                  onClick={() => void handleWeeklyExport()}
+                  className={cn(glassPill, 'px-3 py-2 text-sm transition-all duration-[220ms] ease-premium hover:bg-white/15 disabled:opacity-50', ringAccent)}
+                  disabled={exportingWeekly}
+                  data-testid="export-weekly-btn"
                 >
-                  {item.status === 'published'
-                    ? t('dashboard.growth.published')
-                    : plannerPendingKey === `publish-${item.id}`
-                      ? '...'
-                      : t('dashboard.growth.markPublished')}
+                  {t('dashboard.growth.exportWeekly')}
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
+
+            {exportingWeekly && (
+              <p className="text-sm text-white/68" data-testid="export-weekly-loading">
+                {t('dashboard.growth.exportLoading')}
+              </p>
+            )}
+
+            {exportSignedUrl && (
+              <div className={cn(glass, 'border border-emerald-300/35 px-3 py-2 text-sm text-emerald-200')}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a href={exportSignedUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2" data-testid="export-weekly-link">
+                    {t('dashboard.growth.exportDownload')}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => void copyText('export-link', exportSignedUrl)}
+                    className={cn(glassPill, 'px-2 py-1 text-xs transition-all duration-[220ms] ease-premium hover:bg-white/15', ringAccent)}
+                    data-testid="export-weekly-copy"
+                  >
+                    {copiedKey === 'export-link' ? t('dashboard.studio.copied') : t('dashboard.growth.exportCopyLink')}
+                  </button>
+                </div>
+                {exportRequestId && <p className="mt-1 text-[11px] text-emerald-300">ID: {exportRequestId}</p>}
+              </div>
+            )}
+          </section>
+
+          {error && <div className={cn(glass, 'border border-rose-400/35 px-4 py-3 text-sm text-rose-200')}>{error}</div>}
+
+          <section className={cn(glassStrong, 'border border-white/10 p-5 shadow-glass space-y-3')}>
+            {plannerLoading && <p className="text-sm text-white/68">{t('common.loading')}</p>}
+
+            {!plannerLoading && plannerItems.length === 0 && (
+              <p className="text-sm text-white/68">{t('dashboard.growth.noPlannerItems')}</p>
+            )}
+
+            <div className="space-y-2">
+              {plannerItems.map((item) => (
+                <div key={item.id} className={cn(glass, 'border border-white/10 px-4 py-3 shadow-glass transition-all duration-[220ms] ease-premium hover:border-white/15 hover:shadow-float flex items-center justify-between gap-3')} data-testid="planner-item">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-white/88">{toLocalPlannerLabel(item.scheduled_at)}</p>
+                    <p className="text-xs text-white/68">{item.title}</p>
+                    <div className="flex items-center gap-2">
+                      <span className={cn(glassPill, 'px-2 py-0.5 text-[11px]')} data-testid="planner-channel-badge">
+                        {plannerChannelLabel(item.channel)}
+                      </span>
+                      <span className="text-[11px] text-white/68">
+                        {item.status === 'published' ? t('dashboard.growth.publishedStatus') : t('dashboard.growth.plannedStatus')}
+                      </span>
+                    </div>
+                    {webhookStatusByItem[item.id] && (
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/72" data-testid="planner-webhook-status">
+                        <span>
+                          {webhookStatusByItem[item.id].status === 'sent'
+                            ? t('dashboard.growth.webhookSent')
+                            : webhookStatusByItem[item.id].status === 'failed'
+                              ? t('dashboard.growth.webhookFailed')
+                              : t('dashboard.growth.webhookSkipped')}
+                          {webhookStatusByItem[item.id].requestId ? ` · ID: ${webhookStatusByItem[item.id].requestId}` : ''}
+                        </span>
+                        {webhookStatusByItem[item.id].requestId && (
+                          <button
+                            type="button"
+                            onClick={() => void copyText(`webhook-${item.id}`, webhookStatusByItem[item.id].requestId)}
+                            className={cn(glassPill, 'px-1.5 py-0.5 text-[10px] transition-all duration-[220ms] ease-premium hover:bg-white/12', ringAccent)}
+                            data-testid="planner-webhook-copy-id"
+                          >
+                            {copiedKey === `webhook-${item.id}` ? 'Copiat' : 'Copiar ID'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {webhookEnabled && webhookChannels.includes(item.channel) && (
+                      <button
+                        onClick={() => void sendPlannerWebhook(item.id)}
+                        disabled={webhookPendingId === item.id}
+                        className={cn(glassPill, 'px-3 py-1.5 text-xs font-medium transition-all duration-[220ms] ease-premium hover:bg-white/12 disabled:opacity-50', ringAccent)}
+                        data-testid="planner-send-webhook"
+                      >
+                        {webhookPendingId === item.id ? '...' : t('dashboard.growth.sendToPublish')}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => void markPlannerPublished(item.id)}
+                      disabled={item.status === 'published' || plannerPendingKey === `publish-${item.id}`}
+                      className={cn(glassPill, 'px-3 py-1.5 text-xs font-medium transition-all duration-[220ms] ease-premium hover:bg-white/12 disabled:opacity-50', ringAccent)}
+                      data-testid="planner-mark-published"
+                    >
+                      {item.status === 'published'
+                        ? t('dashboard.growth.published')
+                        : plannerPendingKey === `publish-${item.id}`
+                          ? '...'
+                          : t('dashboard.growth.markPublished')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
