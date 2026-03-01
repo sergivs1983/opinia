@@ -1,6 +1,14 @@
 {
   "crons": [
     {
+      "path": "/api/cron/social-reminders",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/signals-run",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/jobs",
       "schedule": "0 3 * * *"
     }
