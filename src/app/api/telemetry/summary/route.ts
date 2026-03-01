@@ -17,7 +17,9 @@ const QuerySchema = z.object({
 });
 
 const WATCHED_EVENTS = [
+  'draft_generated',
   'draft_generate_failed',
+  'draft_refined',
   'draft_refine_failed',
   'trial_ended_shown',
   'trial_cap_reached',
@@ -25,10 +27,35 @@ const WATCHED_EVENTS = [
   'ai_unavailable',
 ] as const;
 
+const RECENT_ERROR_EVENTS = new Set<string>([
+  'draft_generate_failed',
+  'draft_refine_failed',
+  'ai_unavailable',
+  'org_quota_exceeded',
+  'trial_ended_shown',
+  'trial_cap_reached',
+]);
+
 type TelemetryRow = {
   event_name: string;
+  created_at: string;
   props: Record<string, unknown> | null;
 };
+
+function pickRecentProps(props: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!props) return null;
+
+  const allowed = ['reason', 'http_status', 'code', 'feature', 'provider', 'status', 'action', 'source'] as const;
+  const picked: Record<string, unknown> = {};
+
+  for (const key of allowed) {
+    if (typeof props[key] !== 'undefined') {
+      picked[key] = props[key];
+    }
+  }
+
+  return Object.keys(picked).length > 0 ? picked : null;
+}
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -76,7 +103,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await admin
       .from('telemetry_events')
-      .select('event_name, props')
+      .select('event_name, created_at, props')
       .eq('org_id', orgId)
       .gte('created_at', sinceIso)
       .in('event_name', [...WATCHED_EVENTS])
@@ -108,12 +135,23 @@ export async function GET(request: Request) {
       };
     });
 
+    const recent = rows
+      .filter((row) => RECENT_ERROR_EVENTS.has(row.event_name) || row.event_name.endsWith('_failed'))
+      .slice(0, 10)
+      .map((row) => ({
+        event_name: row.event_name,
+        created_at: row.created_at,
+        request_id: row.props && typeof row.props.request_id === 'string' ? row.props.request_id : null,
+        props: pickRecentProps(row.props),
+      }));
+
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
         org_id: orgId,
         window_hours: 24,
         events: byEvent,
+        recent,
         request_id: requestId,
       }),
       requestId,

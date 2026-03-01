@@ -195,6 +195,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       active: pathname.startsWith('/dashboard/plans'),
     },
     {
+      key: 'health',
+      href: '/dashboard/health',
+      label: t('nav.health'),
+      icon: icons.analytics,
+      active: pathname.startsWith('/dashboard/health'),
+    },
+    {
       key: 'settings',
       href: '/dashboard/settings',
       label: t('nav.settings'),

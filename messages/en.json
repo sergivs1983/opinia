@@ -94,7 +94,8 @@
     "logout": "Log out",
     "switchOrg": "Switch organization",
     "switchBiz": "Switch business",
-    "plans": "Plans"
+    "plans": "Plans",
+    "health": "Health"
   },
   "landing": {
     "hero": "Professional AI-powered review responses for your business",

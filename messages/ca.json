@@ -94,7 +94,8 @@
     "logout": "Tancar sessió",
     "switchOrg": "Canviar organització",
     "switchBiz": "Canviar negoci",
-    "plans": "Plans"
+    "plans": "Plans",
+    "health": "Health"
   },
   "landing": {
     "hero": "Respostes professionals amb IA per al teu negoci",

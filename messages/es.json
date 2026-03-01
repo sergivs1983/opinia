@@ -94,7 +94,8 @@
     "logout": "Cerrar sesión",
     "switchOrg": "Cambiar organización",
     "switchBiz": "Cambiar negocio",
-    "plans": "Planes"
+    "plans": "Planes",
+    "health": "Health"
   },
   "landing": {
     "hero": "Respuestas profesionales con IA para tu negocio",
