@@ -3,6 +3,7 @@ export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
+import { normalizePlanCode } from '@/lib/billing/entitlements';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
@@ -59,8 +60,9 @@ export async function POST(
 
   const admin = createAdminClient();
   const seatPlan = mapSeatPlan(body.plan_code);
+  const canonicalPlanCode = normalizePlanCode(seatPlan.plan_code);
   const payload = {
-    plan_code: seatPlan.plan_code,
+    plan_code: canonicalPlanCode,
     seats_limit: seatPlan.seats_limit,
     business_limit: seatPlan.business_limit,
     plan_price_cents: seatPlan.plan_price_cents,
@@ -104,7 +106,7 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     org_id: routeParams.orgId,
-    plan_code: seatPlan.plan_code,
+    plan_code: canonicalPlanCode,
     seats_limit: seatPlan.seats_limit,
     business_limit: seatPlan.business_limit,
   });

@@ -5,6 +5,7 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUsageSummary, PLANS } from '@/lib/billing/plans';
+import { normalizePlanCode } from '@/lib/billing/entitlements';
 import { validateBody, BillingUpdateSchema } from '@/lib/validations';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import {
@@ -102,9 +103,10 @@ export async function POST(request: Request) {
     max_team_members: plan.max_team_members,
   };
   const seatPlan = mapBillingPlanToSeatPlan(body.plan_id, plan.price_monthly);
+  const canonicalPlanCode = normalizePlanCode(seatPlan.plan_code);
   const updateWithSeats = {
     ...baseUpdate,
-    plan_code: seatPlan.plan_code,
+    plan_code: canonicalPlanCode,
     seats_limit: seatPlan.seats_limit,
     business_limit: seatPlan.business_limit,
     plan_price_cents: seatPlan.plan_price_cents,

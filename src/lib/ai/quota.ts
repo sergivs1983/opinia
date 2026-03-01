@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type OrgPlanConfig = {
-  plan_id: 'starter' | 'pro' | 'scale' | 'enterprise';
+  plan_id: 'starter' | 'business' | 'scale';
   drafts_limit: number;
   max_locals: number;
 };
@@ -31,12 +31,14 @@ const PLAN_MAP: Record<string, OrgPlanConfig> = {
   starter: { plan_id: 'starter', drafts_limit: 120, max_locals: 2 },
   starter_29: { plan_id: 'starter', drafts_limit: 120, max_locals: 2 },
   starter_49: { plan_id: 'starter', drafts_limit: 120, max_locals: 2 },
-  pro: { plan_id: 'pro', drafts_limit: 400, max_locals: 5 },
-  pro_49: { plan_id: 'pro', drafts_limit: 400, max_locals: 5 },
+  free: { plan_id: 'starter', drafts_limit: 120, max_locals: 2 },
+  business: { plan_id: 'business', drafts_limit: 400, max_locals: 5 },
+  pro: { plan_id: 'business', drafts_limit: 400, max_locals: 5 },
+  pro_49: { plan_id: 'business', drafts_limit: 400, max_locals: 5 },
   scale: { plan_id: 'scale', drafts_limit: 1500, max_locals: 15 },
   scale_149: { plan_id: 'scale', drafts_limit: 1500, max_locals: 15 },
   pro_149: { plan_id: 'scale', drafts_limit: 1500, max_locals: 15 },
-  enterprise: { plan_id: 'enterprise', drafts_limit: 5000, max_locals: 50 },
+  enterprise: { plan_id: 'scale', drafts_limit: 1500, max_locals: 15 },
 };
 
 function toNumber(value: unknown, fallback = 0): number {
