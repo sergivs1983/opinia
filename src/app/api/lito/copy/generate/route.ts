@@ -34,6 +34,7 @@ import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { trackEvent } from '@/lib/telemetry';
 import { validateBody } from '@/lib/validations';
 
 const GenerateBodySchema = z.object({
@@ -327,6 +328,7 @@ export async function POST(request: Request) {
 
     const recommendation = recommendationData as RecommendationRow;
     const business = businessData as BusinessRow;
+    const routeStartedAt = Date.now();
     const { data: orgSettingsData } = await admin
       .from('organizations')
       .select('id, ai_provider, lito_staff_ai_paused, trial_started_at, trial_ends_at, trial_state, trial_plan_code')
@@ -337,6 +339,24 @@ export async function POST(request: Request) {
       supabase: admin,
       orgId: recommendation.org_id,
     });
+    const trackGenerateEvent = async (name: string, props: Record<string, unknown> = {}) => {
+      await trackEvent({
+        supabase: admin,
+        orgId: recommendation.org_id,
+        userId: user.id,
+        name,
+        props: {
+          plan_code: entitlements.plan_code,
+          local_id: recommendation.biz_id,
+          ...props,
+        },
+        requestId,
+      });
+    };
+
+    const trackGenerateFailed = async (props: Record<string, unknown>) => {
+      await trackGenerateEvent('draft_generate_failed', props);
+    };
 
     const { data: ruleData, error: ruleErr } = await admin
       .from('playbook_rules')
@@ -445,6 +465,16 @@ export async function POST(request: Request) {
         jobId: activeJobId,
         error: 'paused',
       });
+      await trackGenerateEvent('staff_paused_blocked', {
+        error: 'feature_locked',
+        reason: 'paused',
+        http_status: 403,
+      });
+      await trackGenerateFailed({
+        error: 'feature_locked',
+        reason: 'paused',
+        http_status: 403,
+      });
       return withStandardHeaders(
         NextResponse.json(
           {
@@ -472,6 +502,11 @@ export async function POST(request: Request) {
         jobId: activeJobId,
         error: litoAccess.reason || 'feature_locked',
       });
+      await trackGenerateFailed({
+        error: 'feature_locked',
+        reason: litoAccess.reason || 'feature_locked',
+        http_status: 403,
+      });
       return withStandardHeaders(
         NextResponse.json(
           {
@@ -493,6 +528,15 @@ export async function POST(request: Request) {
         admin,
         jobId: activeJobId,
         error: 'trial_ended',
+      });
+      await trackGenerateEvent('trial_ended_shown', {
+        error: 'trial_ended',
+        http_status: 402,
+      });
+      await trackGenerateFailed({
+        error: 'trial_ended',
+        reason: 'trial_ended',
+        http_status: 402,
       });
       return withStandardHeaders(
         NextResponse.json(
@@ -522,6 +566,16 @@ export async function POST(request: Request) {
         admin,
         jobId: activeJobId,
         error: copyStatus.reason,
+      });
+      await trackGenerateEvent('ai_unavailable', {
+        error: 'ai_unavailable',
+        reason: copyStatus.reason,
+        http_status: 503,
+      });
+      await trackGenerateFailed({
+        error: 'ai_unavailable',
+        reason: copyStatus.reason,
+        http_status: 503,
       });
       return withStandardHeaders(
         NextResponse.json(
@@ -553,6 +607,19 @@ export async function POST(request: Request) {
           error: staffLimit.reason || 'staff_daily_limit',
         });
         if (staffLimit.reason === 'staff_daily_limit') {
+          await trackGenerateEvent('staff_quota_blocked', {
+            error: 'quota_exceeded',
+            reason: 'staff_daily_limit',
+            used: staffLimit.used,
+            limit: staffLimit.limit,
+            remaining: staffLimit.remaining,
+            http_status: 402,
+          });
+          await trackGenerateFailed({
+            error: 'quota_exceeded',
+            reason: 'staff_daily_limit',
+            http_status: 402,
+          });
           return withStandardHeaders(
             NextResponse.json(
               {
@@ -593,6 +660,19 @@ export async function POST(request: Request) {
           error: monthlyCap.reason || 'staff_monthly_cap',
         });
         if (monthlyCap.reason === 'staff_monthly_cap') {
+          await trackGenerateEvent('staff_quota_blocked', {
+            error: 'quota_exceeded',
+            reason: 'staff_monthly_cap',
+            used: monthlyCap.used,
+            limit: monthlyCap.limit,
+            remaining: monthlyCap.remaining,
+            http_status: 402,
+          });
+          await trackGenerateFailed({
+            error: 'quota_exceeded',
+            reason: 'staff_monthly_cap',
+            http_status: 402,
+          });
           return withStandardHeaders(
             NextResponse.json(
               {
@@ -647,6 +727,18 @@ export async function POST(request: Request) {
         jobId: activeJobId,
         error: 'trial_cap_reached',
       });
+      await trackGenerateEvent('trial_cap_reached', {
+        error: 'trial_cap_reached',
+        used: trialQuota.used,
+        limit: trialQuota.limit,
+        remaining: trialQuota.remaining,
+        http_status: 402,
+      });
+      await trackGenerateFailed({
+        error: 'trial_cap_reached',
+        reason: 'trial_cap_reached',
+        http_status: 402,
+      });
       return withStandardHeaders(
         NextResponse.json(
           {
@@ -681,6 +773,19 @@ export async function POST(request: Request) {
         error: quota.reason || 'quota_failed',
       });
       if (quota.reason === 'quota_exceeded') {
+        await trackGenerateEvent('org_quota_exceeded', {
+          error: 'quota_exceeded',
+          reason: 'org_quota',
+          used: quota.used,
+          limit: quota.limit,
+          remaining: quota.remaining,
+          http_status: 402,
+        });
+        await trackGenerateFailed({
+          error: 'quota_exceeded',
+          reason: 'org_quota',
+          http_status: 402,
+        });
         return withStandardHeaders(
           NextResponse.json(
             {
@@ -821,6 +926,15 @@ export async function POST(request: Request) {
         jobId: activeJobId,
         result: resultPayload,
       });
+      await trackGenerateEvent('draft_generated', {
+        type: 'generate',
+        provider: providerState.provider,
+        used: quota.used,
+        limit: quota.limit,
+        remaining: quota.remaining,
+        latency_ms: Date.now() - routeStartedAt,
+        fallback_parse: true,
+      });
       return withStandardHeaders(
         NextResponse.json({
           ...resultPayload,
@@ -888,6 +1002,15 @@ export async function POST(request: Request) {
       jobId: activeJobId,
       result: resultPayload,
     });
+    await trackGenerateEvent('draft_generated', {
+      type: 'generate',
+      provider: providerState.provider,
+      used: quota.used,
+      limit: quota.limit,
+      remaining: quota.remaining,
+      latency_ms: Date.now() - routeStartedAt,
+      fallback_parse: false,
+    });
 
     return withStandardHeaders(
       NextResponse.json({
@@ -911,6 +1034,24 @@ export async function POST(request: Request) {
     log.error('lito_copy_generate_unhandled', {
       error: error instanceof Error ? error.message : String(error),
     });
+    if (jobId) {
+      try {
+        await trackEvent({
+          supabase: createAdminClient(),
+          orgId: null,
+          userId: null,
+          name: 'draft_generate_failed',
+          props: {
+            error: 'internal',
+            reason: error instanceof Error ? error.message : String(error),
+            http_status: 500,
+          },
+          requestId,
+        });
+      } catch {
+        // best effort
+      }
+    }
     return withStandardHeaders(
       NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
       requestId,

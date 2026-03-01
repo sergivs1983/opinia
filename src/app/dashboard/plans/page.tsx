@@ -116,6 +116,23 @@ export default function DashboardPlansPage() {
   const [limitDrafts, setLimitDrafts] = useState(getOrgPlanConfig('starter').drafts_limit);
   const [signals, setSignals] = useState('Basic');
 
+  const trackUpgradeClick = (targetPlan: PlanCode) => {
+    if (!org?.id) return;
+    void fetch('/api/telemetry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        org_id: org.id,
+        event_name: 'upgrade_clicked',
+        props: {
+          from_plan: currentPlan,
+          target_plan: targetPlan,
+          source: 'dashboard_plans',
+        },
+      }),
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     if (!org?.id || !canManage) return;
     setLoading(true);
@@ -217,6 +234,7 @@ export default function DashboardPlansPage() {
                 ) : (
                   <a
                     href="mailto:hello@opinia.app?subject=Canvi%20de%20pla"
+                    onClick={() => trackUpgradeClick(plan.id)}
                     className="inline-flex h-8 items-center rounded-lg border border-white/20 bg-white/8 px-3 text-xs font-medium text-white/80 transition hover:bg-white/14"
                   >
                     Contactar

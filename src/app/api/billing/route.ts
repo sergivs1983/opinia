@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUsageSummary, PLANS } from '@/lib/billing/plans';
 import { normalizePlanCode } from '@/lib/billing/entitlements';
+import { trackEvent } from '@/lib/telemetry';
+import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { validateBody, BillingUpdateSchema } from '@/lib/validations';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
 import {
@@ -64,6 +66,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const requestId = getRequestIdFromHeaders(request.headers);
   const blocked = validateCsrf(request); if (blocked) return blocked;
 
   const supabase = createServerSupabaseClient();
@@ -85,9 +88,24 @@ export async function POST(request: Request) {
   });
   if (!hasMembership) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
+  const emitBillingEvent = async (eventName: string, props: Record<string, unknown>) => {
+    await trackEvent({
+      supabase,
+      orgId: body.org_id,
+      userId: user.id,
+      name: eventName,
+      props,
+      requestId,
+    });
+  };
+
   // Check if Stripe is configured for paid plans
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (plan.price_monthly > 0 && stripeKey && plan.stripe_price_id) {
+    await emitBillingEvent('checkout_started', {
+      plan: body.plan_id,
+      source: 'billing_api',
+    });
     return NextResponse.json({
       action: 'stripe_checkout',
       message: 'Stripe Checkout integration ready — configure STRIPE_SECRET_KEY and price IDs.',
@@ -127,6 +145,12 @@ export async function POST(request: Request) {
   }
 
   if (updateError) {
+    await emitBillingEvent('checkout_failed', {
+      plan: body.plan_id,
+      source: 'billing_api',
+      reason: 'update_error',
+      detail: updateError.code || updateError.message || 'unknown',
+    });
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
@@ -136,11 +160,24 @@ export async function POST(request: Request) {
       planCode: seatPlan.plan_code,
     });
   } catch (normalizeError: unknown) {
+    await emitBillingEvent('checkout_failed', {
+      plan: body.plan_id,
+      source: 'billing_api',
+      reason: 'role_normalization_failed',
+      detail: normalizeError instanceof Error ? normalizeError.message : String(normalizeError),
+    });
     return NextResponse.json({
       error: 'role_normalization_failed',
       message: normalizeError instanceof Error ? normalizeError.message : 'No hem pogut normalitzar els rols del pla.',
     }, { status: 500 });
   }
+
+  await emitBillingEvent('checkout_success', {
+    plan: body.plan_id,
+    amount: plan.price_monthly,
+    currency: 'eur',
+    source: 'billing_api',
+  });
 
   return NextResponse.json({
     success: true,
