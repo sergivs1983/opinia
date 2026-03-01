@@ -94,6 +94,32 @@ process.stdout.write(`${ts}\n${sig}\n`);
 JS
 }
 
+inspect_signals_payload() {
+  local json="$1"
+  JSON_INPUT="$json" node - <<'JS'
+const input = process.env.JSON_INPUT || '{}';
+let parsed = {};
+try { parsed = JSON.parse(input); } catch { parsed = {}; }
+const signals = Array.isArray(parsed.signals) ? parsed.signals : [];
+const hasWhy = signals.every((s) => typeof s?.why === 'string' && s.why.trim().length > 0);
+const maxThree = signals.length <= 3;
+const seen = new Set();
+let hasDupe = false;
+for (const signal of signals) {
+  const kind = String(signal?.kind || '');
+  const fingerprint = String(signal?.fingerprint || '');
+  if (!kind || !fingerprint) continue;
+  const key = `${kind}|${fingerprint}`;
+  if (seen.has(key)) {
+    hasDupe = true;
+    break;
+  }
+  seen.add(key);
+}
+process.stdout.write(`${signals.length}|${hasWhy ? 1 : 0}|${maxThree ? 1 : 0}|${hasDupe ? 1 : 0}`);
+JS
+}
+
 echo "Flow D2.1 Signals PRO smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
@@ -147,15 +173,49 @@ if [ -n "${LITO_SESSION_COOKIE}" ] && [ -n "${FLOW_D21_BIZ_ID}" ]; then
     REQ_BODY="LITO_SESSION_COOKIE invàlida"
     report_fail "cookie invàlida"
   else
+    if [ -n "${INTERNAL_HMAC_SECRET}" ]; then
+      TODAY="$(date -u +%F)"
+      TOMORROW="$(date -u -v+1d +%F 2>/dev/null || node -e "const d=new Date();d.setUTCDate(d.getUTCDate()+1);process.stdout.write(d.toISOString().slice(0,10));")"
+      for DAY in "${TODAY}" "${TOMORROW}"; do
+        BODY="{\"biz_id\":\"${FLOW_D21_BIZ_ID}\",\"provider\":\"google_business\",\"day\":\"${DAY}\",\"range_days\":7}"
+        HMAC_OUT="$(make_hmac "/api/_internal/signals/run" "${BODY}")"
+        TS="$(printf '%s\n' "${HMAC_OUT}" | sed -n '1p')"
+        SIG="$(printf '%s\n' "${HMAC_OUT}" | sed -n '2p')"
+        perform_request -X POST "${BASE}/api/_internal/signals/run" \
+          -H "Content-Type: application/json" \
+          -H "x-opin-timestamp: ${TS}" \
+          -H "x-opin-signature: ${SIG}" \
+          -d "${BODY}"
+      done
+    fi
+
     perform_request "${BASE}/api/lito/signals-pro?biz_id=${FLOW_D21_BIZ_ID}&range_days=7" \
       -H "${COOKIE_HEADER}"
     if [ "${REQ_CODE}" = "200" ]; then
-      SIGNALS_RAW="$(json_field "${REQ_BODY}" "signals")"
-      COUNT="$(node -e "const s=process.argv[1]||'[]';try{const a=JSON.parse(s);process.stdout.write(String(a.length));}catch{process.stdout.write('0');}" "${SIGNALS_RAW}")"
+      INSPECT="$(inspect_signals_payload "${REQ_BODY}")"
+      COUNT="$(printf '%s' "${INSPECT}" | cut -d'|' -f1)"
+      HAS_WHY="$(printf '%s' "${INSPECT}" | cut -d'|' -f2)"
+      MAX_THREE="$(printf '%s' "${INSPECT}" | cut -d'|' -f3)"
+      HAS_DUPE="$(printf '%s' "${INSPECT}" | cut -d'|' -f4)"
       if [ "${COUNT:-0}" -ge 1 ] 2>/dev/null; then
         report_ok "signals-pro amb sessió (200, signals=${COUNT})"
       else
         report_fail "signals-pro amb sessió (signals buit)"
+      fi
+      if [ "${HAS_WHY}" = "1" ]; then
+        report_ok "signals inclouen why quantificat"
+      else
+        report_fail "signals sense why"
+      fi
+      if [ "${MAX_THREE}" = "1" ]; then
+        report_ok "signals-pro retorna max 3 cards"
+      else
+        report_fail "signals-pro retorna més de 3 cards"
+      fi
+      if [ "${HAS_DUPE}" = "0" ]; then
+        report_ok "signals sense dupes (kind+fingerprint)"
+      else
+        report_fail "s'han detectat dupes (kind+fingerprint)"
       fi
     else
       report_fail "signals-pro amb sessió (expected 200)"
