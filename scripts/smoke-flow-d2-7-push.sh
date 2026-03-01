@@ -11,6 +11,22 @@ FAILURES=0
 REQ_CODE=""
 REQ_BODY=""
 
+wait_for_login_ready() {
+  local tries=40
+  local code=""
+  while [ "$tries" -gt 0 ]; do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${BASE}/login" 2>/dev/null || true)"
+    if [ "${code}" = "200" ]; then
+      REQ_CODE="${code}"
+      return 0
+    fi
+    tries=$((tries - 1))
+    sleep 1
+  done
+  REQ_CODE="${code:-000}"
+  return 1
+}
+
 trim_spaces() {
   printf '%s' "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//'
 }
@@ -57,11 +73,10 @@ report_fail() {
 echo "Flow D2.7 push smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
-LOGIN_CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "${BASE}/login" 2>/dev/null || true)"
-if [ "${LOGIN_CODE}" = "200" ]; then
+if wait_for_login_ready; then
   report_ok "Preflight /login (HTTP 200)"
 else
-  REQ_CODE="${LOGIN_CODE:-000}"
+  REQ_CODE="${REQ_CODE:-000}"
   REQ_BODY=""
   report_fail "Preflight /login (expected 200)"
 fi
