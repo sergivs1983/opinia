@@ -12,8 +12,20 @@ function isPosthogEnabled(): boolean {
 }
 
 function resolvePosthogHost(): string {
-  const host = (process.env.POSTHOG_HOST || 'https://eu.i.posthog.com').trim();
+  const host = (
+    process.env.POSTHOG_HOST
+    || process.env.NEXT_PUBLIC_POSTHOG_HOST
+    || 'https://eu.i.posthog.com'
+  ).trim();
   return host.endsWith('/') ? host.slice(0, -1) : host;
+}
+
+function resolvePosthogKey(): string {
+  return (
+    process.env.POSTHOG_PROJECT_API_KEY
+    || process.env.NEXT_PUBLIC_POSTHOG_KEY
+    || ''
+  ).trim();
 }
 
 export async function track(event: string, props: Record<string, unknown>, distinctId: string): Promise<void>;
@@ -26,7 +38,7 @@ export async function track(
   try {
     if (!isPosthogEnabled()) return;
 
-    const apiKey = process.env.POSTHOG_PROJECT_API_KEY;
+    const apiKey = resolvePosthogKey();
     if (!apiKey) return;
 
     const normalized = typeof eventOrInput === 'string'

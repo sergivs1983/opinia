@@ -5,8 +5,8 @@ BASE_INPUT="${1:-http://localhost:3000}"
 BASE="$(printf '%s' "${BASE_INPUT}" | sed -E 's#://localhost([/:]|$)#://127.0.0.1\1#')"
 ANALYTICS_SESSION_COOKIE="${ANALYTICS_SESSION_COOKIE:-}"
 ANALYTICS_BIZ_ID="${ANALYTICS_BIZ_ID:-}"
-POSTHOG_HOST="${POSTHOG_HOST:-https://eu.i.posthog.com}"
-POSTHOG_PROJECT_API_KEY="${POSTHOG_PROJECT_API_KEY:-}"
+POSTHOG_HOST="${POSTHOG_HOST:-${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}}"
+POSTHOG_PROJECT_API_KEY="${POSTHOG_PROJECT_API_KEY:-${NEXT_PUBLIC_POSTHOG_KEY:-}}"
 
 PASS="PASS"
 FAIL="FAIL"
@@ -103,7 +103,7 @@ fi
 echo ""
 echo "2) PostHog host capture connectivity (optional)"
 if [ -z "${POSTHOG_PROJECT_API_KEY}" ]; then
-  report_ok "SKIP host capture (POSTHOG_PROJECT_API_KEY no definit)"
+  report_ok "SKIP host capture (POSTHOG_PROJECT_API_KEY/NEXT_PUBLIC_POSTHOG_KEY no definit)"
 else
   perform_request "${POSTHOG_HOST%/}/capture/" \
     -X POST \
