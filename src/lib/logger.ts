@@ -11,8 +11,13 @@
 
 // ── PII sanitization ──────────────────────────────────────────────────────────
 const PII_KEYS = new Set([
-  'review_text', 'email', 'token', 'access_token', 'refresh_token',
+  // identifiers & contact data
+  'email', 'author_email', 'phone', 'address', 'author_name',
+  // credentials & tokens
+  'token', 'access_token', 'refresh_token',
   'authorization', 'api_key', 'password', 'secret', 'cookie', 'set-cookie', 'jwt',
+  // user-generated content that may contain personal data
+  'review_text', 'transcript', 'content',
 ]);
 
 function sanitize(value: unknown): unknown {
