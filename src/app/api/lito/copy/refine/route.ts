@@ -26,6 +26,7 @@ import { consumeOrgQuota, consumeStaffDaily, enforceStaffMonthlyCap } from '@/li
 import { litoCopyUnavailableMessage, resolveLitoCopyStatus } from '@/lib/ai/copy-status';
 import { resolveProvider } from '@/lib/ai/provider';
 import { canUseLitoCopy, getOrgEntitlements } from '@/lib/billing/entitlements';
+import { enforceTrialQuota, getTrialState, isSoftLocked } from '@/lib/billing/trial';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -98,6 +99,10 @@ type OrganizationSettingsRow = {
   id: string;
   ai_provider: string | null;
   lito_staff_ai_paused: boolean | null;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  trial_state: string | null;
+  trial_plan_code: string | null;
 };
 
 const SYSTEM_PROMPT =
@@ -297,7 +302,7 @@ export async function POST(request: Request) {
     const business = businessData as BusinessRow;
     const { data: orgSettingsData } = await admin
       .from('organizations')
-      .select('id, ai_provider, lito_staff_ai_paused')
+      .select('id, ai_provider, lito_staff_ai_paused, trial_started_at, trial_ends_at, trial_state, trial_plan_code')
       .eq('id', recommendation.org_id)
       .maybeSingle();
     const orgSettings = (orgSettingsData || null) as OrganizationSettingsRow | null;
@@ -451,6 +456,61 @@ export async function POST(request: Request) {
             request_id: requestId,
           },
           { status: 403 },
+        ),
+        requestId,
+      );
+    }
+
+    const trial = getTrialState(orgSettings);
+    if (isSoftLocked(trial)) {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'trial_ended',
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'trial_ended',
+            action: 'upgrade',
+            message: 'La prova ha finalitzat. Pots seguir veient dades, però per generar amb LITO cal activar un pla.',
+            trial_state: trial.state,
+            trial_ends_at: trial.ends_at,
+            days_left: trial.remaining_days,
+            request_id: requestId,
+          },
+          { status: 402 },
+        ),
+        requestId,
+      );
+    }
+
+    const trialQuota = await enforceTrialQuota({
+      supabase,
+      orgId: recommendation.org_id,
+      trial,
+      inc: 1,
+    });
+    if (!trialQuota.ok && trialQuota.reason === 'trial_cap_reached') {
+      await markLitoCopyJobFailed({
+        admin,
+        jobId: activeJobId,
+        error: 'trial_cap_reached',
+      });
+      return withStandardHeaders(
+        NextResponse.json(
+          {
+            error: 'trial_cap_reached',
+            message: "Has arribat al límit de drafts del trial.",
+            cap: trialQuota.limit,
+            used: trialQuota.used,
+            remaining: trialQuota.remaining,
+            trial_state: trial.state,
+            trial_ends_at: trial.ends_at,
+            days_left: trial.remaining_days,
+            request_id: requestId,
+          },
+          { status: 402 },
         ),
         requestId,
       );
