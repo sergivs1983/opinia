@@ -15,9 +15,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS -i \
-            -H "x-cron-secret: ${{ secrets.D2_5_CRON_SECRET }}" \
-            "${{ secrets.D2_5_BASE_URL }}/api/cron/social-reminders"
+          url="${{ secrets.D2_5_BASE_URL }}/api/cron/social-reminders"
+          body_file="/tmp/body_social_reminders.txt"
+          for attempt in 1 2; do
+            echo "URL=${url}"
+            code="$(curl -sS -o "${body_file}" -w "%{http_code}" \
+              -H "x-cron-secret: ${{ secrets.D2_5_CRON_SECRET }}" \
+              "${url}" || true)"
+            echo "HTTP=${code} (attempt=${attempt})"
+            echo "BODY_PREVIEW:"
+            head -c 400 "${body_file}" || true
+            echo
+            if [ "${code}" = "200" ]; then
+              exit 0
+            fi
+            if [ "${attempt}" = "1" ]; then
+              echo "Retrying in 3s..."
+              sleep 3
+            fi
+          done
+          exit 1
 
   signals_run:
     name: Run signals wrapper
@@ -28,6 +45,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS -i \
-            -H "x-cron-secret: ${{ secrets.D2_5_CRON_SECRET }}" \
-            "${{ secrets.D2_5_BASE_URL }}/api/cron/signals-run"
+          url="${{ secrets.D2_5_BASE_URL }}/api/cron/signals-run"
+          body_file="/tmp/body_signals_run.txt"
+          for attempt in 1 2; do
+            echo "URL=${url}"
+            code="$(curl -sS -o "${body_file}" -w "%{http_code}" \
+              -H "x-cron-secret: ${{ secrets.D2_5_CRON_SECRET }}" \
+              "${url}" || true)"
+            echo "HTTP=${code} (attempt=${attempt})"
+            echo "BODY_PREVIEW:"
+            head -c 400 "${body_file}" || true
+            echo
+            if [ "${code}" = "200" ]; then
+              exit 0
+            fi
+            if [ "${attempt}" = "1" ]; then
+              echo "Retrying in 3s..."
+              sleep 3
+            fi
+          done
+          exit 1
