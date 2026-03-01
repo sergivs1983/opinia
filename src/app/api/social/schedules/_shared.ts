@@ -141,7 +141,7 @@ export async function cancelPendingReminders(scheduleId: string): Promise<void> 
   const admin = createAdminClient();
   await admin
     .from('social_reminders_queue')
-    .update({ status: 'canceled' })
+    .update({ status: 'cancelled' })
     .eq('schedule_id', scheduleId)
     .eq('status', 'pending');
 }

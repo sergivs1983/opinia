@@ -59,13 +59,37 @@ export async function POST(
   if (!access.ok) return access.response;
 
   const canManage = access.role === 'owner' || access.role === 'manager';
-  const canSnoozeAssigned = access.role === 'staff' && schedule.assigned_user_id === access.userId;
-  if (!canManage && !canSnoozeAssigned) {
+  if (!canManage) {
     return notFound(requestId);
   }
 
-  if (schedule.status === 'published' || schedule.status === 'canceled' || schedule.status === 'missed') {
+  if (schedule.status === 'published' || schedule.status === 'cancelled' || schedule.status === 'missed') {
     return conflict(requestId, 'invalid_status', 'Aquest recordatori no es pot ajornar.');
+  }
+
+  if (schedule.status === 'snoozed' && schedule.snoozed_from) {
+    try {
+      const previousExpected = computeSnoozedAt(schedule.snoozed_from, parsedBody.data.mode);
+      const previousExpectedMs = new Date(previousExpected).getTime();
+      const currentScheduledMs = new Date(schedule.scheduled_at).getTime();
+      const updatedAtMs = new Date(schedule.updated_at).getTime();
+      const duplicateWindowMs = 45_000;
+      const nowMs = Date.now();
+      if (
+        Number.isFinite(previousExpectedMs)
+        && Number.isFinite(currentScheduledMs)
+        && previousExpectedMs === currentScheduledMs
+        && Number.isFinite(updatedAtMs)
+        && nowMs - updatedAtMs <= duplicateWindowMs
+      ) {
+        return withNoStore(
+          NextResponse.json({ ok: true, idempotent: true, schedule, request_id: requestId }),
+          requestId,
+        );
+      }
+    } catch {
+      // Ignore invalid historical data and continue with standard snooze flow.
+    }
   }
 
   let nextScheduledAtIso = '';

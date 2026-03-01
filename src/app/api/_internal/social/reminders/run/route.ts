@@ -19,7 +19,7 @@ type ReminderRow = {
   schedule_id: string;
   trigger_at: string;
   kind: 't_minus_24h' | 't_minus_1h' | 't_plus_15m';
-  status: 'pending' | 'sent' | 'canceled';
+  status: 'pending' | 'sent' | 'cancelled';
 };
 
 type ScheduleRow = {
@@ -30,7 +30,7 @@ type ScheduleRow = {
   assigned_user_id: string;
   platform: 'instagram' | 'tiktok';
   scheduled_at: string;
-  status: 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'canceled';
+  status: 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'cancelled';
   notified_at: string | null;
 };
 
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     let missed = 0;
     let sent = 0;
-    let canceled = 0;
+    let cancelled = 0;
     let notified = 0;
 
     const missedBeforeIso = nowMinus24hIso(now);
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const missedIds = missedSchedules.map((item) => item.id);
       await admin
         .from('social_reminders_queue')
-        .update({ status: 'canceled' })
+        .update({ status: 'cancelled' })
         .in('schedule_id', missedIds)
         .eq('status', 'pending');
     }
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const reminders = (remindersData || []) as ReminderRow[];
     if (reminders.length === 0) {
       return withNoStore(
-        NextResponse.json({ ok: true, processed: 0, sent: 0, canceled: 0, missed, notified: 0, request_id: requestId }),
+        NextResponse.json({ ok: true, processed: 0, sent: 0, cancelled: 0, missed, notified: 0, request_id: requestId }),
         requestId,
       );
     }
@@ -177,13 +177,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     for (const reminder of reminders) {
       const schedule = schedulesMap.get(reminder.schedule_id);
-      if (!schedule || schedule.status === 'canceled' || schedule.status === 'published' || schedule.status === 'missed') {
+      if (!schedule || schedule.status === 'cancelled' || schedule.status === 'published' || schedule.status === 'missed') {
         await admin
           .from('social_reminders_queue')
-          .update({ status: 'canceled' })
+          .update({ status: 'cancelled' })
           .eq('id', reminder.id)
           .eq('status', 'pending');
-        canceled += 1;
+        cancelled += 1;
         continue;
       }
 
@@ -200,16 +200,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
 
       const draft = draftsMap.get(schedule.draft_id);
+      const draftTitle = draft?.title || 'Publicació programada';
+      const platformLabel = schedule.platform === 'instagram' ? 'Instagram' : 'TikTok';
+      const ctaUrl = `/dashboard/planner?biz_id=${schedule.biz_id}&schedule_id=${schedule.id}`;
       await admin.from('in_app_notifications').insert({
         org_id: schedule.org_id,
         biz_id: schedule.biz_id,
         user_id: schedule.assigned_user_id,
         type: 'social_reminder',
         payload: {
+          title: 'Recordatori de publicació',
+          body: `${draftTitle} · ${platformLabel}`,
+          cta_url: ctaUrl,
           schedule_id: schedule.id,
+          biz_id: schedule.biz_id,
+          platform: schedule.platform,
           draft_id: schedule.draft_id,
           kind: reminder.kind,
-          platform: schedule.platform,
           scheduled_at: schedule.scheduled_at,
           draft_title: draft?.title || null,
           draft_format: draft?.format || null,
@@ -244,7 +251,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ok: true,
         processed: reminders.length,
         sent,
-        canceled,
+        cancelled,
         missed,
         notified,
         request_id: requestId,

@@ -42,7 +42,9 @@ export async function POST(
   if (!access.ok) return access.response;
 
   const canManage = access.role === 'owner' || access.role === 'manager';
-  const canPublishAssigned = access.role === 'staff' && schedule.assigned_user_id === access.userId;
+  const canPublishAssigned = access.role === 'staff'
+    && schedule.assigned_user_id === access.userId
+    && ['scheduled', 'notified', 'snoozed', 'published'].includes(schedule.status);
 
   if (!canManage && !canPublishAssigned) {
     return notFound(requestId);
@@ -55,7 +57,7 @@ export async function POST(
     );
   }
 
-  if (schedule.status === 'canceled' || schedule.status === 'missed') {
+  if (schedule.status === 'cancelled' || schedule.status === 'missed') {
     return conflict(requestId, 'invalid_status', 'Aquest recordatori ja no es pot publicar.');
   }
 

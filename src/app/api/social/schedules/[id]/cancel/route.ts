@@ -44,7 +44,7 @@ export async function POST(
     return notFound(requestId);
   }
 
-  if (schedule.status === 'canceled') {
+  if (schedule.status === 'cancelled') {
     return withNoStore(
       NextResponse.json({ ok: true, idempotent: true, schedule, request_id: requestId }),
       requestId,
@@ -57,7 +57,7 @@ export async function POST(
   const { data: updated, error: updateError } = await admin
     .from('social_schedules')
     .update({
-      status: 'canceled',
+      status: 'cancelled',
       updated_at: nowIso,
     })
     .eq('id', schedule.id)

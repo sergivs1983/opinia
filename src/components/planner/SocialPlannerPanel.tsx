@@ -44,7 +44,7 @@ type SocialScheduleItem = {
   assigned_user_id: string;
   platform: 'instagram' | 'tiktok';
   scheduled_at: string;
-  status: 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'canceled';
+  status: 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'cancelled';
   notified_at: string | null;
   published_at: string | null;
   snoozed_from: string | null;
@@ -172,6 +172,7 @@ export default function SocialPlannerPanel() {
 
   const canManageSchedules = viewerRole === 'owner' || viewerRole === 'manager';
   const canMarkPublished = viewerRole === 'owner' || viewerRole === 'manager' || viewerRole === 'staff';
+  const canSnoozeSchedules = viewerRole === 'owner' || viewerRole === 'manager';
   const preselectedDraftId = searchParams.get('draft_id');
   const preselectedRecommendationId = searchParams.get('recommendation_id');
   const highlightedScheduleId = searchParams.get('schedule_id');
@@ -622,22 +623,26 @@ export default function SocialPlannerPanel() {
                       <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => window.open(platformUrl(item.platform), '_blank', 'noopener,noreferrer')}>
                         {t('dashboard.home.socialPlanner.openPlatform')}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-7 px-2 text-[11px]"
-                        loading={pending}
-                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'plus_1h' })}
-                      >
-                        {t('dashboard.home.socialPlanner.snooze1h')}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="h-7 px-2 text-[11px]"
-                        loading={pending}
-                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
-                      >
-                        {t('dashboard.home.socialPlanner.snoozeTomorrow')}
-                      </Button>
+                      {canSnoozeSchedules ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px]"
+                            loading={pending}
+                            onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'plus_1h' })}
+                          >
+                            {t('dashboard.home.socialPlanner.snooze1h')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px]"
+                            loading={pending}
+                            onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' })}
+                          >
+                            {t('dashboard.home.socialPlanner.snoozeTomorrow')}
+                          </Button>
+                        </>
+                      ) : null}
                       {canManageSchedules ? (
                         <Button
                           variant="ghost"
@@ -725,7 +730,7 @@ export default function SocialPlannerPanel() {
                     >
                       {t('dashboard.home.socialPlanner.viewItem')}
                     </Button>
-                    {canMarkPublished ? (
+                    {canSnoozeSchedules ? (
                       <Button
                         variant="ghost"
                         className="h-7 px-2 text-[11px]"

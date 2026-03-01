@@ -187,52 +187,146 @@ if [ -n "${D2_3_OWNER_COOKIE}" ] && [ -n "${D2_3_BIZ_ID}" ] && [ -n "${D2_3_DRAF
     report_fail "owner cookie format"
   else
     report_ok "owner cookie validada (redacted)"
-    SCHEDULE_AT="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+    SCHEDULE_AT_FUTURE="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)"
 
     perform_request -X POST "${BASE}/api/social/schedules" \
       -H "Content-Type: application/json" \
       -H "${OWNER_COOKIE_HEADER}" \
-      -d "{\"biz_id\":\"${D2_3_BIZ_ID}\",\"draft_id\":\"${D2_3_DRAFT_ID}\",\"platform\":\"instagram\",\"scheduled_at\":\"${SCHEDULE_AT}\",\"assigned_user_id\":\"${D2_3_ASSIGNED_USER_ID}\"}"
-
+      -d "{\"biz_id\":\"${D2_3_BIZ_ID}\",\"draft_id\":\"${D2_3_DRAFT_ID}\",\"platform\":\"instagram\",\"scheduled_at\":\"${SCHEDULE_AT_FUTURE}\",\"assigned_user_id\":\"${D2_3_ASSIGNED_USER_ID}\"}"
     if [ "${REQ_CODE}" = "200" ] || [ "${REQ_CODE}" = "201" ]; then
-      report_ok "create schedule (HTTP ${REQ_CODE})"
+      report_ok "create schedule for publish flow (HTTP ${REQ_CODE})"
     else
-      report_fail "create schedule (expected 200/201)"
+      report_fail "create schedule for publish flow (expected 200/201)"
     fi
+    PUBLISH_SCHEDULE_ID="$(json_field "${REQ_BODY}" "schedule.id")"
 
-    SCHEDULE_ID="$(json_field "${REQ_BODY}" "schedule.id")"
-    if [ -z "${SCHEDULE_ID}" ]; then
+    if [ -z "${PUBLISH_SCHEDULE_ID}" ]; then
       REQ_CODE="parse"
       REQ_BODY="schedule.id missing"
-      report_fail "capture schedule id"
+      report_fail "capture publish schedule id"
     else
-      report_ok "schedule_id capturat"
+      report_ok "publish schedule id capturat"
 
-      RUN_BODY="{\"now\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
-      HMAC_LINES="$(generate_hmac_headers "${RUN_BODY}" "/api/_internal/social/reminders/run" "POST")"
-      HMAC_TS="$(printf '%s\n' "${HMAC_LINES}" | head -n 1)"
-      HMAC_SIG="$(printf '%s\n' "${HMAC_LINES}" | tail -n 1)"
-
-      perform_request -X POST "${BASE}/api/_internal/social/reminders/run" \
+      perform_request -X POST "${BASE}/api/social/schedules/${PUBLISH_SCHEDULE_ID}/publish" \
         -H "Content-Type: application/json" \
-        -H "x-opin-timestamp: ${HMAC_TS}" \
-        -H "x-opin-signature: ${HMAC_SIG}" \
-        -d "${RUN_BODY}"
-
-      if [ "${REQ_CODE}" = "200" ]; then
-        report_ok "internal reminders run (HTTP 200)"
+        -H "${OWNER_COOKIE_HEADER}" \
+        -d '{}'
+      if [ "${REQ_CODE}" = "200" ] && [ "$(json_field "${REQ_BODY}" "schedule.status")" = "published" ]; then
+        report_ok "publish schedule (status=published)"
       else
-        report_fail "internal reminders run (expected 200)"
+        report_fail "publish schedule (expected 200 + published)"
       fi
 
-      perform_request "${BASE}/api/social/notifications?biz_id=${D2_3_BIZ_ID}&limit=10" \
+      perform_request -X POST "${BASE}/api/social/schedules/${PUBLISH_SCHEDULE_ID}/publish" \
+        -H "Content-Type: application/json" \
+        -H "${OWNER_COOKIE_HEADER}" \
+        -d '{}'
+      if [ "${REQ_CODE}" = "200" ] && [ "$(json_field "${REQ_BODY}" "idempotent")" = "true" ]; then
+        report_ok "publish idempotent second call"
+      else
+        report_fail "publish idempotent second call (expected 200 idempotent=true)"
+      fi
+    fi
+
+    perform_request -X POST "${BASE}/api/social/schedules" \
+      -H "Content-Type: application/json" \
+      -H "${OWNER_COOKIE_HEADER}" \
+      -d "{\"biz_id\":\"${D2_3_BIZ_ID}\",\"draft_id\":\"${D2_3_DRAFT_ID}\",\"platform\":\"instagram\",\"scheduled_at\":\"${SCHEDULE_AT_FUTURE}\",\"assigned_user_id\":\"${D2_3_ASSIGNED_USER_ID}\"}"
+    if [ "${REQ_CODE}" = "200" ] || [ "${REQ_CODE}" = "201" ]; then
+      report_ok "create schedule for cancel flow (HTTP ${REQ_CODE})"
+    else
+      report_fail "create schedule for cancel flow (expected 200/201)"
+    fi
+    CANCEL_SCHEDULE_ID="$(json_field "${REQ_BODY}" "schedule.id")"
+
+    if [ -z "${CANCEL_SCHEDULE_ID}" ]; then
+      REQ_CODE="parse"
+      REQ_BODY="cancel schedule.id missing"
+      report_fail "capture cancel schedule id"
+    else
+      perform_request -X POST "${BASE}/api/social/schedules/${CANCEL_SCHEDULE_ID}/cancel" \
+        -H "Content-Type: application/json" \
+        -H "${OWNER_COOKIE_HEADER}" \
+        -d '{}'
+      if [ "${REQ_CODE}" = "200" ] && [ "$(json_field "${REQ_BODY}" "schedule.status")" = "cancelled" ]; then
+        report_ok "cancel schedule (status=cancelled)"
+      else
+        report_fail "cancel schedule (expected 200 + cancelled)"
+      fi
+
+      perform_request -X POST "${BASE}/api/social/schedules/${CANCEL_SCHEDULE_ID}/cancel" \
+        -H "Content-Type: application/json" \
+        -H "${OWNER_COOKIE_HEADER}" \
+        -d '{}'
+      if [ "${REQ_CODE}" = "200" ] && [ "$(json_field "${REQ_BODY}" "idempotent")" = "true" ]; then
+        report_ok "cancel idempotent second call"
+      else
+        report_fail "cancel idempotent second call (expected 200 idempotent=true)"
+      fi
+    fi
+
+    SCHEDULE_AT_PAST="$(date -u -v-26H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '-26 hours' +%Y-%m-%dT%H:%M:%SZ)"
+    perform_request -X POST "${BASE}/api/social/schedules" \
+      -H "Content-Type: application/json" \
+      -H "${OWNER_COOKIE_HEADER}" \
+      -d "{\"biz_id\":\"${D2_3_BIZ_ID}\",\"draft_id\":\"${D2_3_DRAFT_ID}\",\"platform\":\"instagram\",\"scheduled_at\":\"${SCHEDULE_AT_PAST}\",\"assigned_user_id\":\"${D2_3_ASSIGNED_USER_ID}\"}"
+    if [ "${REQ_CODE}" = "200" ] || [ "${REQ_CODE}" = "201" ]; then
+      report_ok "create schedule for missed flow (HTTP ${REQ_CODE})"
+    else
+      report_fail "create schedule for missed flow (expected 200/201)"
+    fi
+    MISSED_SCHEDULE_ID="$(json_field "${REQ_BODY}" "schedule.id")"
+
+    RUN_BODY="{\"now\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    HMAC_LINES="$(generate_hmac_headers "${RUN_BODY}" "/api/_internal/social/reminders/run" "POST")"
+    HMAC_TS="$(printf '%s\n' "${HMAC_LINES}" | head -n 1)"
+    HMAC_SIG="$(printf '%s\n' "${HMAC_LINES}" | tail -n 1)"
+
+    perform_request -X POST "${BASE}/api/_internal/social/reminders/run" \
+      -H "Content-Type: application/json" \
+      -H "x-opin-timestamp: ${HMAC_TS}" \
+      -H "x-opin-signature: ${HMAC_SIG}" \
+      -d "${RUN_BODY}"
+    if [ "${REQ_CODE}" = "200" ]; then
+      report_ok "internal reminders run (HTTP 200)"
+    else
+      report_fail "internal reminders run (expected 200)"
+    fi
+
+    if [ -n "${MISSED_SCHEDULE_ID}" ]; then
+      perform_request "${BASE}/api/social/schedules?biz_id=${D2_3_BIZ_ID}&limit=200" \
         -H "${OWNER_COOKIE_HEADER}"
-
       if [ "${REQ_CODE}" = "200" ]; then
-        report_ok "notifications list (HTTP 200)"
+        MISSED_STATUS="$(JSON_INPUT="${REQ_BODY}" TARGET_ID="${MISSED_SCHEDULE_ID}" node - <<'JS'
+const body = process.env.JSON_INPUT || '{}';
+const target = process.env.TARGET_ID || '';
+try {
+  const payload = JSON.parse(body);
+  const item = Array.isArray(payload.items) ? payload.items.find((row) => row && row.id === target) : null;
+  process.stdout.write(item && typeof item.status === 'string' ? item.status : '');
+} catch {
+  process.stdout.write('');
+}
+JS
+)"
+        if [ "${MISSED_STATUS}" = "missed" ]; then
+          report_ok "missed state applied by runner"
+        else
+          REQ_CODE="assert"
+          REQ_BODY="expected missed, got ${MISSED_STATUS:-<empty>}"
+          report_fail "missed state applied by runner"
+        fi
       else
-        report_fail "notifications list (expected 200)"
+        report_fail "list schedules after runner (expected 200)"
       fi
+    fi
+
+    perform_request "${BASE}/api/social/notifications?biz_id=${D2_3_BIZ_ID}&limit=10" \
+      -H "${OWNER_COOKIE_HEADER}"
+    if [ "${REQ_CODE}" = "200" ]; then
+      report_ok "notifications list (HTTP 200)"
+    else
+      report_fail "notifications list (expected 200)"
     fi
   fi
 else

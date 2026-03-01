@@ -626,7 +626,7 @@
           "snoozed": "Aplazado",
           "published": "Publicado",
           "missed": "Caducado",
-          "canceled": "Cancelado"
+          "cancelled": "Cancelado"
         }
       },
       "recommendations": {

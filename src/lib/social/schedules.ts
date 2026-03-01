@@ -1,7 +1,7 @@
 export type SocialSchedulePlatform = 'instagram' | 'tiktok';
-export type SocialScheduleStatus = 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'canceled';
+export type SocialScheduleStatus = 'scheduled' | 'notified' | 'published' | 'missed' | 'snoozed' | 'cancelled';
 export type SocialReminderKind = 't_minus_24h' | 't_minus_1h' | 't_plus_15m';
-export type SocialReminderStatus = 'pending' | 'sent' | 'canceled';
+export type SocialReminderStatus = 'pending' | 'sent' | 'cancelled';
 export type SocialSnoozeMode = 'plus_1h' | 'tomorrow_same_time';
 
 export type SocialReminderInsertRow = {
