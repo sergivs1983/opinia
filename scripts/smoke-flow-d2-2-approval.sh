@@ -6,6 +6,7 @@ D2_2_STAFF_COOKIE="${D2_2_STAFF_COOKIE:-}"
 D2_2_MANAGER_COOKIE="${D2_2_MANAGER_COOKIE:-}"
 D2_2_BIZ_ID="${D2_2_BIZ_ID:-}"
 D2_2_ORG_ID="${D2_2_ORG_ID:-}"
+D2_2_FOREIGN_ORG_ID="${D2_2_FOREIGN_ORG_ID:-00000000-0000-0000-0000-000000000001}"
 
 PASS="PASS"
 FAIL="FAIL"
@@ -114,7 +115,7 @@ check_status() {
   fi
 }
 
-echo "Flow D2.2 approval smoke — ${BASE}"
+echo "Flow D2.2 approval hardening smoke — ${BASE}"
 echo "────────────────────────────────────────────────────────────────────────"
 
 if wait_for_login_ready; then
@@ -131,7 +132,7 @@ check_status "GET /api/social/drafts/inbox sense sessió" "401" \
   "${BASE}/api/social/drafts/inbox?org_id=00000000-0000-0000-0000-000000000000&status=pending&limit=3"
 
 echo ""
-echo "2) Functional transitions (opcional)"
+echo "2) Functional E2E (happy + security + concurrency)"
 if [ -n "${D2_2_STAFF_COOKIE}" ] && [ -n "${D2_2_MANAGER_COOKIE}" ] && [ -n "${D2_2_BIZ_ID}" ] && [ -n "${D2_2_ORG_ID}" ]; then
   STAFF_COOKIE_HEADER="$(normalize_cookie_header "${D2_2_STAFF_COOKIE}" || true)"
   MANAGER_COOKIE_HEADER="$(normalize_cookie_header "${D2_2_MANAGER_COOKIE}" || true)"
@@ -142,60 +143,138 @@ if [ -n "${D2_2_STAFF_COOKIE}" ] && [ -n "${D2_2_MANAGER_COOKIE}" ] && [ -n "${D
   else
     report_ok "cookies validades (redacted)"
 
+    # Happy path: staff create->submit, manager approve->publish
     perform_request -X POST "${BASE}/api/social/drafts" \
       -H "Content-Type: application/json" \
       -H "${STAFF_COOKIE_HEADER}" \
-      -d "{\"biz_id\":\"${D2_2_BIZ_ID}\",\"channel\":\"instagram\",\"format\":\"post\",\"title\":\"Smoke D2.2\",\"copy_short\":\"copy curt\",\"copy_long\":\"copy llarg smoke\",\"hashtags\":[\"#opinia\"],\"source\":\"lito\"}"
+      -d "{\"biz_id\":\"${D2_2_BIZ_ID}\",\"channel\":\"instagram\",\"format\":\"post\",\"title\":\"Smoke D2.2 happy\",\"copy_short\":\"copy curt\",\"copy_long\":\"copy llarg smoke\",\"hashtags\":[\"#opinia\"],\"source\":\"lito\"}"
     if [ "${REQ_CODE}" = "201" ] || [ "${REQ_CODE}" = "200" ]; then
-      report_ok "create draft (HTTP ${REQ_CODE})"
+      report_ok "happy:create draft"
     else
-      report_fail "create draft (expected 201/200)"
+      report_fail "happy:create draft (expected 201/200)"
     fi
 
-    DRAFT_ID="$(json_field "${REQ_BODY}" "draft.id")"
-    if [ -z "${DRAFT_ID}" ]; then
+    HAPPY_DRAFT_ID="$(json_field "${REQ_BODY}" "draft.id")"
+    HAPPY_VERSION="$(json_field "${REQ_BODY}" "draft.version")"
+    if [ -z "${HAPPY_DRAFT_ID}" ] || [ -z "${HAPPY_VERSION}" ]; then
       REQ_CODE="parse"
-      REQ_BODY="draft.id missing"
-      report_fail "draft_id captured"
+      REQ_BODY="draft.id/version missing"
+      report_fail "happy:capture draft"
     else
-      report_ok "draft_id captured"
+      report_ok "happy:capture draft"
 
-      perform_request -X POST "${BASE}/api/social/drafts/${DRAFT_ID}/submit" \
+      perform_request -X POST "${BASE}/api/social/drafts/${HAPPY_DRAFT_ID}/submit" \
         -H "Content-Type: application/json" \
-        -H "${STAFF_COOKIE_HEADER}"
+        -H "${STAFF_COOKIE_HEADER}" \
+        -d "{\"version\":${HAPPY_VERSION}}"
       if [ "${REQ_CODE}" = "200" ]; then
-        report_ok "submit draft (HTTP 200)"
+        report_ok "happy:submit draft"
       else
-        report_fail "submit draft (expected 200)"
+        report_fail "happy:submit draft (expected 200)"
       fi
 
-      perform_request "${BASE}/api/social/drafts/inbox?org_id=${D2_2_ORG_ID}&biz_id=${D2_2_BIZ_ID}&status=pending&limit=5" \
-        -H "${MANAGER_COOKIE_HEADER}"
-      if [ "${REQ_CODE}" = "200" ]; then
-        report_ok "manager inbox list (HTTP 200)"
-      else
-        report_fail "manager inbox list (expected 200)"
-      fi
+      HAPPY_SUBMIT_VERSION="$(json_field "${REQ_BODY}" "draft.version")"
 
-      perform_request -X POST "${BASE}/api/social/drafts/${DRAFT_ID}/approve" \
+      perform_request -X POST "${BASE}/api/social/drafts/${HAPPY_DRAFT_ID}/approve" \
         -H "Content-Type: application/json" \
         -H "${MANAGER_COOKIE_HEADER}" \
-        -d '{"copy_long":"copy llarg aprovat"}'
+        -d "{\"version\":${HAPPY_SUBMIT_VERSION},\"copy_long\":\"copy aprovada\"}"
       if [ "${REQ_CODE}" = "200" ]; then
-        report_ok "approve draft (HTTP 200)"
+        report_ok "happy:approve draft"
       else
-        report_fail "approve draft (expected 200)"
+        report_fail "happy:approve draft (expected 200)"
       fi
+
+      HAPPY_APPROVE_VERSION="$(json_field "${REQ_BODY}" "draft.version")"
+
+      perform_request -X POST "${BASE}/api/social/drafts/${HAPPY_DRAFT_ID}/publish" \
+        -H "Content-Type: application/json" \
+        -H "${MANAGER_COOKIE_HEADER}" \
+        -d "{\"version\":${HAPPY_APPROVE_VERSION}}"
+      if [ "${REQ_CODE}" = "200" ]; then
+        report_ok "happy:publish draft"
+      else
+        report_fail "happy:publish draft (expected 200)"
+      fi
+    fi
+
+    # Security: cross-org / cross-resource should not enumerate
+    perform_request "${BASE}/api/social/drafts/inbox?org_id=${D2_2_FOREIGN_ORG_ID}&status=pending&limit=3" \
+      -H "${MANAGER_COOKIE_HEADER}"
+    if [ "${REQ_CODE}" = "404" ]; then
+      report_ok "security:cross-org inbox returns 404"
+    else
+      report_fail "security:cross-org inbox expected 404"
+    fi
+
+    perform_request -X POST "${BASE}/api/social/drafts/00000000-0000-0000-0000-000000000002/approve" \
+      -H "Content-Type: application/json" \
+      -H "${MANAGER_COOKIE_HEADER}" \
+      -d '{"version":1}'
+    if [ "${REQ_CODE}" = "404" ]; then
+      report_ok "security:unknown draft approve returns 404"
+    else
+      report_fail "security:unknown draft approve expected 404"
+    fi
+
+    # Concurrency: same version approve race -> one 200 and one 409
+    perform_request -X POST "${BASE}/api/social/drafts" \
+      -H "Content-Type: application/json" \
+      -H "${STAFF_COOKIE_HEADER}" \
+      -d "{\"biz_id\":\"${D2_2_BIZ_ID}\",\"channel\":\"instagram\",\"format\":\"post\",\"title\":\"Smoke D2.2 concurrency\",\"copy_short\":\"copy curt\",\"copy_long\":\"copy llarg\",\"hashtags\":[\"#race\"],\"source\":\"lito\"}"
+
+    RACE_DRAFT_ID="$(json_field "${REQ_BODY}" "draft.id")"
+    RACE_VERSION="$(json_field "${REQ_BODY}" "draft.version")"
+
+    perform_request -X POST "${BASE}/api/social/drafts/${RACE_DRAFT_ID}/submit" \
+      -H "Content-Type: application/json" \
+      -H "${STAFF_COOKIE_HEADER}" \
+      -d "{\"version\":${RACE_VERSION}}"
+
+    PENDING_VERSION="$(json_field "${REQ_BODY}" "draft.version")"
+
+    TMP_A="$(mktemp /tmp/d22-race-a.XXXXXX)"
+    TMP_B="$(mktemp /tmp/d22-race-b.XXXXXX)"
+
+    (
+      curl -sS -w $'\n%{http_code}' --max-time 30 -X POST "${BASE}/api/social/drafts/${RACE_DRAFT_ID}/approve" \
+        -H "Content-Type: application/json" \
+        -H "${MANAGER_COOKIE_HEADER}" \
+        -d "{\"version\":${PENDING_VERSION}}" > "${TMP_A}" 2>/dev/null || true
+    ) &
+    PID_A=$!
+
+    (
+      curl -sS -w $'\n%{http_code}' --max-time 30 -X POST "${BASE}/api/social/drafts/${RACE_DRAFT_ID}/approve" \
+        -H "Content-Type: application/json" \
+        -H "${MANAGER_COOKIE_HEADER}" \
+        -d "{\"version\":${PENDING_VERSION}}" > "${TMP_B}" 2>/dev/null || true
+    ) &
+    PID_B=$!
+
+    wait "${PID_A}" "${PID_B}" || true
+
+    CODE_A="$(tail -n 1 "${TMP_A}" 2>/dev/null || echo "")"
+    CODE_B="$(tail -n 1 "${TMP_B}" 2>/dev/null || echo "")"
+
+    rm -f "${TMP_A}" "${TMP_B}"
+
+    if { [ "${CODE_A}" = "200" ] && [ "${CODE_B}" = "409" ]; } || { [ "${CODE_A}" = "409" ] && [ "${CODE_B}" = "200" ]; }; then
+      report_ok "concurrency: one approve succeeds and one conflicts (200/409)"
+    else
+      REQ_CODE="${CODE_A}/${CODE_B}"
+      REQ_BODY="Expected one 200 and one 409"
+      report_fail "concurrency: approve race"
     fi
   fi
 else
-  report_ok "functional transitions SKIP (defineix D2_2_STAFF_COOKIE, D2_2_MANAGER_COOKIE, D2_2_BIZ_ID, D2_2_ORG_ID)"
+  report_ok "functional E2E SKIP (defineix D2_2_STAFF_COOKIE, D2_2_MANAGER_COOKIE, D2_2_BIZ_ID, D2_2_ORG_ID)"
 fi
 
 echo ""
 echo "────────────────────────────────────────────────────────────────────────"
 if [ "${FAILURES}" -eq 0 ]; then
-  echo "All Flow D2.2 approval smoke tests passed."
+  echo "All Flow D2.2 approval hardening smoke tests passed."
   exit 0
 fi
 
