@@ -14,6 +14,15 @@ function withHeaders(response: NextResponse, requestId: string): NextResponse {
 
 export async function GET(request: Request): Promise<NextResponse> {
   const requestId = getRequestIdFromHeaders(request.headers);
+  const configuredSecret = (process.env.POSTHOG_DEBUG_SECRET || '').trim();
+  const providedSecret = (request.headers.get('x-debug-secret') || '').trim();
+
+  if (!configuredSecret || providedSecret !== configuredSecret) {
+    return withHeaders(
+      NextResponse.json({ ok: false, error: 'not_found', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
+  }
 
   trackAsync('test_event_opinia_debug', { where: 'api_debug' }, 'debug-user-1');
 

@@ -8,8 +8,8 @@ type TrackInput = {
 const POSTHOG_TIMEOUT_MS = 2500;
 
 function isPosthogEnabled(): boolean {
-  const value = (process.env.POSTHOG_ENABLED || 'true').trim().toLowerCase();
-  return value !== 'false' && value !== '0' && value !== 'off';
+  const value = (process.env.POSTHOG_ENABLED || '').trim().toLowerCase();
+  return value === 'true';
 }
 
 function resolvePosthogHost(): string {
@@ -111,6 +111,8 @@ export function trackAsync(
   propsArg?: Record<string, unknown>,
   distinctIdArg?: string,
 ): void {
+  if (!isPosthogEnabled()) return;
+
   if (typeof eventOrInput === 'string') {
     void track(eventOrInput, propsArg || {}, distinctIdArg || '');
     return;
