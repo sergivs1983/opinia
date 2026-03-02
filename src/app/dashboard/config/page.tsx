@@ -2,6 +2,6 @@ import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default function SettingsRedirectPage() {
+export default function ConfigRedirectPage() {
   redirect('/dashboard/lito?tab=config');
 }

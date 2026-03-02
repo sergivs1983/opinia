@@ -4,20 +4,7 @@ import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } fr
 import { useRouter } from 'next/navigation';
 
 import { tokens, cx } from '@/lib/design/tokens';
-
-type NavItem = {
-  id: string;
-  label: string;
-  href: string;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { id: 'lito', label: 'LITO', href: '/dashboard/lito' },
-  { id: 'inbox', label: 'Inbox', href: '/dashboard/inbox' },
-  { id: 'planner', label: 'Planner', href: '/dashboard/planner' },
-  { id: 'archive', label: 'Arxiu', href: '/dashboard/arxiu' },
-  { id: 'settings', label: 'Config', href: '/dashboard/settings' },
-];
+import { LITO_NAV_ITEMS, type LitoNavItem } from '@/components/lito/layout/nav';
 
 function LogoIcon() {
   return (
@@ -71,23 +58,39 @@ function initialFromName(value: string | null | undefined): string {
   return value.trim().charAt(0).toUpperCase() || 'U';
 }
 
+function bizLabelFromProps(input: { bizName?: string | null; bizId?: string | null }): string {
+  if (input.bizName && input.bizName.trim()) return input.bizName;
+  if (input.bizId && input.bizId.trim()) return input.bizId;
+  return 'Sense negoci actiu';
+}
+
+function resolveActiveNav(input: string | undefined): string {
+  if (!input) return 'lito';
+  if (LITO_NAV_ITEMS.some((item) => item.key === input)) return input;
+  return 'lito';
+}
+
 export type LITOLayoutProps = {
   children: ReactNode;
   activeNav?: string;
-  businessName?: string | null;
   userName?: string | null;
-  commandValue: string;
+  bizName?: string | null;
+  bizId?: string | null;
+  showCommandBar?: boolean;
+  commandValue?: string;
   commandDisabled?: boolean;
   commandPlaceholder?: string;
-  onCommandChange: (value: string) => void;
-  onCommandSubmit: () => void;
+  onCommandChange?: (value: string) => void;
+  onCommandSubmit?: () => void;
 };
 
 export function LITOLayout({
   children,
-  activeNav = 'lito',
-  businessName,
+  activeNav,
   userName,
+  bizName,
+  bizId,
+  showCommandBar = false,
   commandValue,
   commandDisabled = false,
   commandPlaceholder = 'Digues-me...',
@@ -96,22 +99,33 @@ export function LITOLayout({
 }: LITOLayoutProps) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [localCommandValue, setLocalCommandValue] = useState('');
 
-  const businessLabel = businessName || 'Sense negoci actiu';
-
-  const submitDisabled = commandDisabled || commandValue.trim().length === 0;
-
+  const selectedNav = resolveActiveNav(activeNav);
+  const businessLabel = bizLabelFromProps({ bizName, bizId });
   const avatarText = useMemo(() => initialFromName(userName), [userName]);
 
+  const inputValue = typeof commandValue === 'string' ? commandValue : localCommandValue;
+  const setInputValue = onCommandChange || setLocalCommandValue;
+
+  const submitDisabled = commandDisabled || inputValue.trim().length === 0;
+
   const onNavClick = useCallback(
-    (item: NavItem) => {
+    (item: LitoNavItem) => {
       setSidebarOpen(false);
-      if (item.href) {
-        router.push(item.href);
-      }
+      router.push(item.href);
     },
     [router],
   );
+
+  const handleSubmit = useCallback(() => {
+    if (submitDisabled) return;
+    if (onCommandSubmit) {
+      onCommandSubmit();
+      return;
+    }
+    setLocalCommandValue('');
+  }, [onCommandSubmit, submitDisabled]);
 
   return (
     <div className={cx('lito-layout relative overflow-hidden', tokens.bg.page)}>
@@ -165,7 +179,7 @@ export function LITOLayout({
         </span>
       </header>
 
-      <div className="flex h-full pt-12">
+      <div className={cx('flex h-full pt-12', showCommandBar ? 'pb-0' : 'pb-0')}>
         <div
           className={cx(
             'fixed inset-0 z-20 lg:hidden',
@@ -188,20 +202,18 @@ export function LITOLayout({
           )}
         >
           <nav className="flex-1 overflow-y-auto px-2 py-3">
-            {NAV_ITEMS.map((item) => {
-              const isActive = item.id === activeNav;
+            {LITO_NAV_ITEMS.map((item) => {
+              const isActive = item.key === selectedNav;
               return (
                 <button
-                  key={item.id}
+                  key={item.key}
                   type="button"
                   onClick={() => onNavClick(item)}
                   className={cx(
                     'mb-1 flex w-full items-center gap-2.5 px-3 py-2 text-left',
                     tokens.radius.button,
                     tokens.text.nav,
-                    isActive
-                      ? tokens.nav.itemActive
-                      : tokens.nav.itemIdle,
+                    isActive ? tokens.nav.itemActive : tokens.nav.itemIdle,
                   )}
                 >
                   <NavIcon />
@@ -219,53 +231,61 @@ export function LITOLayout({
           </div>
         </aside>
 
-        <main className={cx('flex-1 overflow-y-auto', tokens.layout.stagePad, tokens.layout.stageInset)}>
+        <main
+          className={cx(
+            'flex-1 overflow-y-auto',
+            tokens.layout.stagePad,
+            showCommandBar ? 'pt-6 pb-28' : 'pt-6 pb-8',
+          )}
+        >
           <div className={cx('mx-auto w-full', tokens.layout.stageMax)}>{children}</div>
         </main>
       </div>
 
-      <footer
-        className={cx(
-          'fixed inset-x-0 bottom-0 z-40 px-4 pt-3',
-          tokens.bg.command,
-          tokens.border.top,
-          tokens.shadow.command,
-          'lito-commandbar-safe',
-        )}
-      >
-        <div
+      {showCommandBar ? (
+        <footer
           className={cx(
-            'mx-auto flex w-full max-w-3xl items-center gap-2 px-3 py-2',
-            tokens.bg.subtle,
-            tokens.border.default,
-            tokens.radius.input,
+            'fixed inset-x-0 bottom-0 z-40 px-4 pt-3',
+            tokens.bg.command,
+            tokens.border.top,
+            tokens.shadow.command,
+            'lito-commandbar-safe',
           )}
         >
-          <button type="button" className={tokens.button.icon} disabled={commandDisabled} aria-label="Microfon">
-            <MicIcon />
-          </button>
-
-          <input
-            type="text"
-            value={commandValue}
-            disabled={commandDisabled}
-            placeholder={commandPlaceholder}
-            onChange={(event) => onCommandChange(event.target.value)}
-            onKeyDown={(event) => commandKeyDown(event, onCommandSubmit)}
-            className={tokens.input.command}
-          />
-
-          <button
-            type="button"
-            className={cx(tokens.button.icon, submitDisabled ? cx(tokens.bg.soft, tokens.text.muted) : cx(tokens.bg.userBubble, tokens.text.inverse))}
-            disabled={submitDisabled}
-            onClick={onCommandSubmit}
-            aria-label="Enviar"
+          <div
+            className={cx(
+              'mx-auto flex w-full max-w-3xl items-center gap-2 px-3 py-2',
+              tokens.bg.subtle,
+              tokens.border.default,
+              tokens.radius.input,
+            )}
           >
-            <SendIcon />
-          </button>
-        </div>
-      </footer>
+            <button type="button" className={tokens.button.icon} disabled={commandDisabled} aria-label="Microfon">
+              <MicIcon />
+            </button>
+
+            <input
+              type="text"
+              value={inputValue}
+              disabled={commandDisabled}
+              placeholder={commandPlaceholder}
+              onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={(event) => commandKeyDown(event, handleSubmit)}
+              className={tokens.input.command}
+            />
+
+            <button
+              type="button"
+              className={cx(tokens.button.icon, submitDisabled ? cx(tokens.bg.soft, tokens.text.muted) : cx(tokens.bg.userBubble, tokens.text.inverse))}
+              disabled={submitDisabled}
+              onClick={handleSubmit}
+              aria-label="Enviar"
+            >
+              <SendIcon />
+            </button>
+          </div>
+        </footer>
+      ) : null}
     </div>
   );
 }

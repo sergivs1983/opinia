@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-import { LITOLayout } from '@/components/lito/layout/LITOLayout';
 import {
   LITOGreeting,
   LITOEmpty,
@@ -49,6 +48,14 @@ type ThreadMessage = {
 type RateLimitState = {
   variant: 'rate' | 'cap';
   resetsAt?: string;
+};
+
+type CommandSubmitDetail = {
+  message?: string;
+};
+
+type CommandPrefillDetail = {
+  value?: string;
 };
 
 const LAST_BIZ_STORAGE_KEY = 'opinia.lito.last_biz_id';
@@ -361,7 +368,6 @@ export default function DashboardLitoPage() {
   const { toast } = useToast();
   const { biz, businesses, switchBiz, loading: workspaceLoading } = useWorkspace();
 
-  const [commandValue, setCommandValue] = useState('');
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [resolvedCards, setResolvedCards] = useState<Set<string>>(new Set());
@@ -442,6 +448,13 @@ export default function DashboardLitoPage() {
     );
   }, []);
 
+  const prefillCommand = useCallback((value: string) => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent<CommandPrefillDetail>('lito:command-prefill', {
+      detail: { value },
+    }));
+  }, []);
+
   const handleResolve = useCallback(
     (cardId: string, action: string) => {
       setResolvedCards((prev) => {
@@ -451,18 +464,18 @@ export default function DashboardLitoPage() {
       });
 
       if (action === 'open_weekly_wizard') {
-        setCommandValue('Prepara la setmana amb 3 posts.');
+        prefillCommand('Prepara la setmana amb 3 posts.');
       }
 
       // Endpoint de resolve no disponible en aquest refactor UI.
       // Mantenim UX optimista i refresquem la llista existent.
       void mutate();
     },
-    [mutate],
+    [mutate, prefillCommand],
   );
 
-  const handleSubmit = useCallback(async () => {
-    const message = commandValue.trim();
+  const submitChatMessage = useCallback(async (rawMessage: string) => {
+    const message = rawMessage.trim();
     if (!message || streaming) return;
 
     if (!activeBizId) {
@@ -471,7 +484,6 @@ export default function DashboardLitoPage() {
     }
 
     setChatRateLimit(null);
-    setCommandValue('');
 
     const assistantId = createClientRequestId();
     setMessages((prev) => [
@@ -532,7 +544,25 @@ export default function DashboardLitoPage() {
     } finally {
       setStreaming(false);
     }
-  }, [commandValue, streaming, activeBizId, toast, applyAssistantText]);
+  }, [streaming, activeBizId, toast, applyAssistantText]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<CommandSubmitDetail>).detail;
+      if (!detail || typeof detail.message !== 'string') return;
+      void submitChatMessage(detail.message);
+    };
+    window.addEventListener('lito:command-submit', listener as EventListener);
+    return () => window.removeEventListener('lito:command-submit', listener as EventListener);
+  }, [submitChatMessage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('lito:command-disabled', {
+      detail: { disabled: !activeBizId || streaming },
+    }));
+  }, [activeBizId, streaming]);
 
   const cardsError = error as GuardrailFetchError | undefined;
 
@@ -549,15 +579,7 @@ export default function DashboardLitoPage() {
   const showCardsError = Boolean(cardsError) && !cardsRateLimit;
 
   return (
-    <LITOLayout
-      activeNav="lito"
-      businessName={biz?.name || null}
-      userName={null}
-      commandValue={commandValue}
-      onCommandChange={setCommandValue}
-      onCommandSubmit={handleSubmit}
-      commandDisabled={!activeBizId || streaming}
-    >
+    <>
       <LITOGreeting priorityLine={priorityLine} />
 
       {!activeBizId ? (
@@ -583,8 +605,8 @@ export default function DashboardLitoPage() {
 
               {visibleCards.length === 0 ? (
                 <LITOEmpty
-                  onPrepareWeek={() => setCommandValue('Prepara la setmana.')}
-                  onViewReviews={() => setCommandValue('Revisa ressenyes pendents.')}
+                  onPrepareWeek={() => prefillCommand('Prepara la setmana.')}
+                  onViewReviews={() => prefillCommand('Revisa ressenyes pendents.')}
                 />
               ) : (
                 <ActionCardStack cards={visibleCards} onResolve={handleResolve} />
@@ -595,6 +617,6 @@ export default function DashboardLitoPage() {
       ) : null}
 
       <ChatThread messages={messages} />
-    </LITOLayout>
+    </>
   );
 }
