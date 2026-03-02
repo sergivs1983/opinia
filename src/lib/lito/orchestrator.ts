@@ -398,9 +398,9 @@ async function queryCardStates(input: {
 
 function isCardSuppressedByState(row: LitoCardStateRow | undefined, now: Date): boolean {
   if (!row) return false;
-  if (row.state === 'dismissed' || row.state === 'done') return true;
-  if (row.state === 'snoozed') {
-    if (!row.snoozed_until) return true;
+  if (row.state === 'dismissed') return true;
+  if (row.state === 'snoozed' || row.state === 'done') {
+    if (!row.snoozed_until) return row.state === 'snoozed';
     const snoozedUntil = new Date(row.snoozed_until);
     if (Number.isNaN(snoozedUntil.getTime())) return false;
     return now.getTime() < snoozedUntil.getTime();

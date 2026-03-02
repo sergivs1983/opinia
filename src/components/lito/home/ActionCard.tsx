@@ -61,25 +61,40 @@ function parseLocationId(value: string | null): string | null {
   return match?.[1] || null;
 }
 
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 function buildGoogleReviewUrl(input: {
   gbpReviewId: string | null;
   locationName: string | null;
   locationId: string | null;
   businessName: string | null;
 }): string {
-  const directLocationId = parseLocationId(input.locationName) || parseLocationId(input.locationId);
-  if (directLocationId && input.gbpReviewId) {
-    const reviewId = encodeURIComponent(input.gbpReviewId);
-    return `https://business.google.com/reviews/l/${directLocationId}?reviewId=${reviewId}`;
-  }
-  if (directLocationId) {
-    return `https://business.google.com/reviews/l/${directLocationId}`;
-  }
-
-  const q = input.businessName?.trim()
+  const fallbackQuery = input.businessName?.trim()
     ? `${input.businessName.trim()} Google reviews`
     : 'Google business reviews';
-  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+  const fallbackUrl = `https://www.google.com/search?q=${encodeURIComponent(fallbackQuery)}`;
+
+  const directLocationId = parseLocationId(input.locationName) || parseLocationId(input.locationId);
+  let directUrl: string | null = null;
+
+  if (directLocationId && input.gbpReviewId) {
+    const reviewId = encodeURIComponent(input.gbpReviewId);
+    directUrl = `https://business.google.com/reviews/l/${directLocationId}?reviewId=${reviewId}`;
+  } else if (directLocationId) {
+    directUrl = `https://business.google.com/reviews/l/${directLocationId}`;
+  }
+
+  if (directUrl && isSafeHttpUrl(directUrl)) {
+    return directUrl;
+  }
+  return fallbackUrl;
 }
 
 export default function ActionCard({

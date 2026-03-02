@@ -21,6 +21,9 @@ const BodySchema = z.object({
 });
 
 type CardState = 'dismissed' | 'snoozed' | 'done';
+type AllowedAction = z.infer<typeof BodySchema>['action'];
+
+const DONE_TTL_HOURS = 24 * 7;
 
 function withNoStore(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('Cache-Control', 'no-store');
@@ -67,10 +70,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const canManage = access.role === 'owner' || access.role === 'manager';
-    if ((payload.action === 'dismiss' || payload.action === 'snooze') && !canManage) {
+    const allowedActions: AllowedAction[] = access.role === 'staff'
+      ? ['done']
+      : ['done', 'snooze', 'dismiss'];
+    if (!allowedActions.includes(payload.action)) {
       return withNoStore(
-        NextResponse.json({ error: 'forbidden', message: 'Cal owner o manager', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'forbidden', message: 'Acció no permesa per aquest rol', request_id: requestId }, { status: 403 }),
         requestId,
       );
     }
@@ -79,7 +84,9 @@ export async function POST(request: Request) {
     const now = new Date();
     const snoozeHours = payload.action === 'snooze'
       ? Math.max(1, Math.min(payload.snooze_hours ?? 24, 168))
-      : null;
+      : payload.action === 'done'
+        ? DONE_TTL_HOURS
+        : null;
     const snoozedUntil = snoozeHours ? new Date(now.getTime() + (snoozeHours * 60 * 60 * 1000)).toISOString() : null;
 
     const admin = createAdminClient();

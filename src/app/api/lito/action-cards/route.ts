@@ -47,9 +47,9 @@ type CardStateRow = {
 
 function shouldHideCardByState(state: CardStateRow | undefined, now: Date): boolean {
   if (!state) return false;
-  if (state.state === 'dismissed' || state.state === 'done') return true;
-  if (state.state === 'snoozed') {
-    if (!state.snoozed_until) return true;
+  if (state.state === 'dismissed') return true;
+  if (state.state === 'snoozed' || state.state === 'done') {
+    if (!state.snoozed_until) return state.state === 'snoozed';
     const snoozedUntil = new Date(state.snoozed_until);
     if (Number.isNaN(snoozedUntil.getTime())) return false;
     return now.getTime() < snoozedUntil.getTime();
