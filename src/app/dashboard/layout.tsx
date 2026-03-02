@@ -1,123 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-import { LITOLayout } from '@/components/lito/layout/LITOLayout';
-import { LITO_NAV_ITEMS } from '@/components/lito/layout/nav';
-import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
-import { createClient } from '@/lib/supabase/client';
-
-type CommandSubmitDetail = {
-  message?: string;
-};
-
-type CommandPrefillDetail = {
-  value?: string;
-};
-
-type CommandDisabledDetail = {
-  disabled?: boolean;
-};
-
-function DashboardShell({ children }: { children: ReactNode }) {
-  const { biz, membership } = useWorkspace();
-  const supabase = useMemo(() => createClient(), []);
-
-  const [userName, setUserName] = useState<string | null>(null);
-  const [commandValue, setCommandValue] = useState('');
-  const [commandDisabled, setCommandDisabled] = useState(false);
-
-  const showCommandBar = false;
-  const canSeeHealthNav = membership?.role === 'owner' || membership?.role === 'manager';
-  const navItems = useMemo(
-    () => (canSeeHealthNav ? LITO_NAV_ITEMS : LITO_NAV_ITEMS.filter((item) => item.key !== 'health')),
-    [canSeeHealthNav],
-  );
-
-  useEffect(() => {
-    let mounted = true;
-
-    void (async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (!mounted || error) return;
-      const metadataName = data.user?.user_metadata?.full_name;
-      if (typeof metadataName === 'string' && metadataName.trim().length > 0) {
-        setUserName(metadataName.trim());
-        return;
-      }
-      const email = data.user?.email;
-      if (typeof email === 'string' && email.trim().length > 0) {
-        setUserName(email.trim().split('@')[0] || null);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [supabase]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handlePrefill = (event: Event) => {
-      const detail = (event as CustomEvent<CommandPrefillDetail>).detail;
-      if (!detail || typeof detail.value !== 'string') return;
-      setCommandValue(detail.value);
-    };
-
-    const handleDisabled = (event: Event) => {
-      const detail = (event as CustomEvent<CommandDisabledDetail>).detail;
-      setCommandDisabled(Boolean(detail?.disabled));
-    };
-
-    window.addEventListener('lito:command-prefill', handlePrefill as EventListener);
-    window.addEventListener('lito:command-disabled', handleDisabled as EventListener);
-
-    return () => {
-      window.removeEventListener('lito:command-prefill', handlePrefill as EventListener);
-      window.removeEventListener('lito:command-disabled', handleDisabled as EventListener);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (showCommandBar) return;
-    setCommandValue('');
-    setCommandDisabled(false);
-  }, [showCommandBar]);
-
-  const handleCommandSubmit = useCallback(() => {
-    const message = commandValue.trim();
-    if (!message || typeof window === 'undefined') return;
-
-    window.dispatchEvent(new CustomEvent<CommandSubmitDetail>('lito:command-submit', {
-      detail: { message },
-    }));
-    setCommandValue('');
-  }, [commandValue]);
-
-  return (
-    <LITOLayout
-      userName={userName}
-      bizName={biz?.name || null}
-      bizId={biz?.id || null}
-      navItems={navItems}
-      showCommandBar={showCommandBar}
-      commandValue={commandValue}
-      commandDisabled={commandDisabled}
-      onCommandChange={setCommandValue}
-      onCommandSubmit={handleCommandSubmit}
-    >
-      {children}
-    </LITOLayout>
-  );
-}
+import MainLayout from '@/components/layout/MainLayout';
+import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <WorkspaceProvider>
-      <div className="bg-[#fafaf9] text-[#1a1917]">
-        <DashboardShell>{children}</DashboardShell>
-      </div>
+      <MainLayout>{children}</MainLayout>
     </WorkspaceProvider>
   );
 }
