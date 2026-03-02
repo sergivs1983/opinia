@@ -5,20 +5,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { resolveProvider } from '@/lib/ai/provider';
+import { callLLM } from '@/lib/llm/provider';
 import { createLogger } from '@/lib/logger';
 import { getLitoBizAccess } from '@/lib/lito/action-drafts';
+import { getLitoCardsCacheByBiz, normalizeCachedCards } from '@/lib/lito/cards-cache';
 import { buildLITOPayload } from '@/lib/lito/context/build';
 import type { LITOChatMode, LITOPayload } from '@/lib/lito/context/types';
+import { projectCardsForRole, sortCardsByPriority } from '@/lib/lito/orchestrator';
+import {
+  applyOrchestratorCopyOverrides,
+  type LitoOrchestratorSafeOutput,
+  validateOrchestratorSafeOutput,
+} from '@/lib/lito/output/schema';
+import { buildOrchestratorSafePrompt } from '@/lib/lito/prompt/orchestrator-safe';
 import { buildLitoSystemPrompt } from '@/lib/lito/prompt/system';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { ActionCard, ActionCardMode, ActionCardRole } from '@/types/lito-cards';
 
 const BodySchema = z.object({
   biz_id: z.string().uuid(),
   message: z.string().trim().min(1).max(2000),
   thread_id: z.string().uuid().optional(),
-  mode: z.enum(['chat', 'orchestrator']).optional(),
+  mode: z.enum(['chat', 'orchestrator', 'orchestrator_safe']).optional(),
 });
 
 type ChatMessage = {
@@ -49,6 +59,15 @@ function compactText(value: unknown, max = 180): string {
   const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   if (!text) return '';
   return text.slice(0, max);
+}
+
+function parseRole(role: string | null | undefined): ActionCardRole | null {
+  if (role === 'owner' || role === 'manager' || role === 'staff') return role;
+  return null;
+}
+
+function parseActionCardsMode(mode: string | null | undefined): ActionCardMode {
+  return mode === 'advanced' ? 'advanced' : 'basic';
 }
 
 function buildUserPrompt(input: {
@@ -253,6 +272,92 @@ async function streamFromAnthropic(input: {
   });
 }
 
+function sseResponse(input: {
+  requestId: string;
+  writer: (push: (chunk: SSEChunk) => void) => Promise<void>;
+}): Response {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const push = (chunk: SSEChunk): void => {
+        controller.enqueue(encoder.encode(encodeSseChunk(chunk)));
+      };
+
+      void (async () => {
+        try {
+          await input.writer(push);
+        } finally {
+          controller.close();
+        }
+      })();
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-store',
+      Connection: 'keep-alive',
+      'x-request-id': input.requestId,
+    },
+  });
+}
+
+async function loadCardsForOrchestrator(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  bizId: string;
+  role: ActionCardRole;
+}): Promise<{ mode: ActionCardMode; cards: ActionCard[] }> {
+  const cached = await getLitoCardsCacheByBiz({
+    admin: input.admin,
+    bizId: input.bizId,
+  });
+
+  if (!cached) {
+    return {
+      mode: 'basic',
+      cards: [],
+    };
+  }
+
+  const mode = parseActionCardsMode(cached.mode);
+  const cards = sortCardsByPriority(
+    projectCardsForRole(normalizeCachedCards(cached.cards), input.role),
+  );
+
+  return { mode, cards };
+}
+
+function buildOrchestratorResponse(input: {
+  output: LitoOrchestratorSafeOutput;
+  allCards: ActionCard[];
+}): {
+  greeting: string;
+  priority_message: string;
+  next_question: string;
+  selected_card_ids: string[];
+  cards_final: ActionCard[];
+} {
+  const byId = new Map(input.allCards.map((card) => [card.id, card]));
+  const selectedCards = input.output.selected_card_ids
+    .map((id) => byId.get(id))
+    .filter((card): card is ActionCard => Boolean(card));
+  const cardsWithCopy = applyOrchestratorCopyOverrides({
+    cards: selectedCards,
+    cardsCopy: input.output.cards_copy,
+  });
+
+  return {
+    greeting: input.output.greeting,
+    priority_message: input.output.priority_message,
+    next_question: input.output.next_question,
+    selected_card_ids: input.output.selected_card_ids,
+    cards_final: cardsWithCopy,
+  };
+}
+
 export async function POST(request: NextRequest): Promise<Response> {
   const requestId = getRequestIdFromHeaders(request.headers);
   const log = createLogger({ request_id: requestId, route: 'POST /api/lito/chat' });
@@ -312,7 +417,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     bizId: parsedBody.biz_id,
   });
 
-  if (!access.allowed || !access.orgId || !access.role) {
+  const role = parseRole(access.role);
+  if (!access.allowed || !access.orgId || !role) {
     return jsonNoStore(
       {
         ok: false,
@@ -325,7 +431,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  const mode: LITOChatMode = parsedBody.mode || 'chat';
+
   let payload: LITOPayload;
+  let actionCardsMode: ActionCardMode = 'basic';
+  let allCards: ActionCard[] = [];
   try {
     const admin = createAdminClient();
     payload = await buildLITOPayload({
@@ -334,6 +444,16 @@ export async function POST(request: NextRequest): Promise<Response> {
       userId: user.id,
       mode: 'advanced',
     });
+
+    if (mode === 'orchestrator_safe') {
+      const cardsBundle = await loadCardsForOrchestrator({
+        admin,
+        bizId: parsedBody.biz_id,
+        role,
+      });
+      actionCardsMode = cardsBundle.mode;
+      allCards = cardsBundle.cards;
+    }
   } catch (error) {
     log.error('lito_chat_context_build_failed', {
       biz_id: parsedBody.biz_id,
@@ -352,7 +472,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  const mode: LITOChatMode = parsedBody.mode || 'chat';
   const providerState = resolveProvider({
     orgProvider: payload.business_context.ai_provider_preference,
   });
@@ -370,6 +489,157 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  if (mode === 'orchestrator_safe') {
+    if (allCards.length === 0) {
+      return sseResponse({
+        requestId,
+        writer: async (push) => {
+          push({
+            event: 'meta',
+            data: {
+              ok: true,
+              mode,
+              cards_mode: actionCardsMode,
+              generated_at: payload.generated_at,
+              provider: providerState.provider,
+            },
+          });
+
+          push({
+            event: 'json',
+            data: {
+              greeting: payload.business_context.language === 'es'
+                ? 'Vamos paso a paso.'
+                : payload.business_context.language === 'en'
+                  ? 'Let us go step by step.'
+                  : 'Anem pas a pas.',
+              priority_message: payload.business_context.language === 'es'
+                ? 'No hay tarjetas activas ahora.'
+                : payload.business_context.language === 'en'
+                  ? 'No active cards right now.'
+                  : 'Ara mateix no hi ha targetes actives.',
+              next_question: payload.business_context.language === 'es'
+                ? '¿Quieres que revisemos mañana?'
+                : payload.business_context.language === 'en'
+                  ? 'Should we check again tomorrow?'
+                  : 'Vols que ho revisem demà?',
+              selected_card_ids: [],
+              cards_final: [],
+              queue_count: 0,
+              mode: actionCardsMode,
+            },
+          });
+
+          push({ event: 'done', data: { ok: true } });
+        },
+      });
+    }
+
+    const systemPrompt = buildLitoSystemPrompt({
+      payload,
+      mode,
+    });
+    const orchestratorPrompt = buildOrchestratorSafePrompt({
+      payload,
+      role,
+      mode: actionCardsMode,
+      message: parsedBody.message,
+      cards: allCards,
+    });
+
+    let llmRaw: string;
+    try {
+      const llmResponse = await callLLM({
+        provider: providerState.provider as 'openai' | 'anthropic',
+        model: providerState.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: orchestratorPrompt },
+        ],
+        temperature: 0.2,
+        maxTokens: 700,
+        json: true,
+      });
+      llmRaw = llmResponse.content || '';
+    } catch (error) {
+      log.warn('lito_orchestrator_safe_llm_failed', {
+        biz_id: parsedBody.biz_id,
+        user_id: user.id,
+        provider: providerState.provider,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonNoStore(
+        {
+          ok: false,
+          code: 'ai_unavailable',
+          message: 'No he pogut generar el resum ara mateix',
+          request_id: requestId,
+        },
+        requestId,
+        503,
+      );
+    }
+
+    const validated = validateOrchestratorSafeOutput({
+      raw: llmRaw,
+      cards: allCards,
+      mode: actionCardsMode,
+    });
+    if (!validated.ok) {
+      log.warn('lito_orchestrator_safe_bad_output', {
+        biz_id: parsedBody.biz_id,
+        user_id: user.id,
+        provider: providerState.provider,
+        error: validated.error,
+      });
+      return jsonNoStore(
+        {
+          ok: false,
+          code: 'ai_bad_output',
+          message: 'Resposta IA invàlida',
+          request_id: requestId,
+        },
+        requestId,
+        502,
+      );
+    }
+
+    const finalJson = buildOrchestratorResponse({
+      output: validated.value,
+      allCards,
+    });
+
+    return sseResponse({
+      requestId,
+      writer: async (push) => {
+        push({
+          event: 'meta',
+          data: {
+            ok: true,
+            mode,
+            cards_mode: actionCardsMode,
+            generated_at: payload.generated_at,
+            provider: providerState.provider,
+          },
+        });
+        push({
+          event: 'json',
+          data: {
+            ...finalJson,
+            queue_count: allCards.length,
+            mode: actionCardsMode,
+          },
+        });
+        push({
+          event: 'done',
+          data: {
+            ok: true,
+          },
+        });
+      },
+    });
+  }
+
   const systemPrompt = buildLitoSystemPrompt({
     payload,
     mode,
@@ -385,99 +655,79 @@ export async function POST(request: NextRequest): Promise<Response> {
     { role: 'user', content: userPrompt },
   ];
 
-  const encoder = new TextEncoder();
   const upstreamAbort = new AbortController();
   const onAbort = () => upstreamAbort.abort();
   request.signal.addEventListener('abort', onAbort, { once: true });
 
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const push = (chunk: SSEChunk): void => {
-        controller.enqueue(encoder.encode(encodeSseChunk(chunk)));
-      };
-
-      void (async () => {
-        let fullText = '';
-        try {
-          push({
-            event: 'meta',
-            data: {
-              ok: true,
-              provider: providerState.provider,
-              mode,
-              generated_at: payload.generated_at,
-            },
-          });
-
-          if (providerState.provider === 'anthropic') {
-            const key = process.env.ANTHROPIC_API_KEY;
-            if (!key) throw new Error('anthropic_key_missing');
-            await streamFromAnthropic({
-              apiKey: key,
-              model: providerState.model,
-              messages,
-              signal: upstreamAbort.signal,
-              onDelta: (delta) => {
-                fullText += delta;
-                push({ event: 'token', data: { delta } });
-              },
-            });
-          } else {
-            const key = process.env.OPENAI_API_KEY;
-            if (!key) throw new Error('openai_key_missing');
-            await streamFromOpenAI({
-              apiKey: key,
-              model: providerState.model,
-              messages,
-              mode,
-              signal: upstreamAbort.signal,
-              onDelta: (delta) => {
-                fullText += delta;
-                push({ event: 'token', data: { delta } });
-              },
-            });
-          }
-
-          push({
-            event: 'done',
-            data: {
-              ok: true,
-              text: fullText,
-            },
-          });
-        } catch (error) {
-          log.warn('lito_chat_stream_failed', {
-            biz_id: parsedBody.biz_id,
-            user_id: user.id,
+  return sseResponse({
+    requestId,
+    writer: async (push) => {
+      let fullText = '';
+      try {
+        push({
+          event: 'meta',
+          data: {
+            ok: true,
             provider: providerState.provider,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          push({
-            event: 'error',
-            data: {
-              ok: false,
-              code: 'stream_failed',
-              message: 'No he pogut respondre ara mateix. Torna-ho a provar.',
+            mode,
+            generated_at: payload.generated_at,
+          },
+        });
+
+        if (providerState.provider === 'anthropic') {
+          const key = process.env.ANTHROPIC_API_KEY;
+          if (!key) throw new Error('anthropic_key_missing');
+          await streamFromAnthropic({
+            apiKey: key,
+            model: providerState.model,
+            messages,
+            signal: upstreamAbort.signal,
+            onDelta: (delta) => {
+              fullText += delta;
+              push({ event: 'token', data: { delta } });
             },
           });
-        } finally {
-          request.signal.removeEventListener('abort', onAbort);
-          controller.close();
+        } else {
+          const key = process.env.OPENAI_API_KEY;
+          if (!key) throw new Error('openai_key_missing');
+          await streamFromOpenAI({
+            apiKey: key,
+            model: providerState.model,
+            messages,
+            mode,
+            signal: upstreamAbort.signal,
+            onDelta: (delta) => {
+              fullText += delta;
+              push({ event: 'token', data: { delta } });
+            },
+          });
         }
-      })();
-    },
-    cancel() {
-      upstreamAbort.abort();
-    },
-  });
 
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-store',
-      Connection: 'keep-alive',
-      'x-request-id': requestId,
+        push({
+          event: 'done',
+          data: {
+            ok: true,
+            text: fullText,
+          },
+        });
+      } catch (error) {
+        log.warn('lito_chat_stream_failed', {
+          biz_id: parsedBody.biz_id,
+          user_id: user.id,
+          provider: providerState.provider,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        push({
+          event: 'error',
+          data: {
+            ok: false,
+            code: 'stream_failed',
+            message: 'No he pogut respondre ara mateix. Torna-ho a provar.',
+          },
+        });
+      } finally {
+        request.signal.removeEventListener('abort', onAbort);
+      }
     },
   });
 }

@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import CommandBar from '@/components/lito/home/CommandBar';
+import type { OrchestratorSafeJsonEvent } from '@/components/lito/home/CommandBar';
 import ActionCardStack from '@/components/lito/home/ActionCardStack';
 import CardQueueDrawer from '@/components/lito/home/CardQueueDrawer';
 import LitoHeader from '@/components/lito/home/LitoHeader';
@@ -59,6 +60,14 @@ type CommandPanelState = {
   loading: boolean;
   text: string;
   error: string | null;
+};
+
+type OrchestratorViewState = {
+  greeting: string;
+  priorityMessage: string;
+  cards: ActionCard[];
+  queueCount: number;
+  mode: 'basic' | 'advanced';
 };
 
 const LAST_BIZ_STORAGE_KEY = 'opinia.lito.last_biz_id';
@@ -209,6 +218,7 @@ export default function DashboardLitoPage() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [command, setCommand] = useState('');
   const [commandPanel, setCommandPanel] = useState<CommandPanelState | null>(null);
+  const [orchestratorView, setOrchestratorView] = useState<OrchestratorViewState | null>(null);
   const [actionBusy, setActionBusy] = useState<Record<string, boolean>>({});
 
   const lang = useMemo(() => resolveLocale(locale), [locale]);
@@ -216,6 +226,10 @@ export default function DashboardLitoPage() {
 
   const activeBizId = biz?.id || null;
   const { cards, mode, queueCount, source, error, refresh } = useActionCards({ bizId: activeBizId });
+
+  useEffect(() => {
+    setOrchestratorView(null);
+  }, [activeBizId]);
 
   useEffect(() => {
     if (workspaceLoading) return;
@@ -250,16 +264,25 @@ export default function DashboardLitoPage() {
   }, [workspaceLoading, businesses, searchParams, biz?.id, switchBiz, router]);
 
   const greeting = useMemo(() => {
+    if (orchestratorView?.greeting) return orchestratorView.greeting;
     const hour = new Date().getHours();
     const tone = hour < 12 ? copy.greetingMorning : hour < 20 ? copy.greetingAfternoon : copy.greetingEvening;
     const name = biz?.name ? `, ${biz.name}` : '';
     return `${tone}${name}`;
-  }, [biz?.name, copy.greetingAfternoon, copy.greetingEvening, copy.greetingMorning]);
+  }, [orchestratorView?.greeting, biz?.name, copy.greetingAfternoon, copy.greetingEvening, copy.greetingMorning]);
 
   const priorityLine = useMemo(() => {
+    if (orchestratorView?.priorityMessage) return orchestratorView.priorityMessage;
     if (!cards.length) return `${copy.priorityPrefix} ${copy.priorityFallback}`;
     return `${copy.priorityPrefix} ${cards[0].title}`;
-  }, [cards, copy.priorityFallback, copy.priorityPrefix]);
+  }, [orchestratorView?.priorityMessage, cards, copy.priorityFallback, copy.priorityPrefix]);
+
+  const cardsForStack = useMemo(() => orchestratorView?.cards || cards, [orchestratorView?.cards, cards]);
+  const modeForStack = useMemo(() => orchestratorView?.mode || mode, [orchestratorView?.mode, mode]);
+  const queueCountForStack = useMemo(
+    () => (typeof orchestratorView?.queueCount === 'number' ? orchestratorView.queueCount : queueCount),
+    [orchestratorView?.queueCount, queueCount],
+  );
 
   const withActionBusy = useCallback(async (card: ActionCard, cta: ActionCardCta, task: () => Promise<void>) => {
     const key = actionBusyKey(card.id, cta.action);
@@ -410,6 +433,16 @@ export default function DashboardLitoPage() {
     setCommandPanel(next);
   }, []);
 
+  const handleOrchestratorJson = useCallback((payload: OrchestratorSafeJsonEvent) => {
+    setOrchestratorView({
+      greeting: payload.greeting,
+      priorityMessage: payload.priority_message,
+      cards: payload.cards_final,
+      queueCount: typeof payload.queue_count === 'number' ? payload.queue_count : queueCount,
+      mode: payload.mode === 'advanced' ? 'advanced' : 'basic',
+    });
+  }, [queueCount]);
+
   const openAdvanced = useCallback(() => {
     router.push('/dashboard?classic=1');
   }, [router]);
@@ -456,10 +489,10 @@ export default function DashboardLitoPage() {
         ) : null}
 
         <ActionCardStack
-          cards={cards}
-          mode={mode}
+          cards={cardsForStack}
+          mode={modeForStack}
           source={source}
-          queueCount={queueCount}
+          queueCount={queueCountForStack}
           title={copy.weekTitle}
           emptyTitle={copy.emptyTitle}
           emptySubtitle={copy.emptySubtitle}
@@ -506,6 +539,7 @@ export default function DashboardLitoPage() {
         onChange={setCommand}
         onMic={handleMic}
         onPanelStateChange={handleCommandPanelState}
+        onOrchestratorJson={handleOrchestratorJson}
       />
     </section>
   );

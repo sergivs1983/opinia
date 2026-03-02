@@ -19,6 +19,8 @@ export function buildLitoSystemPrompt(input: {
 
   const modeRule = mode === 'orchestrator'
     ? 'Si el mode és orchestrator, torna només JSON vàlid amb greeting, priority_message i cards.'
+    : mode === 'orchestrator_safe'
+      ? 'Mode orchestrator_safe: torna només JSON vàlid i no inventis cap card.'
     : 'Mode chat: respon només text natural, sense JSON.';
 
   return [

@@ -1,4 +1,4 @@
-export type LITOChatMode = 'chat' | 'orchestrator';
+export type LITOChatMode = 'chat' | 'orchestrator' | 'orchestrator_safe';
 
 export type LITOBusinessContext = {
   biz_id: string;

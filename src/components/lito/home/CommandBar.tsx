@@ -2,10 +2,22 @@
 
 import { useCallback, useState } from 'react';
 
+import type { ActionCard, ActionCardMode } from '@/types/lito-cards';
+
 type CommandPanelState = {
   loading: boolean;
   text: string;
   error: string | null;
+};
+
+export type OrchestratorSafeJsonEvent = {
+  greeting: string;
+  priority_message: string;
+  next_question: string;
+  selected_card_ids: string[];
+  cards_final: ActionCard[];
+  queue_count?: number;
+  mode?: ActionCardMode;
 };
 
 type CommandBarProps = {
@@ -14,12 +26,13 @@ type CommandBarProps = {
   sendLabel: string;
   micLabel: string;
   value: string;
-  mode?: 'chat' | 'orchestrator';
+  mode?: 'chat' | 'orchestrator_safe';
   missingBizLabel: string;
   fallbackErrorLabel: string;
   onChange: (value: string) => void;
   onMic: () => void;
   onPanelStateChange: (next: CommandPanelState) => void;
+  onOrchestratorJson?: (payload: OrchestratorSafeJsonEvent) => void;
 };
 
 function createClientRequestId(): string {
@@ -39,6 +52,51 @@ function extractErrorMessage(input: unknown): string {
   return '';
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function looksLikeOrchestratorIntent(message: string): boolean {
+  const normalized = message.toLowerCase().trim();
+  const patterns = [
+    'què toca avui',
+    'que toca avui',
+    'resum del dia',
+    'què he de fer avui',
+    'que he de fer avui',
+    'resumen del día',
+    'resumen del dia',
+    'qué toca hoy',
+    'que toca hoy',
+    'what should i do today',
+    'what is due today',
+    'daily summary',
+  ];
+  return patterns.some((pattern) => normalized.includes(pattern));
+}
+
+function parseOrchestratorJson(input: unknown): OrchestratorSafeJsonEvent | null {
+  if (!isObject(input)) return null;
+  const greeting = typeof input.greeting === 'string' ? input.greeting.trim() : '';
+  const priority = typeof input.priority_message === 'string' ? input.priority_message.trim() : '';
+  const nextQuestion = typeof input.next_question === 'string' ? input.next_question.trim() : '';
+  const cards = Array.isArray(input.cards_final) ? input.cards_final as ActionCard[] : [];
+  const selectedIds = Array.isArray(input.selected_card_ids)
+    ? input.selected_card_ids.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+  if (!greeting || !priority || !nextQuestion) return null;
+  if (!Array.isArray(cards)) return null;
+  return {
+    greeting,
+    priority_message: priority,
+    next_question: nextQuestion,
+    cards_final: cards,
+    selected_card_ids: selectedIds,
+    queue_count: typeof input.queue_count === 'number' ? input.queue_count : undefined,
+    mode: input.mode === 'advanced' ? 'advanced' : 'basic',
+  };
+}
+
 export default function CommandBar({
   bizId,
   placeholder,
@@ -51,6 +109,7 @@ export default function CommandBar({
   onChange,
   onMic,
   onPanelStateChange,
+  onOrchestratorJson,
 }: CommandBarProps) {
   const [submitting, setSubmitting] = useState(false);
 
@@ -110,6 +169,17 @@ export default function CommandBar({
               error: null,
             });
           }
+        } else if (eventName === 'json') {
+          const parsedJson = parseOrchestratorJson(parsed);
+          if (parsedJson) {
+            fullText = `${parsedJson.priority_message}\n${parsedJson.next_question}`;
+            onOrchestratorJson?.(parsedJson);
+            onPanelStateChange({
+              loading: false,
+              text: fullText,
+              error: null,
+            });
+          }
         } else if (eventName === 'done') {
           const finalText = (parsed as { text?: unknown } | null)?.text;
           if (typeof finalText === 'string' && finalText.trim().length > 0) {
@@ -135,7 +205,7 @@ export default function CommandBar({
     }
 
     return fullText;
-  }, [fallbackErrorLabel, onPanelStateChange]);
+  }, [fallbackErrorLabel, onOrchestratorJson, onPanelStateChange]);
 
   const submitToChat = useCallback(async () => {
     const message = value.trim();
@@ -158,6 +228,7 @@ export default function CommandBar({
     });
 
     try {
+      const resolvedMode = looksLikeOrchestratorIntent(message) ? 'orchestrator_safe' : mode;
       const response = await fetch('/api/lito/chat', {
         method: 'POST',
         cache: 'no-store',
@@ -169,7 +240,7 @@ export default function CommandBar({
         body: JSON.stringify({
           biz_id: bizId,
           message,
-          mode,
+          mode: resolvedMode,
         }),
       });
 
