@@ -1,0 +1,621 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.lito-demo {
+  --font-ui: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --mouse-x: 0px;
+  --mouse-y: 0px;
+
+  position: relative;
+  min-height: calc(100vh - 140px);
+  overflow: hidden;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+}
+
+.lito-demo[data-theme='day'] {
+  --bg-color: #f8f9fa;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #ffffff, #eff1f5);
+
+  --accent: #007aff;
+  --accent-gradient: linear-gradient(135deg, #00c6ff, #0072ff);
+  --text-main: #1d1d1f;
+  --text-muted: #86868b;
+
+  --card-bg: rgba(255, 255, 255, 0.6);
+  --card-border: rgba(0, 0, 0, 0.04);
+  --card-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.03);
+  --card-hover-border: rgba(0, 122, 255, 0.15);
+  --spotlight-color: rgba(0, 122, 255, 0.08);
+  --spotlight-size: 600px;
+  --status-shadow-strong: rgba(0, 198, 255, 0.4);
+  --status-shadow-soft: rgba(0, 198, 255, 0.1);
+
+  --signal-bg: rgba(255, 255, 255, 0.5);
+  --signal-border: rgba(0, 0, 0, 0.03);
+  --signal-hover-bg: rgba(255, 255, 255, 0.8);
+  --signal-hover-border: rgba(0, 122, 255, 0.2);
+
+  --chat-bg: #ffffff;
+  --chat-border: rgba(0, 0, 0, 0.04);
+  --chat-ai-bg: linear-gradient(90deg, rgba(240, 248, 255, 0.5), #ffffff);
+  --input-border: rgba(0, 0, 0, 0.06);
+
+  --option-bg: #ffffff;
+  --option-border: rgba(0, 0, 0, 0.08);
+  --option-text: var(--text-main);
+  --option-active-bg: var(--accent-gradient);
+  --option-active-text: #ffffff;
+  --option-active-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+
+  --preview-bg: #f0f2f5;
+  --preview-border: transparent;
+  --preview-text: #444;
+
+  --task-hover-bg: rgba(0, 122, 255, 0.05);
+  --check-border: #d1d1d6;
+  --button-bg: var(--accent-gradient);
+  --button-text: #ffffff;
+  --button-shadow: 0 4px 15px rgba(0, 122, 255, 0.25);
+  --button-hover-shadow: 0 8px 25px rgba(0, 122, 255, 0.4);
+}
+
+.lito-demo[data-theme='night'] {
+  --bg-color: #050507;
+  --bg-gradient: none;
+
+  --accent: #32d74b;
+  --accent-gradient: linear-gradient(135deg, #32d74b, #32d74b);
+  --accent-glow: rgba(50, 215, 75, 0.25);
+  --text-main: #f2f2f7;
+  --text-muted: #86868b;
+
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-shadow: none;
+  --card-hover-border: rgba(50, 215, 75, 0.25);
+  --spotlight-color: rgba(255, 255, 255, 0.06);
+  --spotlight-size: 800px;
+  --status-shadow-strong: var(--accent-glow);
+  --status-shadow-soft: var(--accent-glow);
+
+  --signal-bg: rgba(255, 255, 255, 0.02);
+  --signal-border: rgba(255, 255, 255, 0.05);
+  --signal-hover-bg: rgba(255, 255, 255, 0.04);
+  --signal-hover-border: rgba(50, 215, 75, 0.25);
+
+  --chat-bg: rgba(255, 255, 255, 0.02);
+  --chat-border: rgba(255, 255, 255, 0.04);
+  --chat-ai-bg: linear-gradient(90deg, rgba(50, 215, 75, 0.03), transparent);
+  --input-border: rgba(255, 255, 255, 0.05);
+
+  --option-bg: transparent;
+  --option-border: #444;
+  --option-text: #ccc;
+  --option-active-bg: #f2f2f7;
+  --option-active-text: #000000;
+  --option-active-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+
+  --preview-bg: rgba(0, 0, 0, 0.2);
+  --preview-border: 1px solid rgba(255, 255, 255, 0.03);
+  --preview-text: #bbb;
+
+  --task-hover-bg: rgba(255, 255, 255, 0.03);
+  --check-border: #555;
+  --button-bg: #f2f2f7;
+  --button-text: #000000;
+  --button-shadow: none;
+  --button-hover-shadow: 0 0 25px rgba(255, 255, 255, 0.15);
+}
+
+.lito-demo {
+  color: var(--text-main);
+  background: var(--bg-gradient);
+  background-color: var(--bg-color);
+}
+
+.theme-switch {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.theme-pill {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.theme-pill.active {
+  background: var(--option-active-bg);
+  color: var(--option-active-text);
+  box-shadow: var(--option-active-shadow);
+}
+
+.ambient-light {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(0, 198, 255, 0.05), transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(0, 114, 255, 0.05), transparent 40%);
+}
+
+.lito-demo[data-theme='night'] .ambient-light {
+  background:
+    radial-gradient(circle at 20% 50%, rgba(20, 30, 25, 0.6), transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(20, 25, 35, 0.5), transparent 40%);
+}
+
+.noise-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  display: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+.lito-demo[data-theme='night'] .noise-overlay {
+  display: block;
+}
+
+.dashboard-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  gap: 20px;
+  width: 95vw;
+  height: 90vh;
+  max-width: 1600px;
+}
+
+.future-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 24px;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(40px) saturate(120%);
+  -webkit-backdrop-filter: blur(40px) saturate(120%);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  --mouse-x: 0px;
+  --mouse-y: 0px;
+}
+
+.lito-demo[data-theme='night'] .future-card {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.future-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.06);
+  border-color: var(--card-hover-border);
+}
+
+.future-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    var(--spotlight-size) circle at var(--mouse-x) var(--mouse-y),
+    var(--spotlight-color),
+    transparent 40%
+  );
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.future-card:hover::before {
+  opacity: 1;
+}
+
+.card-content {
+  position: relative;
+  z-index: 1;
+  padding: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tech-header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lito-demo[data-theme='night'] .tech-header {
+  font-size: 10px;
+  letter-spacing: 2px;
+  opacity: 0.8;
+  gap: 10px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: pulse 3s infinite;
+}
+
+.lito-demo[data-theme='night'] .status-dot {
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: pulse 4s infinite ease-in-out;
+}
+
+.entity-block {
+  margin-bottom: 30px;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text-main);
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--text-main);
+}
+
+p {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.entity-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.signal-card {
+  padding: 16px;
+  background: var(--signal-bg);
+  border-radius: 16px;
+  border: 1px solid var(--signal-border);
+  margin-bottom: 12px;
+  transition: all 0.2s;
+}
+
+.signal-card:hover {
+  background: var(--signal-hover-bg);
+  border-color: var(--signal-hover-border);
+}
+
+.signal-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.signal-label.success {
+  color: #34c759;
+}
+
+.lito-demo[data-theme='night'] .signal-label.success {
+  color: var(--accent);
+}
+
+.quota-wrap {
+  margin-top: auto;
+}
+
+.quota-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.quota-label,
+.quota-value {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.quota-value {
+  color: var(--accent);
+}
+
+.quota-track {
+  width: 100%;
+  height: 4px;
+  background: #e5e5ea;
+  border-radius: 2px;
+}
+
+.lito-demo[data-theme='night'] .quota-track {
+  height: 3px;
+  background: #222;
+}
+
+.quota-fill {
+  width: 82%;
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 2px;
+}
+
+.lito-demo[data-theme='night'] .quota-fill {
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.chat-core {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.chat-bubble {
+  background: var(--chat-bg);
+  border: 1px solid var(--chat-border);
+  padding: 20px;
+  border-radius: 18px;
+  border-bottom-left-radius: 4px;
+  margin-bottom: 16px;
+  line-height: 1.6;
+  font-size: 15px;
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.lito-demo[data-theme='night'] .chat-bubble {
+  color: #e0e0e0;
+  font-size: 14px;
+  padding: 18px;
+  box-shadow: none;
+}
+
+.chat-bubble.ai {
+  border-left: 3px solid var(--accent);
+  background: var(--chat-ai-bg);
+}
+
+.lito-demo[data-theme='night'] .chat-bubble.ai {
+  border-left-width: 2px;
+}
+
+.chat-bubble strong {
+  color: var(--text-main);
+}
+
+.options-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.option-btn {
+  background: var(--option-bg);
+  border: 1px solid var(--option-border);
+  color: var(--option-text);
+  padding: 10px 18px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+}
+
+.lito-demo[data-theme='night'] .option-btn {
+  font-size: 12px;
+  box-shadow: none;
+  padding: 8px 18px;
+}
+
+.option-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.option-btn.active {
+  background: var(--option-active-bg);
+  color: var(--option-active-text);
+  border: none;
+  box-shadow: var(--option-active-shadow);
+}
+
+.chat-input-wrap {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--input-border);
+}
+
+.chat-input-wrap input {
+  width: 95%;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  outline: none;
+  font-family: var(--font-ui);
+  font-size: 15px;
+}
+
+.lito-demo[data-theme='night'] .chat-input-wrap input {
+  font-size: 14px;
+}
+
+.preview-box {
+  background: var(--preview-bg);
+  border: var(--preview-border);
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+}
+
+.lito-demo[data-theme='night'] .preview-box {
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.preview-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #888;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.lito-demo[data-theme='night'] .preview-label {
+  color: #555;
+}
+
+.preview-text {
+  font-style: italic;
+  font-size: 15px;
+  color: var(--preview-text);
+}
+
+.lito-demo[data-theme='night'] .preview-text {
+  font-size: 14px;
+}
+
+.ikea-label {
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.lito-demo[data-theme='night'] .ikea-label {
+  color: #666;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.task-item:hover {
+  background: var(--task-hover-bg);
+}
+
+.custom-check {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--check-border);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.task-item.checked .custom-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.lito-demo[data-theme='night'] .task-item.checked .custom-check {
+  color: #000;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.task-item.checked span {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.btn-nuclear {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  padding: 16px;
+  width: 100%;
+  border-radius: 14px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: auto;
+  box-shadow: var(--button-shadow);
+  transition: all 0.3s;
+}
+
+.btn-nuclear:hover {
+  box-shadow: var(--button-hover-shadow);
+  transform: translateY(-2px);
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 var(--status-shadow-strong);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 8px var(--status-shadow-soft);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 var(--status-shadow-strong);
+  }
+}
+
+@media (max-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .lito-demo {
+    align-items: flex-start;
+    min-height: auto;
+    padding-top: 66px;
+  }
+
+  .future-card {
+    min-height: 360px;
+  }
+}
