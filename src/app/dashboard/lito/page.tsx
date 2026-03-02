@@ -570,6 +570,10 @@ export default function DashboardLitoPage() {
             toast(copy.ready, 'info');
           }
 
+          if (card.type === 'review_unanswered') {
+            return { resolved: false };
+          }
+
           if (platform === 'instagram') {
             window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
           } else if (platform === 'tiktok') {
@@ -579,8 +583,35 @@ export default function DashboardLitoPage() {
           return { resolved: true };
         }
 
+        if (cta.action === 'mark_done' && card.type === 'review_unanswered') {
+          if (!activeBizId) return { resolved: false };
+          await postJson('/api/lito/cards/state', {
+            biz_id: activeBizId,
+            card_id: card.id,
+            action: 'done',
+          });
+          toast(copy.ready, 'success');
+          return { resolved: true };
+        }
+
         if (cta.action === 'mark_done' && scheduleId) {
           await postJson(`/api/social/schedules/${scheduleId}/publish`);
+          toast(copy.ready, 'success');
+          return { resolved: true };
+        }
+
+        if (cta.action === 'snooze' && card.type === 'review_unanswered') {
+          if (!activeBizId) return { resolved: false };
+          const snoozeHoursRaw = payload.snooze_hours;
+          const snoozeHours = typeof snoozeHoursRaw === 'number'
+            ? Math.max(1, Math.min(Math.floor(snoozeHoursRaw), 168))
+            : 24;
+          await postJson('/api/lito/cards/state', {
+            biz_id: activeBizId,
+            card_id: card.id,
+            action: 'snooze',
+            snooze_hours: snoozeHours,
+          });
           toast(copy.ready, 'success');
           return { resolved: true };
         }
@@ -627,6 +658,16 @@ export default function DashboardLitoPage() {
         }
 
         if (cta.action === 'dismiss') {
+          if (card.type === 'review_unanswered') {
+            if (!activeBizId) return { resolved: false };
+            await postJson('/api/lito/cards/state', {
+              biz_id: activeBizId,
+              card_id: card.id,
+              action: 'dismiss',
+            });
+            toast(copy.ready, 'info');
+            return { resolved: true };
+          }
           toast(copy.ready, 'info');
           return { resolved: true };
         }

@@ -51,6 +51,37 @@ function payloadValueAsNumber(payload: Record<string, unknown>, key: string): nu
   return null;
 }
 
+function parseLocationId(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  const match = trimmed.match(/locations\/(\d+)/);
+  return match?.[1] || null;
+}
+
+function buildGoogleReviewUrl(input: {
+  gbpReviewId: string | null;
+  locationName: string | null;
+  locationId: string | null;
+  businessName: string | null;
+}): string {
+  const directLocationId = parseLocationId(input.locationName) || parseLocationId(input.locationId);
+  if (directLocationId && input.gbpReviewId) {
+    const reviewId = encodeURIComponent(input.gbpReviewId);
+    return `https://business.google.com/reviews/l/${directLocationId}?reviewId=${reviewId}`;
+  }
+  if (directLocationId) {
+    return `https://business.google.com/reviews/l/${directLocationId}`;
+  }
+
+  const q = input.businessName?.trim()
+    ? `${input.businessName.trim()} Google reviews`
+    : 'Google business reviews';
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+
 export default function ActionCard({
   card,
   busy = false,
@@ -81,14 +112,34 @@ export default function ActionCard({
     const reviewId = payloadValueAsString(payload, 'review_id') || findRef(card, 'review_id');
     const reviewText = payloadValueAsString(payload, 'comment_preview') || '';
     const stars = payloadValueAsNumber(payload, 'star_rating');
+    const gbpReviewId = payloadValueAsString(payload, 'gbp_review_id') || findRef(card, 'gbp_review_id');
+    const businessName = payloadValueAsString(payload, 'business_name');
+    const googleLocationName = payloadValueAsString(payload, 'google_location_name');
+    const googleLocationId = payloadValueAsString(payload, 'google_location_id');
     if (!reviewId) return null;
     return {
       reviewId,
       reviewText,
       stars,
+      gbpReviewId,
+      businessName,
+      googleLocationName,
+      googleLocationId,
       allowGenerate: card.primary_cta.action === 'view_response',
     };
   }, [card]);
+
+  const googleReviewUrl = useMemo(() => buildGoogleReviewUrl({
+    gbpReviewId: reviewContext?.gbpReviewId || null,
+    locationName: reviewContext?.googleLocationName || null,
+    locationId: reviewContext?.googleLocationId || null,
+    businessName: reviewContext?.businessName || null,
+  }), [
+    reviewContext?.gbpReviewId,
+    reviewContext?.googleLocationName,
+    reviewContext?.googleLocationId,
+    reviewContext?.businessName,
+  ]);
 
   const canToggleInline = card.type === 'review_unanswered'
     && (card.primary_cta.action === 'view_response' || card.primary_cta.action === 'view_only');
@@ -153,7 +204,55 @@ export default function ActionCard({
     onAction(card, card.primary_cta);
   }, [canToggleInline, onAction, card]);
 
+  const handleCopyResponse = useCallback(() => {
+    const responseText = editableResponse.trim();
+    if (!responseText) {
+      setLocalError('Genera o escriu una resposta abans de copiar.');
+      return;
+    }
+
+    onAction(card, {
+      label: 'Copiar resposta',
+      action: 'copy_open',
+      payload: {
+        ...(card.primary_cta.payload || {}),
+        copy_text: responseText,
+      },
+    });
+    setLocalError(null);
+  }, [card, editableResponse, onAction]);
+
+  const handleOpenGoogle = useCallback(() => {
+    window.open(googleReviewUrl, '_blank', 'noopener,noreferrer');
+  }, [googleReviewUrl]);
+
+  const handleMarkDone = useCallback(() => {
+    if (!reviewContext) return;
+    onAction(card, {
+      label: 'Ja està',
+      action: 'mark_done',
+      payload: {
+        review_id: reviewContext.reviewId,
+        card_id: card.id,
+      },
+    });
+  }, [reviewContext, onAction, card]);
+
+  const handleSnooze = useCallback(() => {
+    if (!reviewContext) return;
+    onAction(card, {
+      label: 'Demà va millor',
+      action: 'snooze',
+      payload: {
+        review_id: reviewContext.reviewId,
+        card_id: card.id,
+        snooze_hours: 24,
+      },
+    });
+  }, [reviewContext, onAction, card]);
+
   const canSaveDraft = reviewContext?.allowGenerate && editableResponse.trim().length > 0;
+  const canCopyResponse = editableResponse.trim().length > 0;
 
   return (
     <article className={`lito-action-card severity-${card.severity}`}>
@@ -242,6 +341,44 @@ export default function ActionCard({
                   </button>
                 </div>
               ) : null}
+
+              <div className="lito-action-review-controls lito-action-review-ikea">
+                <button
+                  type="button"
+                  className="lito-action-card-secondary"
+                  disabled={busy || generating || saving || !canCopyResponse}
+                  onClick={handleCopyResponse}
+                >
+                  Copiar resposta
+                </button>
+                <button
+                  type="button"
+                  className="lito-action-card-secondary"
+                  disabled={busy || generating || saving}
+                  onClick={handleOpenGoogle}
+                >
+                  Obrir Google
+                </button>
+              </div>
+
+              <div className="lito-action-review-controls lito-action-review-ikea">
+                <button
+                  type="button"
+                  className="lito-action-card-primary"
+                  disabled={busy || generating || saving}
+                  onClick={handleMarkDone}
+                >
+                  Ja està
+                </button>
+                <button
+                  type="button"
+                  className="lito-action-card-secondary"
+                  disabled={busy || generating || saving}
+                  onClick={handleSnooze}
+                >
+                  Demà va millor
+                </button>
+              </div>
             </>
           ) : null}
 
