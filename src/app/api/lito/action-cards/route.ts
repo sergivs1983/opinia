@@ -13,7 +13,6 @@ import {
 } from '@/lib/lito/cards-cache';
 import {
   projectCardsForRole,
-  sliceCardsByMode,
   sortCardsByPriority,
 } from '@/lib/lito/orchestrator';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -127,7 +126,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const cards = normalizeCachedCards(cached.cards);
     const cardsForRole = projectCardsForRole(cards, role);
     const sortedCards = sortCardsByPriority(cardsForRole);
-    const visibleCards = sliceCardsByMode(sortedCards, mode);
 
     if (cached.stale) {
       enqueueInBackground({ supabase, bizId: payload.biz_id, log });
@@ -138,9 +136,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ok: true,
         generated_at: cached.generated_at || cached.updated_at || new Date().toISOString(),
         mode,
-        cards: visibleCards,
+        cards: sortedCards,
         queue_count: sortedCards.length,
-        source: 'cache',
+        source: cached.stale ? 'stale' : 'cache',
         request_id: requestId,
       }),
       requestId,
