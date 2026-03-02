@@ -33,6 +33,9 @@ assert('draft_approval score is 80', scoreCard({ type: 'draft_approval', severit
 assert('week_unplanned score is 50', scoreCard({ type: 'week_unplanned', severity: 'medium' }) === 50);
 assert('signal high score is 55', scoreCard({ type: 'signal', severity: 'high' }) === 55);
 assert('signal medium score is 30', scoreCard({ type: 'signal', severity: 'medium' }) === 30);
+assert('review_unanswered 1-2★ score is 105', scoreCard({ type: 'review_unanswered', severity: 'high' }) === 105);
+assert('review_unanswered 3★ score is 90', scoreCard({ type: 'review_unanswered', severity: 'medium' }) === 90);
+assert('review_unanswered 4-5★ score is 75', scoreCard({ type: 'review_unanswered', severity: 'low' }) === 75);
 assert('follow_up >=7 score is 30', scoreCard({ type: 'follow_up', severity: 'medium', daysInactive: 7 }) === 30);
 assert('follow_up <7 score is 10', scoreCard({ type: 'follow_up', severity: 'medium', daysInactive: 3 }) === 10);
 
@@ -52,6 +55,10 @@ assert(
 assert(
   'signal staff only ack',
   getAllowedCardActions('signal', 'staff').join(',') === 'ack',
+);
+assert(
+  'review_unanswered staff is view_only',
+  getAllowedCardActions('review_unanswered', 'staff').join(',') === 'view_only',
 );
 
 console.log('\n=== SORTING + SLICING ===');

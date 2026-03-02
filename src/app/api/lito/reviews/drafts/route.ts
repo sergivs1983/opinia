@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { createHash } from 'crypto';
+
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -29,6 +31,20 @@ function withNoStore(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('x-request-id', requestId);
   return response;
+}
+
+function normalizeDraftText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ca');
+}
+
+function buildDraftFingerprint(input: {
+  bizId: string;
+  gbpReviewId: string;
+  normalizedText: string;
+}): string {
+  return createHash('sha256')
+    .update(`${input.bizId}:${input.gbpReviewId}:${input.normalizedText}`)
+    .digest('hex');
 }
 
 export async function POST(request: Request) {
@@ -86,12 +102,50 @@ export async function POST(request: Request) {
       );
     }
     const review = reviewData as GbpReviewRow;
+    const normalizedText = normalizeDraftText(payload.response_text);
+    const fingerprint = buildDraftFingerprint({
+      bizId: payload.biz_id,
+      gbpReviewId: review.gbp_review_id,
+      normalizedText,
+    });
+
+    const { data: existingDraftData, error: existingDraftError } = await admin
+      .from('lito_action_drafts')
+      .select('id, org_id, biz_id, kind, status, payload, created_by, created_at, updated_at')
+      .eq('org_id', access.orgId)
+      .eq('biz_id', payload.biz_id)
+      .eq('kind', 'gbp_update')
+      .eq('idempotency_key', fingerprint)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingDraftError) {
+      log.error('lito_review_draft_lookup_failed', {
+        biz_id: payload.biz_id,
+        review_id: payload.review_id,
+        error_code: existingDraftError.code || null,
+        error: existingDraftError.message || null,
+      });
+      return withNoStore(
+        NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
+        requestId,
+      );
+    }
+
+    if (existingDraftData) {
+      return withNoStore(
+        NextResponse.json({ ok: true, reused: true, draft: existingDraftData, request_id: requestId }, { status: 200 }),
+        requestId,
+      );
+    }
 
     const { data: inserted, error: insertError } = await admin
       .from('lito_action_drafts')
       .insert({
         org_id: access.orgId,
         biz_id: payload.biz_id,
+        idempotency_key: fingerprint,
         kind: 'gbp_update',
         status: 'draft',
         payload: {
@@ -101,6 +155,7 @@ export async function POST(request: Request) {
           star_rating: review.star_rating,
           comment_preview: review.comment_preview,
           review_create_time: review.create_time,
+          dedupe_fingerprint: fingerprint,
           suggested_reply: payload.response_text,
         },
         created_by: user.id,
@@ -109,6 +164,26 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError || !inserted) {
+      if (insertError?.code === '23505') {
+        const { data: racedDraftData } = await admin
+          .from('lito_action_drafts')
+          .select('id, org_id, biz_id, kind, status, payload, created_by, created_at, updated_at')
+          .eq('org_id', access.orgId)
+          .eq('biz_id', payload.biz_id)
+          .eq('kind', 'gbp_update')
+          .eq('idempotency_key', fingerprint)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (racedDraftData) {
+          return withNoStore(
+            NextResponse.json({ ok: true, reused: true, draft: racedDraftData, request_id: requestId }, { status: 200 }),
+            requestId,
+          );
+        }
+      }
+
       log.error('lito_review_draft_insert_failed', {
         biz_id: payload.biz_id,
         review_id: payload.review_id,

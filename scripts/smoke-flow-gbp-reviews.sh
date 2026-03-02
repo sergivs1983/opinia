@@ -107,6 +107,15 @@ else
   report_fail "POST /api/lito/reviews/drafts sense sessió (expected 401)"
 fi
 
+perform_request -X POST "${BASE}/api/lito/cards/state" \
+  -H "Content-Type: application/json" \
+  -d '{"biz_id":"00000000-0000-0000-0000-000000000000","card_id":"review_unanswered:test","action":"done"}'
+if [ "${REQ_CODE}" = "401" ]; then
+  report_ok "POST /api/lito/cards/state sense sessió (401)"
+else
+  report_fail "POST /api/lito/cards/state sense sessió (expected 401)"
+fi
+
 echo ""
 echo "2) HMAC guard worker"
 perform_request -X POST "${BASE}/api/_internal/gbp/reviews/sync" \

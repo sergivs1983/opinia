@@ -39,6 +39,24 @@ function parseMode(mode: string | null | undefined): ActionCardMode {
   return mode === 'advanced' ? 'advanced' : 'basic';
 }
 
+type CardStateRow = {
+  card_id: string;
+  state: 'dismissed' | 'snoozed' | 'done';
+  snoozed_until: string | null;
+};
+
+function shouldHideCardByState(state: CardStateRow | undefined, now: Date): boolean {
+  if (!state) return false;
+  if (state.state === 'dismissed' || state.state === 'done') return true;
+  if (state.state === 'snoozed') {
+    if (!state.snoozed_until) return true;
+    const snoozedUntil = new Date(state.snoozed_until);
+    if (Number.isNaN(snoozedUntil.getTime())) return false;
+    return now.getTime() < snoozedUntil.getTime();
+  }
+  return false;
+}
+
 function enqueueInBackground(input: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   bizId: string;
@@ -127,6 +145,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const cardsForRole = projectCardsForRole(cards, role);
     const sortedCards = sortCardsByPriority(cardsForRole);
 
+    let filteredCards = sortedCards;
+    if (sortedCards.length > 0) {
+      const { data: stateRowsData, error: stateRowsError } = await admin
+        .from('lito_card_states')
+        .select('card_id, state, snoozed_until')
+        .eq('biz_id', payload.biz_id)
+        .in('card_id', sortedCards.map((card) => card.id));
+
+      if (stateRowsError) {
+        throw new Error(stateRowsError.message || 'lito_card_states_fetch_failed');
+      }
+
+      const stateByCardId = new Map(
+        ((stateRowsData || []) as CardStateRow[]).map((row) => [row.card_id, row]),
+      );
+      const now = new Date();
+      filteredCards = sortedCards.filter((card) => !shouldHideCardByState(stateByCardId.get(card.id), now));
+    }
+
     if (cached.stale) {
       enqueueInBackground({ supabase, bizId: payload.biz_id, log });
     }
@@ -136,8 +173,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ok: true,
         generated_at: cached.generated_at || cached.updated_at || new Date().toISOString(),
         mode,
-        cards: sortedCards,
-        queue_count: sortedCards.length,
+        cards: filteredCards,
+        queue_count: filteredCards.length,
         source: cached.stale ? 'stale' : 'cache',
         request_id: requestId,
       }),

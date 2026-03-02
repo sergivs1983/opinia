@@ -52,6 +52,19 @@ type GbpReviewRow = {
   reply_time: string | null;
 };
 
+type BusinessContextRow = {
+  id: string;
+  name: string | null;
+  google_location_name: string | null;
+  google_location_id: string | null;
+};
+
+type LitoCardStateRow = {
+  card_id: string;
+  state: 'dismissed' | 'snoozed' | 'done';
+  snoozed_until: string | null;
+};
+
 export type BuildActionCardsInput = {
   admin: SupabaseClient;
   bizId: string;
@@ -215,6 +228,8 @@ function withPriority(input: {
   })();
 
   if (input.type === 'signal' && input.severity === 'high') return base + 25;
+  if (input.type === 'review_unanswered' && input.severity === 'high') return base + 30;
+  if (input.type === 'review_unanswered' && input.severity === 'medium') return base + 15;
   if (input.type === 'follow_up' && (input.daysInactive || 0) >= 7) return base + 20;
   return base;
 }
@@ -343,6 +358,54 @@ async function queryUnansweredReviews(input: {
   }
 
   return (data || []) as GbpReviewRow[];
+}
+
+async function queryBusinessContext(input: {
+  admin: SupabaseClient;
+  bizId: string;
+}): Promise<BusinessContextRow | null> {
+  const { data, error } = await input.admin
+    .from('businesses')
+    .select('id, name, google_location_name, google_location_id')
+    .eq('id', input.bizId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || 'business_context_query_failed');
+  }
+  return (data as BusinessContextRow | null) || null;
+}
+
+async function queryCardStates(input: {
+  admin: SupabaseClient;
+  bizId: string;
+  cardIds: string[];
+}): Promise<LitoCardStateRow[]> {
+  if (input.cardIds.length === 0) return [];
+
+  const { data, error } = await input.admin
+    .from('lito_card_states')
+    .select('card_id, state, snoozed_until')
+    .eq('biz_id', input.bizId)
+    .in('card_id', input.cardIds);
+
+  if (error) {
+    throw new Error(error.message || 'lito_card_states_query_failed');
+  }
+
+  return (data || []) as LitoCardStateRow[];
+}
+
+function isCardSuppressedByState(row: LitoCardStateRow | undefined, now: Date): boolean {
+  if (!row) return false;
+  if (row.state === 'dismissed' || row.state === 'done') return true;
+  if (row.state === 'snoozed') {
+    if (!row.snoozed_until) return true;
+    const snoozedUntil = new Date(row.snoozed_until);
+    if (Number.isNaN(snoozedUntil.getTime())) return false;
+    return now.getTime() < snoozedUntil.getTime();
+  }
+  return false;
 }
 
 async function queryWeekHasSchedules(input: {
@@ -596,6 +659,9 @@ function buildReviewUnansweredCard(input: {
   row: GbpReviewRow;
   role: ActionCardRole;
   now: Date;
+  businessName: string | null;
+  googleLocationName: string | null;
+  googleLocationId: string | null;
 }): ActionCard {
   const severity: ActionCardSeverity = input.row.star_rating <= 2
     ? 'high'
@@ -608,6 +674,9 @@ function buildReviewUnansweredCard(input: {
     star_rating: input.row.star_rating,
     comment_preview: input.row.comment_preview,
     create_time: input.row.create_time,
+    business_name: input.businessName,
+    google_location_name: input.googleLocationName,
+    google_location_id: input.googleLocationId,
   };
   const ctas = pickPrimaryAndSecondaryCtas({
     type: 'review_unanswered',
@@ -670,7 +739,15 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
   const generatedAt = now.toISOString();
   const mode = await resolveActionCardsMode(input.admin, input.orgId);
 
-  const [dueSchedule, pendingDraft, unansweredReviews, weekHasSchedules, signals, followUpData] = await Promise.all([
+  const [
+    dueSchedule,
+    pendingDraft,
+    unansweredReviews,
+    businessContext,
+    weekHasSchedules,
+    signals,
+    followUpData,
+  ] = await Promise.all([
     queryDueSchedule({
       admin: input.admin,
       bizId: input.bizId,
@@ -689,6 +766,10 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
       bizId: input.bizId,
       mode,
       now,
+    }),
+    queryBusinessContext({
+      admin: input.admin,
+      bizId: input.bizId,
     }),
     queryWeekHasSchedules({
       admin: input.admin,
@@ -720,7 +801,14 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
   }
 
   for (const review of unansweredReviews) {
-    cards.push(buildReviewUnansweredCard({ row: review, role: input.role, now }));
+    cards.push(buildReviewUnansweredCard({
+      row: review,
+      role: input.role,
+      now,
+      businessName: businessContext?.name || null,
+      googleLocationName: businessContext?.google_location_name || null,
+      googleLocationId: businessContext?.google_location_id || null,
+    }));
   }
 
   const isMonday = now.getDay() === 1;
@@ -742,7 +830,15 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
     }));
   }
 
-  const sortedCards = sortCardsByPriority(cards);
+  const cardStates = await queryCardStates({
+    admin: input.admin,
+    bizId: input.bizId,
+    cardIds: cards.map((card) => card.id),
+  });
+  const stateByCardId = new Map(cardStates.map((state) => [state.card_id, state]));
+  const filteredCards = cards.filter((card) => !isCardSuppressedByState(stateByCardId.get(card.id), now));
+
+  const sortedCards = sortCardsByPriority(filteredCards);
   const queueCount = sortedCards.length;
   const visibleCards = sliceCardsByMode(sortedCards, mode);
 
