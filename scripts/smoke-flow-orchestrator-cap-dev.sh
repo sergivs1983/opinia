@@ -124,8 +124,8 @@ for attempt in $(seq 1 "${ORCH_CAP_DEV_ATTEMPTS}"); do
       -d "{\"biz_id\":\"${ORCH_CAP_DEV_BIZ_ID}\",\"message\":\"smoke-cap-force-${attempt}\",\"mode\":\"orchestrator_safe\"}"
   fi
 
-  if [ "${REQ_CODE}" != "429" ] && [ "${REQ_CODE}" != "402" ]; then
-    report_fail "Attempt ${attempt} retorna 429/402"
+  if [ "${REQ_CODE}" != "429" ]; then
+    report_fail "Attempt ${attempt} retorna 429"
     continue
   fi
 
@@ -146,7 +146,7 @@ for attempt in $(seq 1 "${ORCH_CAP_DEV_ATTEMPTS}"); do
     continue
   fi
 
-  report_ok "Attempt ${attempt} => ${REQ_CODE} orchestrator_cap_reached"
+  report_ok "Attempt ${attempt} => 429 orchestrator_cap_reached"
 done
 
 echo ""

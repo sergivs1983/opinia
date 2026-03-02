@@ -608,7 +608,55 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
-  if (mode === 'orchestrator_safe' && allCards.length > 0) {
+  if (mode === 'orchestrator_safe') {
+    if (!guardrailDevHooks.forceOrchestratorCap) {
+      try {
+        await enforceOrchestratorDailyCap({
+          supabase,
+          orgId: access.orgId,
+          userId: user.id,
+          bizId: parsedBody.biz_id,
+          planCode: entitlements.plan_code,
+          requestId,
+          forceOrchestratorCap: false,
+        });
+      } catch (error) {
+        if (isGuardrailError(error) && error.code === 'orchestrator_cap_reached') {
+          const resetsAt = error.meta.resetsAt || nextUtcDayStartIso();
+          const responseBody: Record<string, unknown> = {
+            ok: false,
+            code: 'orchestrator_cap_reached',
+            message: 'Avui ja he fet moltes decisions. Torna-ho a provar demà.',
+            request_id: requestId,
+            resets_at: resetsAt,
+          };
+          if (entitlements.plan_code !== 'scale') {
+            responseBody.upgrade_url = '/dashboard/billing?plan=business';
+          }
+          return jsonNoStore(responseBody, requestId, 429);
+        }
+
+        log.error('lito_orchestrator_cap_failed', {
+          biz_id: parsedBody.biz_id,
+          org_id: access.orgId,
+          user_id: user.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return jsonNoStore(
+          {
+            ok: false,
+            code: 'internal',
+            message: 'Error intern del servidor',
+            request_id: requestId,
+          },
+          requestId,
+          500,
+        );
+      }
+    }
+  }
+
+  if (mode === 'orchestrator_safe' && guardrailDevHooks.forceOrchestratorCap) {
     try {
       await enforceOrchestratorDailyCap({
         supabase,
@@ -617,40 +665,22 @@ export async function POST(request: NextRequest): Promise<Response> {
         bizId: parsedBody.biz_id,
         planCode: entitlements.plan_code,
         requestId,
-        forceOrchestratorCap: guardrailDevHooks.forceOrchestratorCap,
+        forceOrchestratorCap: true,
       });
     } catch (error) {
       if (isGuardrailError(error) && error.code === 'orchestrator_cap_reached') {
         const resetsAt = error.meta.resetsAt || nextUtcDayStartIso();
-        const responseBody: Record<string, unknown> = {
+        const body: Record<string, unknown> = {
           ok: false,
           code: 'orchestrator_cap_reached',
           message: 'Avui ja he fet moltes decisions. Torna-ho a provar demà.',
           request_id: requestId,
           resets_at: resetsAt,
         };
-        if (entitlements.plan_code !== 'scale') {
-          responseBody.upgrade_url = '/dashboard/billing?plan=business';
-        }
-        return jsonNoStore(responseBody, requestId, 429);
+        if (entitlements.plan_code !== 'scale') body.upgrade_url = '/dashboard/billing?plan=business';
+        return jsonNoStore(body, requestId, 429);
       }
-
-      log.error('lito_orchestrator_cap_failed', {
-        biz_id: parsedBody.biz_id,
-        org_id: access.orgId,
-        user_id: user.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return jsonNoStore(
-        {
-          ok: false,
-          code: 'internal',
-          message: 'Error intern del servidor',
-          request_id: requestId,
-        },
-        requestId,
-        500,
-      );
+      throw error;
     }
   }
 

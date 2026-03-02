@@ -4,6 +4,7 @@
  */
 
 import { resolveGuardrailDevHooks } from '../lib/guards/dev-hooks';
+import { resolveProvider } from '../lib/ai/provider';
 import { isGuardrailError } from '../lib/guards/errors';
 import { enforceOrchestratorDailyCap } from '../lib/guards/orchestrator-cap';
 import { enforceOrgUserRateLimit } from '../lib/guards/rate-limit';
@@ -100,6 +101,38 @@ function statusFromGuardrailError(error: unknown): number {
   if (error.code === 'rate_limited') return 429;
   if (error.code === 'orchestrator_cap_reached') return 429;
   return 500;
+}
+
+async function simulateOrchestratorSafeStatus(input: {
+  requestUrl: string;
+  nodeEnv: string;
+  supabase: FakeSupabase;
+}): Promise<number> {
+  const hooks = resolveGuardrailDevHooks(new Request(input.requestUrl), input.nodeEnv);
+
+  if (hooks.forceOrchestratorCap) {
+    try {
+      await enforceOrchestratorDailyCap({
+        supabase: input.supabase as never,
+        orgId: 'org-sim',
+        userId: 'user-sim',
+        bizId: 'biz-sim',
+        planCode: 'starter',
+        requestId: 'req-sim-force',
+        forceOrchestratorCap: true,
+      });
+    } catch (error) {
+      if (isGuardrailError(error) && error.code === 'orchestrator_cap_reached') {
+        return 429;
+      }
+      throw error;
+    }
+  }
+
+  const providerState = resolveProvider({ orgProvider: null });
+  if (!providerState.available) return 503;
+
+  return 200;
 }
 
 async function run() {
@@ -234,6 +267,40 @@ async function run() {
 
     assert('production ignores forced rate limit', rateThrew === false);
     assert('production ignores forced orchestrator cap', capThrew === false);
+  }
+
+  console.log('\n=== ORCHESTRATOR FORCE BEFORE PROVIDER ===');
+  {
+    process.env.NODE_ENV = 'test';
+    const previousOpenAI = process.env.OPENAI_API_KEY;
+    const previousAnthropic = process.env.ANTHROPIC_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+
+    try {
+      const forcedSupabase = new FakeSupabase();
+      const forcedStatus = await simulateOrchestratorSafeStatus({
+        requestUrl: 'http://localhost:3000/api/lito/chat?__force_orchestrator_cap=1',
+        nodeEnv: 'test',
+        supabase: forcedSupabase,
+      });
+
+      const plainSupabase = new FakeSupabase();
+      const plainStatus = await simulateOrchestratorSafeStatus({
+        requestUrl: 'http://localhost:3000/api/lito/chat',
+        nodeEnv: 'test',
+        supabase: plainSupabase,
+      });
+
+      assert('force orchestrator cap returns 429 even when provider unavailable', forcedStatus === 429);
+      assert('without force flag and provider unavailable returns 503', plainStatus === 503);
+      assert('force orchestrator cap telemetry emitted', forcedSupabase.hasEvent('orchestrator_cap_reached'));
+    } finally {
+      if (typeof previousOpenAI === 'string') process.env.OPENAI_API_KEY = previousOpenAI;
+      else delete process.env.OPENAI_API_KEY;
+      if (typeof previousAnthropic === 'string') process.env.ANTHROPIC_API_KEY = previousAnthropic;
+      else delete process.env.ANTHROPIC_API_KEY;
+    }
   }
 
   if (typeof previousNodeEnv === 'string') process.env.NODE_ENV = previousNodeEnv;
