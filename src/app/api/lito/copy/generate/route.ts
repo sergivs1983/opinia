@@ -356,6 +356,7 @@ export async function POST(request: Request) {
         supabase,
         orgId: recommendation.org_id,
         userId: user.id,
+        bizId: recommendation.biz_id,
         key: 'copy_generate',
         orgLimitPerMin: copyGenerateRateLimits.orgLimitPerMin,
         userLimitPerMin: copyGenerateRateLimits.userLimitPerMin,

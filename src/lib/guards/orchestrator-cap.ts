@@ -66,6 +66,7 @@ async function emitCapEvent(params: {
   supabase: SupabaseClient;
   orgId: string;
   userId: string;
+  bizId?: string | null;
   planCode: CanonicalPlanCode;
   limit: number;
   count: number;
@@ -78,6 +79,7 @@ async function emitCapEvent(params: {
       p_event_name: 'orchestrator_cap_reached',
       p_props: {
         org_id: params.orgId,
+        biz_id: params.bizId ?? null,
         plan_code: params.planCode,
         limit: params.limit,
         count: params.count,
@@ -94,6 +96,7 @@ export async function enforceOrchestratorDailyCap(params: {
   supabase: SupabaseClient;
   orgId: string;
   userId: string;
+  bizId?: string | null;
   planCode: string | null | undefined;
   requestId: string;
 }): Promise<void> {
@@ -116,6 +119,7 @@ export async function enforceOrchestratorDailyCap(params: {
     supabase: params.supabase,
     orgId: params.orgId,
     userId: params.userId,
+    bizId: params.bizId,
     planCode: canonicalPlan,
     limit: parsed.limit,
     count: parsed.count,

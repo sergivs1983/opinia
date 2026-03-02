@@ -38,6 +38,7 @@ async function emitRateLimitEvent(params: {
   supabase: SupabaseClient;
   orgId: string;
   userId: string;
+  bizId?: string | null;
   eventName: 'rate_limited_org' | 'rate_limited_user';
   key: string;
   limit: number;
@@ -52,6 +53,7 @@ async function emitRateLimitEvent(params: {
       p_props: {
         org_id: params.orgId,
         user_id: params.userId,
+        biz_id: params.bizId ?? null,
         key: params.key,
         limit: params.limit,
         window: 'minute',
@@ -68,6 +70,7 @@ export async function enforceOrgUserRateLimit(params: {
   supabase: SupabaseClient;
   orgId: string;
   userId: string;
+  bizId?: string | null;
   key: string;
   orgLimitPerMin: number;
   userLimitPerMin: number;
@@ -93,6 +96,7 @@ export async function enforceOrgUserRateLimit(params: {
       supabase: params.supabase,
       orgId: params.orgId,
       userId: params.userId,
+      bizId: params.bizId,
       eventName: 'rate_limited_org',
       key: params.key,
       limit: orgLimit,
@@ -125,6 +129,7 @@ export async function enforceOrgUserRateLimit(params: {
       supabase: params.supabase,
       orgId: params.orgId,
       userId: params.userId,
+      bizId: params.bizId,
       eventName: 'rate_limited_user',
       key: params.key,
       limit: userLimit,

@@ -524,6 +524,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       supabase,
       orgId: access.orgId,
       userId: user.id,
+      bizId: parsedBody.biz_id,
       key: 'lito_chat',
       orgLimitPerMin: chatRateLimits.orgLimitPerMin,
       userLimitPerMin: chatRateLimits.userLimitPerMin,
@@ -662,6 +663,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         supabase,
         orgId: access.orgId,
         userId: user.id,
+        bizId: parsedBody.biz_id,
         planCode: entitlements.plan_code,
         requestId,
       });
