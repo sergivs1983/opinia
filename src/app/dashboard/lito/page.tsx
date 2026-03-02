@@ -65,6 +65,7 @@ type CommandPanelState = {
 type OrchestratorViewState = {
   greeting: string;
   priorityMessage: string;
+  selectedCardIds: string[];
   cards: ActionCard[];
   queueCount: number;
   mode: 'basic' | 'advanced';
@@ -279,9 +280,21 @@ export default function DashboardLitoPage() {
 
   const cardsForStack = useMemo(() => orchestratorView?.cards || cards, [orchestratorView?.cards, cards]);
   const modeForStack = useMemo(() => orchestratorView?.mode || mode, [orchestratorView?.mode, mode]);
+  const selectedCardSet = useMemo(
+    () => new Set(orchestratorView?.selectedCardIds || []),
+    [orchestratorView?.selectedCardIds],
+  );
   const queueCountForStack = useMemo(
     () => (typeof orchestratorView?.queueCount === 'number' ? orchestratorView.queueCount : queueCount),
     [orchestratorView?.queueCount, queueCount],
+  );
+  const cardsForQueueDrawer = useMemo(
+    () => (orchestratorView ? cards.filter((card) => !selectedCardSet.has(card.id)) : cards),
+    [orchestratorView, cards, selectedCardSet],
+  );
+  const queueCountForQueueDrawer = useMemo(
+    () => (orchestratorView ? cardsForQueueDrawer.length : queueCount),
+    [orchestratorView, cardsForQueueDrawer, queueCount],
   );
 
   const withActionBusy = useCallback(async (card: ActionCard, cta: ActionCardCta, task: () => Promise<void>) => {
@@ -437,8 +450,11 @@ export default function DashboardLitoPage() {
     setOrchestratorView({
       greeting: payload.greeting,
       priorityMessage: payload.priority_message,
+      selectedCardIds: payload.selected_card_ids || [],
       cards: payload.cards_final,
-      queueCount: typeof payload.queue_count === 'number' ? payload.queue_count : queueCount,
+      queueCount: typeof payload.queue_count === 'number'
+        ? payload.queue_count
+        : Math.max(0, queueCount - (payload.selected_card_ids?.length || 0)),
       mode: payload.mode === 'advanced' ? 'advanced' : 'basic',
     });
   }, [queueCount]);
@@ -493,6 +509,7 @@ export default function DashboardLitoPage() {
           mode={modeForStack}
           source={source}
           queueCount={queueCountForStack}
+          queueIsRemaining={Boolean(orchestratorView)}
           title={copy.weekTitle}
           emptyTitle={copy.emptyTitle}
           emptySubtitle={copy.emptySubtitle}
@@ -520,8 +537,8 @@ export default function DashboardLitoPage() {
         title={copy.queueTitle}
         closeLabel={copy.close}
         emptyLabel={copy.queueEmpty}
-        cards={cards}
-        queueCount={queueCount}
+        cards={cardsForQueueDrawer}
+        queueCount={queueCountForQueueDrawer}
         busyMap={actionBusy}
         onClose={() => setQueueOpen(false)}
         onAction={handleCardAction}

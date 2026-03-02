@@ -41,6 +41,8 @@ type SSEChunk = {
   data: unknown;
 };
 
+type UILanguage = 'ca' | 'es' | 'en';
+
 function withNoStore(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('x-request-id', requestId);
@@ -59,6 +61,39 @@ function compactText(value: unknown, max = 180): string {
   const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   if (!text) return '';
   return text.slice(0, max);
+}
+
+function resolveLanguage(value: unknown): UILanguage {
+  if (value === 'es' || value === 'en') return value;
+  return 'ca';
+}
+
+function orchestratorEmptyFallbackCopy(language: UILanguage): {
+  greeting: string;
+  priority_message: string;
+  next_question: string;
+} {
+  if (language === 'es') {
+    return {
+      greeting: 'Buenos días.',
+      priority_message: 'Aún estoy preparando tu día.',
+      next_question: '¿Quieres preparar la semana?',
+    };
+  }
+
+  if (language === 'en') {
+    return {
+      greeting: 'Good morning.',
+      priority_message: 'I am still preparing your day.',
+      next_question: 'Do you want to prepare the week?',
+    };
+  }
+
+  return {
+    greeting: 'Bon dia.',
+    priority_message: 'Encara estic preparant el teu dia.',
+    next_question: 'Vols preparar la setmana?',
+  };
 }
 
 function parseRole(role: string | null | undefined): ActionCardRole | null {
@@ -339,6 +374,7 @@ function buildOrchestratorResponse(input: {
   next_question: string;
   selected_card_ids: string[];
   cards_final: ActionCard[];
+  queue_count_for_today: number;
 } {
   const byId = new Map(input.allCards.map((card) => [card.id, card]));
   const selectedCards = input.output.selected_card_ids
@@ -355,6 +391,7 @@ function buildOrchestratorResponse(input: {
     next_question: input.output.next_question,
     selected_card_ids: input.output.selected_card_ids,
     cards_final: cardsWithCopy,
+    queue_count_for_today: Math.max(0, input.allCards.length - input.output.selected_card_ids.length),
   };
 }
 
@@ -491,6 +528,8 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   if (mode === 'orchestrator_safe') {
     if (allCards.length === 0) {
+      const language = resolveLanguage(payload.business_context.language);
+      const fallbackCopy = orchestratorEmptyFallbackCopy(language);
       return sseResponse({
         requestId,
         writer: async (push) => {
@@ -508,22 +547,11 @@ export async function POST(request: NextRequest): Promise<Response> {
           push({
             event: 'json',
             data: {
-              greeting: payload.business_context.language === 'es'
-                ? 'Vamos paso a paso.'
-                : payload.business_context.language === 'en'
-                  ? 'Let us go step by step.'
-                  : 'Anem pas a pas.',
-              priority_message: payload.business_context.language === 'es'
-                ? 'No hay tarjetas activas ahora.'
-                : payload.business_context.language === 'en'
-                  ? 'No active cards right now.'
-                  : 'Ara mateix no hi ha targetes actives.',
-              next_question: payload.business_context.language === 'es'
-                ? '¿Quieres que revisemos mañana?'
-                : payload.business_context.language === 'en'
-                  ? 'Should we check again tomorrow?'
-                  : 'Vols que ho revisem demà?',
+              greeting: fallbackCopy.greeting,
+              priority_message: fallbackCopy.priority_message,
+              next_question: fallbackCopy.next_question,
               selected_card_ids: [],
+              cards_copy: {},
               cards_final: [],
               queue_count: 0,
               mode: actionCardsMode,
@@ -626,7 +654,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           event: 'json',
           data: {
             ...finalJson,
-            queue_count: allCards.length,
+            queue_count: finalJson.queue_count_for_today,
             mode: actionCardsMode,
           },
         });

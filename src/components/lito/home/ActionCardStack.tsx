@@ -9,6 +9,7 @@ type ActionCardStackProps = {
   mode: ActionCardMode;
   source: ActionCardsSource;
   queueCount: number;
+  queueIsRemaining?: boolean;
   title: string;
   emptyTitle: string;
   emptySubtitle: string;
@@ -29,6 +30,7 @@ export default function ActionCardStack({
   mode,
   source,
   queueCount,
+  queueIsRemaining = false,
   title,
   emptyTitle,
   emptySubtitle,
@@ -41,6 +43,7 @@ export default function ActionCardStack({
 }: ActionCardStackProps) {
   const visibleLimit = mode === 'advanced' ? 6 : 2;
   const visibleCards = cards.slice(0, visibleLimit);
+  const shouldShowQueue = queueIsRemaining ? queueCount > 0 : queueCount > visibleCards.length;
 
   return (
     <section className="lito-action-stack">
@@ -53,7 +56,7 @@ export default function ActionCardStack({
               {updatingText}
             </span>
           ) : null}
-          {queueCount > visibleCards.length ? (
+          {shouldShowQueue ? (
             <button type="button" className="lito-view-all" onClick={onOpenQueue}>
               {viewAllLabel} ({queueCount})
             </button>

@@ -11,6 +11,11 @@ function modeLimit(mode: ActionCardMode): number {
   return mode === 'advanced' ? 6 : 2;
 }
 
+function resolveLanguage(value: unknown): 'ca' | 'es' | 'en' {
+  if (value === 'es' || value === 'en') return value;
+  return 'ca';
+}
+
 function compactText(value: string, max: number): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -42,16 +47,19 @@ export function buildOrchestratorSafePrompt(input: {
   cards: ActionCard[];
 }): string {
   const limit = modeLimit(input.mode);
-  const langRule = languageInstruction(input.payload.business_context.language);
+  const language = resolveLanguage(input.payload.business_context.language ?? 'ca');
+  const langRule = languageInstruction(language);
   const cardsList = renderCards(input.cards);
 
   return [
     'Ets LITO Orchestrator SAFE.',
     langRule,
+    `Idioma obligatori de sortida: ${language}.`,
     'No inventis cards noves. Només pots triar IDs de la llista rebuda.',
     `Has de seleccionar entre 1 i ${limit} cards (mode=${input.mode}).`,
     'No incloguis PII, ni tecnicismes, ni promeses d’accions automàtiques.',
     'Pots reescriure title/subtitle/labels, però MAI canviar action ni payload.',
+    'greeting, priority_message i next_question han d’estar SEMPRE en l’idioma obligatori.',
     'Retorna EXCLUSIVAMENT JSON vàlid amb aquest schema:',
     '{ "greeting": string, "priority_message": string, "selected_card_ids": string[], "cards_copy"?: { "<id>": { "title"?: string, "subtitle"?: string, "primary_label"?: string, "secondary_label"?: string } }, "next_question": string }',
     '',
