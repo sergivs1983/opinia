@@ -604,7 +604,7 @@ export default function IntegrationsPlaceholder() {
 
   return (
     <>
-      <div className="max-w-3xl space-y-4">
+      <div className="lito-light-scope max-w-3xl space-y-4">
         <div className={cn(glassStrong, glassNoise, glassSweep, 'p-6 space-y-4')}>
           <div className="space-y-1">
             <h3 className="font-semibold text-white/90">{t('settings.integrations.publishSectionTitle')}</h3>

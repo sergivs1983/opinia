@@ -10,7 +10,7 @@ import { useLocale, useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
-import { textMain, textSub } from '@/components/ui/glass';
+import { tokens, cx } from '@/lib/design/tokens';
 import { toLocalDateTimeInputValue } from '@/lib/social/schedules';
 import { getIkeaChecklist } from '@/lib/recommendations/howto';
 import { captureClientEvent } from '@/lib/analytics/client';
@@ -731,8 +731,8 @@ export default function SocialPlannerPanel() {
     <LitoCard spotlight={false} className="lito-light-scope p-4 md:p-5" data-testid="dashboard-social-planner">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className={cn('text-base font-semibold', textMain)}>{t('dashboard.home.socialPlanner.title')}</h2>
-          <p className={cn('mt-1 text-xs', textSub)}>{t('dashboard.home.socialPlanner.subtitle')}</p>
+          <h2 className={cx('text-base font-semibold', tokens.text.primary)}>{t('dashboard.home.socialPlanner.title')}</h2>
+          <p className={cx('mt-1 text-xs', tokens.text.secondary)}>{t('dashboard.home.socialPlanner.subtitle')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {pushSupported ? (
@@ -759,7 +759,7 @@ export default function SocialPlannerPanel() {
           ) : null}
           <Button
             variant="ghost"
-            className="h-8 px-3 text-xs text-white/80 hover:text-white"
+            className={cx('h-8 px-3 text-xs', tokens.text.secondary)}
             onClick={() => setShowAdvanced((value) => !value)}
           >
             {showAdvanced
@@ -780,10 +780,10 @@ export default function SocialPlannerPanel() {
 
       <div className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3">
         <div className="flex items-center justify-between gap-2">
-          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+          <p className={cx('text-xs font-semibold uppercase tracking-wide', tokens.text.secondary)}>
             {t('dashboard.home.weeklyConsistency.title')}
           </p>
-          <p className="text-sm font-semibold text-white/90">
+          <p className={cx('text-sm font-semibold', tokens.text.primary)}>
             {weeklyStats
               ? t('dashboard.home.weeklyConsistency.value', {
                 done: weeklyStats.published_count,
@@ -798,7 +798,7 @@ export default function SocialPlannerPanel() {
             style={{ width: `${weeklyStatsProgress}%` }}
           />
         </div>
-        <p className={cn('mt-2 text-xs', textSub)}>
+        <p className={cx('mt-2 text-xs', tokens.text.secondary)}>
           {weeklyStats
             ? weeklyStats.is_completed
               ? t('dashboard.home.weeklyConsistency.completed')
@@ -920,7 +920,7 @@ export default function SocialPlannerPanel() {
               <div className="h-16 animate-pulse rounded-lg border border-white/10 bg-white/5" />
             ) : scheduledItems.length === 0 ? (
               <div className="space-y-2">
-                <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
+                <p className={cx('text-xs', tokens.text.secondary)}>{t('dashboard.home.socialPlanner.emptyScheduled')}</p>
                 <div className="flex flex-wrap gap-1">
                   <Button
                     variant="secondary"
@@ -1097,7 +1097,7 @@ export default function SocialPlannerPanel() {
               </p>
               <div className="mt-2 space-y-2">
                 {publishedItems.length === 0 ? (
-                  <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyPublished')}</p>
+                  <p className={cx('text-xs', tokens.text.secondary)}>{t('dashboard.home.socialPlanner.emptyPublished')}</p>
                 ) : (
                   publishedItems.map((item) => (
                     <div
@@ -1138,7 +1138,7 @@ export default function SocialPlannerPanel() {
               </p>
               <div className="mt-2 space-y-2">
                 {missedItems.length === 0 ? (
-                  <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyMissed')}</p>
+                  <p className={cx('text-xs', tokens.text.secondary)}>{t('dashboard.home.socialPlanner.emptyMissed')}</p>
                 ) : (
                   missedItems.map((item) => (
                     <div

@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import type { GuardrailWarning, Reply, ReplyTone, Review } from '@/types/database';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import LitoCard from '@/components/ui/LitoCard';
 import SeoChips from '@/components/inbox/SeoChips';
 import GuardrailStatusBadge from '@/components/inbox/GuardrailStatusBadge';
 import { useT } from '@/components/i18n/I18nContext';
 import { cn, toneDescription } from '@/lib/utils';
-import { glass, glassStrong, ringAccent, textMain, textMuted, textSub } from '@/components/ui/glass';
+import { tokens, cx } from '@/lib/design/tokens';
 
 type GenerateErrorState = {
   message: string;
@@ -85,25 +86,23 @@ export default function ReplyCard({
 
   if (!review) {
     return (
-      <section className={cn(glassStrong, 'flex h-full min-h-[320px] items-center justify-center p-6')} data-testid="inbox-reply-card">
-        <p className={cn('text-sm', textMuted)}>{t('dashboard.inbox.selectReviewHint')}</p>
-      </section>
+      <LitoCard spotlight={false} className="flex h-full min-h-[320px] items-center justify-center p-6" data-testid="inbox-reply-card">
+        <p className={cx('text-sm', tokens.text.secondary)}>{t('dashboard.inbox.selectReviewHint')}</p>
+      </LitoCard>
     );
   }
 
   return (
-    <section
-      className={cn(
-        glassStrong,
-        'flex h-full min-h-0 flex-col overflow-hidden border-white/12 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.7)]',
-      )}
+    <LitoCard
+      spotlight={false}
+      className="flex h-full min-h-0 flex-col overflow-hidden"
       data-testid="inbox-reply-card"
     >
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-gradient-to-b from-black/45 via-black/20 to-transparent px-4 py-3 backdrop-blur-xl">
+      <header className={cx('sticky top-0 z-10 px-4 py-3', tokens.border.divider, tokens.bg.surface)}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className={cn('font-display text-lg font-semibold', textMain)}>{t('dashboard.inbox.replyTitle')}</h3>
-            <p className={cn('mt-0.5 text-xs', textMuted)}>{t('dashboard.inbox.optionsCount')}</p>
+            <h3 className={cx('font-display text-lg font-semibold', tokens.text.primary)}>{t('dashboard.inbox.replyTitle')}</h3>
+            <p className={cx('mt-0.5 text-xs', tokens.text.secondary)}>{t('dashboard.inbox.optionsCount')}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button size="sm" variant="secondary" onClick={onCopy} disabled={!value}>
@@ -120,11 +119,11 @@ export default function ReplyCard({
             </Button>
           </div>
         </div>
-        <p className={cn('mt-1 text-xs', textMuted)}>{review.author_name || t('dashboard.home.meta.anonymousAuthor')}</p>
+        <p className={cx('mt-1 text-xs', tokens.text.secondary)}>{review.author_name || t('dashboard.home.meta.anonymousAuthor')}</p>
       </header>
 
-      <div className="border-b border-white/10 px-4 pb-3 pt-3">
-        <div className="rounded-2xl border border-white/12 bg-white/5 p-1 backdrop-blur-xl">
+      <div className={cx('px-4 pb-3 pt-3', tokens.border.divider)}>
+        <div className={cx('rounded-2xl p-1', tokens.border.subtle, tokens.bg.subtle)}>
           <div className="flex items-center gap-1">
             {REPLY_TABS.map((tab, index) => {
               const isActive = selectedTone === tab.tone && activeTab === index;
@@ -138,10 +137,10 @@ export default function ReplyCard({
                   }}
                   className={cn(
                     'relative flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-[220ms] ease-premium',
-                    ringAccent,
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300',
                     isActive
-                      ? 'bg-white/12 text-white border border-white/20 shadow-[0_0_0_1px_rgba(34,197,94,0.25)] ring-1 ring-emerald-400/20'
-                      : 'bg-white/5 text-white/75 border border-transparent hover:bg-white/8 hover:border-white/15 hover:text-white/90',
+                      ? 'border border-[#d4d3ce] bg-white text-[#1a1917] shadow-[0_0_0_1px_rgba(16,185,129,0.25)]'
+                      : 'border border-transparent bg-transparent text-[#6b6a65] hover:border-[#e5e4df] hover:bg-white hover:text-[#1a1917]',
                   )}
                   data-testid={`reply-option-tab-${index + 1}`}
                 >
@@ -151,8 +150,8 @@ export default function ReplyCard({
             })}
           </div>
         </div>
-        <div className="mt-3 h-px w-full bg-gradient-to-r from-white/15 via-white/8 to-transparent" />
-        <p className={cn('mt-2 text-xs', textSub)}>{toneDescription(selectedTone, t)}</p>
+        <div className="mt-3 h-px w-full bg-gradient-to-r from-[#e7e6e1] via-[#f1f0eb] to-transparent" />
+        <p className={cx('mt-2 text-xs', tokens.text.secondary)}>{toneDescription(selectedTone, t)}</p>
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
@@ -164,15 +163,15 @@ export default function ReplyCard({
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-500/35 bg-red-500/12 p-3" data-testid="generate-error-box">
-            <p className="text-sm font-medium text-red-200">{error.message}</p>
+          <div className="rounded-xl border border-red-300 bg-red-50 p-3" data-testid="generate-error-box">
+            <p className="text-sm font-medium text-red-700">{error.message}</p>
             {error.requestId && (
               <div className="mt-2 flex items-center gap-3">
-                <span className="text-xs text-red-200" data-testid="generate-error-request-id">ID: {error.requestId}</span>
+                <span className="text-xs text-red-700" data-testid="generate-error-request-id">ID: {error.requestId}</span>
                 <button
                   type="button"
                   onClick={onCopyRequestId}
-                  className="text-xs text-red-200 underline underline-offset-2 hover:text-red-100"
+                  className="text-xs text-red-700 underline underline-offset-2 hover:text-red-800"
                   data-testid="generate-error-copy-id"
                 >
                   {copiedRequestId ? t('dashboard.inbox.idCopied') : t('dashboard.inbox.copyId')}
@@ -182,16 +181,16 @@ export default function ReplyCard({
           </div>
         )}
 
-        <div className="rounded-2xl border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+        <div className={cx('rounded-2xl p-4', tokens.border.subtle, tokens.bg.subtle)}>
           <textarea
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={t('dashboard.inbox.noReplyYet')}
             data-testid="review-response-editor"
-            className="min-h-[240px] w-full resize-y bg-transparent text-sm leading-relaxed text-white/92 focus:outline-none"
+            className={cx('min-h-[240px] w-full resize-y bg-transparent text-sm leading-relaxed focus:outline-none', tokens.text.primary)}
           />
-          <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-2">
-            <p className={cn('text-xs', textMuted)}>
+          <div className={cx('mt-3 flex items-center justify-between gap-2 pt-2', tokens.border.divider)}>
+            <p className={cx('text-xs', tokens.text.secondary)}>
               {t('dashboard.inbox.chars')}: {value.length}
             </p>
             <Badge variant="brand">{t(REPLY_TABS[activeTab]?.labelKey || REPLY_TABS[1].labelKey)}</Badge>
@@ -199,21 +198,21 @@ export default function ReplyCard({
         </div>
 
         {hasWarnings && (
-          <div className={cn(glass, 'rounded-xl border-red-500/35 bg-red-500/12 p-4')}>
-            <p className="text-sm font-semibold text-red-200">{t('dashboard.inbox.guardrailWarning')}</p>
+          <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+            <p className="text-sm font-semibold text-red-700">{t('dashboard.inbox.guardrailWarning')}</p>
             <ul className="mt-2 space-y-1">
               {guardrailWarnings.map((warning, index) => (
-                <li key={`${warning.type}-${index}`} className="text-sm text-red-100">
+                <li key={`${warning.type}-${index}`} className="text-sm text-red-700">
                   • {warning.text}
                 </li>
               ))}
             </ul>
-            <label className="mt-3 flex items-center gap-2 text-sm text-red-100">
+            <label className="mt-3 flex items-center gap-2 text-sm text-red-700">
               <input
                 type="checkbox"
                 checked={guardrailAcknowledged}
                 onChange={(event) => onGuardrailAcknowledge(event.target.checked)}
-                className="rounded border-red-300/40"
+                className="rounded border-red-300"
               />
               {t('dashboard.inbox.guardrailAcknowledge')}
             </label>
@@ -221,7 +220,7 @@ export default function ReplyCard({
         )}
       </div>
 
-      <footer className="border-t border-white/10 px-4 py-3">
+      <footer className={cx('px-4 py-3', tokens.border.divider)}>
         <div className="flex items-center justify-end gap-2">
           <Button
             size="sm"
@@ -233,6 +232,6 @@ export default function ReplyCard({
           </Button>
         </div>
       </footer>
-    </section>
+    </LitoCard>
   );
 }
