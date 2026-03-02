@@ -1,6 +1,16 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import {
+  Activity,
+  Brain,
+  CreditCard,
+  Globe2,
+  PlugZap,
+  SlidersHorizontal,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 
 import {
   BillingSettings,
@@ -10,7 +20,6 @@ import {
   VoiceSettings,
 } from '@/components/settings';
 import LITOHealthTab from '@/components/lito/tabs/LITOHealthTab';
-import { shellTokens } from '@/components/ui/AppShell';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export type SettingsModalPanel =
@@ -29,6 +38,7 @@ type SettingsModalProps = {
 
 type PanelItem = {
   key: SettingsModalPanel;
+  Icon: LucideIcon;
   label: string;
   navDescription: string;
   title: string;
@@ -38,6 +48,7 @@ type PanelItem = {
 const PANEL_ITEMS: PanelItem[] = [
   {
     key: 'general',
+    Icon: SlidersHorizontal,
     label: 'General',
     navDescription: 'To i comportament de la IA',
     title: 'Configuració general',
@@ -45,6 +56,7 @@ const PANEL_ITEMS: PanelItem[] = [
   },
   {
     key: 'integrations',
+    Icon: PlugZap,
     label: 'Integracions',
     navDescription: 'Google Business i connectors',
     title: 'Integracions',
@@ -52,6 +64,7 @@ const PANEL_ITEMS: PanelItem[] = [
   },
   {
     key: 'brand-brain',
+    Icon: Brain,
     label: 'Brand Brain',
     navDescription: 'Memòria de negoci i context',
     title: 'Brand Brain',
@@ -59,6 +72,7 @@ const PANEL_ITEMS: PanelItem[] = [
   },
   {
     key: 'billing',
+    Icon: CreditCard,
     label: 'Billing',
     navDescription: 'Pla i ús actual',
     title: 'Billing i plans',
@@ -66,6 +80,7 @@ const PANEL_ITEMS: PanelItem[] = [
   },
   {
     key: 'language',
+    Icon: Globe2,
     label: 'Idioma',
     navDescription: 'Llengua de la plataforma',
     title: 'Idioma',
@@ -73,6 +88,7 @@ const PANEL_ITEMS: PanelItem[] = [
   },
   {
     key: 'health',
+    Icon: Activity,
     label: 'Health',
     navDescription: 'KPI i guardrails',
     title: 'Health',
@@ -120,14 +136,7 @@ export default function SettingsModal({ panel, onClose, onSelectPanel }: Setting
   const renderPanel = () => {
     if (!biz || !org) {
       return (
-        <div
-          style={{
-            borderRadius: 20,
-            border: `1px solid ${shellTokens.borderSolid}`,
-            background: shellTokens.white,
-            padding: 24,
-          }}
-        >
+        <div className="rounded-2xl border border-black/10 bg-white p-6 text-sm text-zinc-700 shadow-sm">
           Selecciona un negoci per obrir configuració avançada.
         </div>
       );
@@ -147,135 +156,72 @@ export default function SettingsModal({ panel, onClose, onSelectPanel }: Setting
       role="dialog"
       aria-label="Configuració"
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 140,
-        background: 'rgba(9,11,16,0.46)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-      }}
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-black/25 p-4 backdrop-blur-md sm:p-6"
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        style={{
-          width: 'min(920px, calc(100vw - 48px))',
-          maxHeight: '80vh',
-          background: shellTokens.bg,
-          borderRadius: 24,
-          border: `1px solid ${shellTokens.borderSolid}`,
-          boxShadow: '0 24px 70px rgba(0,0,0,0.22)',
-          display: 'grid',
-          gridTemplateColumns: '240px minmax(0,1fr)',
-          overflow: 'hidden',
-        }}
+        className="grid max-h-[80vh] w-full max-w-[920px] grid-cols-1 overflow-hidden rounded-2xl border border-black/10 bg-white/90 shadow-2xl backdrop-blur-xl md:grid-cols-[16rem_minmax(0,1fr)]"
       >
         <aside
-          style={{
-            borderRight: `1px solid ${shellTokens.borderSolid}`,
-            background: shellTokens.white,
-            padding: 16,
-            overflowY: 'auto',
-          }}
+          className="max-h-[80vh] overflow-y-auto border-b border-black/10 bg-zinc-50/80 p-4 md:border-b-0 md:border-r md:p-5"
         >
-          <div style={{ marginBottom: 16 }}>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 18,
-                lineHeight: 1.2,
-                fontWeight: 600,
-                color: shellTokens.textPrimary,
-                fontFamily: shellTokens.serif,
-              }}
-            >
-              Configuració
-            </p>
-            <p style={{ margin: '6px 0 0', fontSize: 12, color: shellTokens.textSecondary }}>
-              Patró modal tipus ChatGPT
-            </p>
+          <div>
+            <p className="font-serif text-[28px] font-semibold leading-tight tracking-[-0.02em] text-zinc-900">Configuració</p>
+            <p className="mt-1 text-xs text-zinc-500">Patró modal tipus ChatGPT</p>
           </div>
 
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <nav className="mt-4 flex flex-col gap-1.5">
             {PANEL_ITEMS.map((item) => {
               const active = item.key === panel;
+              const Icon = item.Icon;
               return (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => onSelectPanel(item.key)}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    borderRadius: 12,
-                    border: active ? `1px solid ${shellTokens.borderSolid}` : '1px solid transparent',
-                    background: active ? '#f4f4f5' : 'transparent',
-                    color: shellTokens.textPrimary,
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                  }}
+                  className={[
+                    'w-full rounded-xl border px-3 py-2.5 text-left transition',
+                    active
+                      ? 'border-black/10 bg-white shadow-sm'
+                      : 'border-transparent bg-transparent hover:border-black/5 hover:bg-white/70',
+                  ].join(' ')}
                 >
-                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{item.label}</span>
-                  <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: shellTokens.textSecondary }}>{item.navDescription}</span>
+                  <span className="flex items-start gap-2.5">
+                    <Icon
+                      size={16}
+                      className={active ? 'mt-0.5 text-zinc-900' : 'mt-0.5 text-zinc-500'}
+                      aria-hidden="true"
+                    />
+                    <span>
+                      <span className="block text-[13px] font-semibold leading-tight text-zinc-900">{item.label}</span>
+                      <span className="mt-1 block text-[11px] leading-tight text-zinc-500">{item.navDescription}</span>
+                    </span>
+                  </span>
                 </button>
               );
             })}
           </nav>
         </aside>
 
-        <section style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+        <section className="min-h-0 overflow-y-auto">
           <header
-            style={{
-              minHeight: 68,
-              borderBottom: `1px solid ${shellTokens.borderSolid}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '10px 16px 10px 20px',
-              background: 'rgba(250,250,249,0.92)',
-            }}
+            className="sticky top-0 z-20 flex min-h-[72px] items-start justify-between border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:items-center md:px-6"
           >
             <div>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: shellTokens.textPrimary }}>
-                {panelMeta.title}
-              </p>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: shellTokens.textSecondary }}>
-                {panelMeta.description}
-              </p>
+              <p className="text-[15px] font-semibold text-zinc-900">{panelMeta.title}</p>
+              <p className="mt-1 text-xs text-zinc-500">{panelMeta.description}</p>
             </div>
             <button
               type="button"
               aria-label="Tancar configuració"
               onClick={onClose}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: `1px solid ${shellTokens.borderSolid}`,
-                background: shellTokens.white,
-                cursor: 'pointer',
-                fontSize: 18,
-                lineHeight: 1,
-                color: shellTokens.textSecondary,
-              }}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 bg-white text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-800"
             >
-              ×
+              <X size={16} aria-hidden="true" />
             </button>
           </header>
 
-          <div
-            className="lito-light-scope"
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: 'auto',
-              padding: 20,
-            }}
-          >
+          <div className="lito-light-scope space-y-4 p-5 md:p-6">
             {renderPanel()}
           </div>
         </section>
