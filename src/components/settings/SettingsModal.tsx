@@ -160,10 +160,10 @@ export default function SettingsModal({ panel, onClose, onSelectPanel }: Setting
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="grid max-h-[80vh] w-full max-w-[920px] grid-cols-1 overflow-hidden rounded-2xl border border-black/10 bg-white/90 shadow-2xl backdrop-blur-xl md:grid-cols-[16rem_minmax(0,1fr)]"
+        className="flex h-[80vh] max-h-[80vh] min-h-0 w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border border-black/10 bg-white/90 shadow-2xl backdrop-blur-xl md:flex-row"
       >
         <aside
-          className="overflow-hidden border-b border-black/10 bg-zinc-50/80 p-4 md:border-b-0 md:border-r md:p-5"
+          className="w-full overflow-hidden border-b border-black/10 bg-zinc-50/80 p-4 md:w-64 md:shrink-0 md:border-b-0 md:border-r md:p-5"
         >
           <div>
             <p className="font-serif text-[28px] font-semibold leading-tight tracking-[-0.02em] text-zinc-900">Configuració</p>
@@ -203,8 +203,8 @@ export default function SettingsModal({ panel, onClose, onSelectPanel }: Setting
           </nav>
         </aside>
 
-        <section className="min-h-0 min-w-0 overflow-hidden">
-          <div className="min-h-0 h-full overflow-y-auto">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             <header
               className="sticky top-0 z-20 flex min-h-[72px] items-start justify-between border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:items-center md:px-6"
             >
