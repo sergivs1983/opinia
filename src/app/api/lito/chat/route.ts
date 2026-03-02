@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { resolveProvider } from '@/lib/ai/provider';
 import { getOrgEntitlements } from '@/lib/billing/entitlements';
+import { resolveGuardrailDevHooks } from '@/lib/guards/dev-hooks';
 import { isGuardrailError } from '@/lib/guards/errors';
 import { enforceOrchestratorDailyCap } from '@/lib/guards/orchestrator-cap';
 import { resolveRateLimitsForPlan } from '@/lib/guards/rate-limit-config';
@@ -450,6 +451,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  const guardrailDevHooks = resolveGuardrailDevHooks(request);
+
   const supabase = createServerSupabaseClient();
   const {
     data: { user },
@@ -529,6 +532,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       orgLimitPerMin: chatRateLimits.orgLimitPerMin,
       userLimitPerMin: chatRateLimits.userLimitPerMin,
       requestId,
+      forceRateLimit: guardrailDevHooks.forceRateLimit,
     });
   } catch (error) {
     if (isGuardrailError(error) && error.code === 'rate_limited') {
@@ -604,6 +608,52 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  if (mode === 'orchestrator_safe' && allCards.length > 0) {
+    try {
+      await enforceOrchestratorDailyCap({
+        supabase,
+        orgId: access.orgId,
+        userId: user.id,
+        bizId: parsedBody.biz_id,
+        planCode: entitlements.plan_code,
+        requestId,
+        forceOrchestratorCap: guardrailDevHooks.forceOrchestratorCap,
+      });
+    } catch (error) {
+      if (isGuardrailError(error) && error.code === 'orchestrator_cap_reached') {
+        const resetsAt = error.meta.resetsAt || nextUtcDayStartIso();
+        const responseBody: Record<string, unknown> = {
+          ok: false,
+          code: 'orchestrator_cap_reached',
+          message: 'Avui ja he fet moltes decisions. Torna-ho a provar demà.',
+          request_id: requestId,
+          resets_at: resetsAt,
+        };
+        if (entitlements.plan_code !== 'scale') {
+          responseBody.upgrade_url = '/dashboard/billing?plan=business';
+        }
+        return jsonNoStore(responseBody, requestId, 429);
+      }
+
+      log.error('lito_orchestrator_cap_failed', {
+        biz_id: parsedBody.biz_id,
+        org_id: access.orgId,
+        user_id: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonNoStore(
+        {
+          ok: false,
+          code: 'internal',
+          message: 'Error intern del servidor',
+          request_id: requestId,
+        },
+        requestId,
+        500,
+      );
+    }
+  }
+
   const providerState = resolveProvider({
     orgProvider: payload.business_context.ai_provider_preference,
   });
@@ -656,49 +706,6 @@ export async function POST(request: NextRequest): Promise<Response> {
           push({ event: 'done', data: { ok: true } });
         },
       });
-    }
-
-    try {
-      await enforceOrchestratorDailyCap({
-        supabase,
-        orgId: access.orgId,
-        userId: user.id,
-        bizId: parsedBody.biz_id,
-        planCode: entitlements.plan_code,
-        requestId,
-      });
-    } catch (error) {
-      if (isGuardrailError(error) && error.code === 'orchestrator_cap_reached') {
-        const resetsAt = error.meta.resetsAt || nextUtcDayStartIso();
-        const responseBody: Record<string, unknown> = {
-          ok: false,
-          code: 'orchestrator_cap_reached',
-          message: 'Avui ja he fet moltes decisions. Torna-ho a provar demà.',
-          request_id: requestId,
-          resets_at: resetsAt,
-        };
-        if (entitlements.plan_code !== 'scale') {
-          responseBody.upgrade_url = '/dashboard/billing?plan=business';
-        }
-        return jsonNoStore(responseBody, requestId, 429);
-      }
-
-      log.error('lito_orchestrator_cap_failed', {
-        biz_id: parsedBody.biz_id,
-        org_id: access.orgId,
-        user_id: user.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return jsonNoStore(
-        {
-          ok: false,
-          code: 'internal',
-          message: 'Error intern del servidor',
-          request_id: requestId,
-        },
-        requestId,
-        500,
-      );
     }
 
     const systemPrompt = buildLitoSystemPrompt({

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { isGuardrailDevHooksEnabled } from '@/lib/guards/dev-hooks';
 import { GuardrailError } from '@/lib/guards/errors';
 
 type RateLimitRpcRow = {
@@ -75,9 +76,32 @@ export async function enforceOrgUserRateLimit(params: {
   orgLimitPerMin: number;
   userLimitPerMin: number;
   requestId: string;
+  forceRateLimit?: boolean;
 }): Promise<void> {
   const orgLimit = Math.max(1, Math.floor(params.orgLimitPerMin));
   const userLimit = Math.max(1, Math.floor(params.userLimitPerMin));
+
+  if (params.forceRateLimit === true && isGuardrailDevHooksEnabled()) {
+    const retryAfter = 60;
+    await emitRateLimitEvent({
+      supabase: params.supabase,
+      orgId: params.orgId,
+      userId: params.userId,
+      bizId: params.bizId,
+      eventName: 'rate_limited_org',
+      key: params.key,
+      limit: orgLimit,
+      retryAfter,
+      requestId: params.requestId,
+    });
+
+    throw new GuardrailError('rate_limited', 'rate_limited', {
+      retryAfter,
+      scope: 'org',
+      key: params.key,
+      limit: orgLimit,
+    });
+  }
 
   const orgResult = await params.supabase.rpc('consume_rate_limit_org', {
     p_org_id: params.orgId,

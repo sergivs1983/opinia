@@ -28,6 +28,7 @@ import { litoCopyUnavailableMessage, resolveLitoCopyStatus } from '@/lib/ai/copy
 import { resolveProvider } from '@/lib/ai/provider';
 import { canUseLitoCopy, getOrgEntitlements } from '@/lib/billing/entitlements';
 import { enforceTrialQuota, getTrialState, isSoftLocked } from '@/lib/billing/trial';
+import { resolveGuardrailDevHooks } from '@/lib/guards/dev-hooks';
 import { isGuardrailError } from '@/lib/guards/errors';
 import { resolveRateLimitsForPlan } from '@/lib/guards/rate-limit-config';
 import { enforceOrgUserRateLimit } from '@/lib/guards/rate-limit';
@@ -304,6 +305,7 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, RefineBodySchema);
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof RefineBodySchema>;
+    const guardrailDevHooks = resolveGuardrailDevHooks(request);
 
     const access = await getAcceptedBusinessMembershipContext({
       supabase,
@@ -367,6 +369,7 @@ export async function POST(request: Request) {
         orgLimitPerMin: copyRefineRateLimits.orgLimitPerMin,
         userLimitPerMin: copyRefineRateLimits.userLimitPerMin,
         requestId,
+        forceRateLimit: guardrailDevHooks.forceRateLimit,
       });
     } catch (error) {
       if (isGuardrailError(error) && error.code === 'rate_limited') {

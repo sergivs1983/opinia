@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { normalizePlanCode, type CanonicalPlanCode } from '@/lib/billing/entitlements';
+import { isGuardrailDevHooksEnabled } from '@/lib/guards/dev-hooks';
 import { GuardrailError } from '@/lib/guards/errors';
 
 type CapRpcRow = {
@@ -9,6 +10,24 @@ type CapRpcRow = {
   limit?: unknown;
   count?: unknown;
 };
+
+function nextUtcDayStartIso(base: Date = new Date()): string {
+  return new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate() + 1,
+    0,
+    0,
+    0,
+    0,
+  )).toISOString();
+}
+
+function resolveCapLimitForPlan(planCode: CanonicalPlanCode): number {
+  if (planCode === 'scale') return 50;
+  if (planCode === 'business') return 15;
+  return 5;
+}
 
 function toBool(value: unknown): boolean {
   return value === true;
@@ -99,8 +118,33 @@ export async function enforceOrchestratorDailyCap(params: {
   bizId?: string | null;
   planCode: string | null | undefined;
   requestId: string;
+  forceOrchestratorCap?: boolean;
 }): Promise<void> {
   const canonicalPlan = normalizePlanCode(params.planCode);
+
+  if (params.forceOrchestratorCap === true && isGuardrailDevHooksEnabled()) {
+    const limit = resolveCapLimitForPlan(canonicalPlan);
+    const count = limit + 1;
+    const resetsAt = nextUtcDayStartIso();
+
+    await emitCapEvent({
+      supabase: params.supabase,
+      orgId: params.orgId,
+      userId: params.userId,
+      bizId: params.bizId,
+      planCode: canonicalPlan,
+      limit,
+      count,
+      requestId: params.requestId,
+    });
+
+    throw new GuardrailError('orchestrator_cap_reached', 'orchestrator_cap_reached', {
+      resetsAt,
+      limit,
+      count,
+      planCode: canonicalPlan,
+    });
+  }
 
   const result = await params.supabase.rpc('consume_orchestrator_daily_cap', {
     p_org_id: params.orgId,
