@@ -17,6 +17,7 @@ import ActionCardStack, {
 } from '@/components/lito/home/ActionCardStack';
 import CardQueueDrawer from '@/components/lito/home/CardQueueDrawer';
 import LitoHeader from '@/components/lito/home/LitoHeader';
+import BrandBrainPanel from '@/components/lito/panels/BrandBrainPanel';
 import { useActionCards } from '@/components/lito/home/useActionCards';
 import { useLocale } from '@/components/i18n/I18nContext';
 import { useToast } from '@/components/ui/Toast';
@@ -763,6 +764,8 @@ export default function DashboardLitoPage() {
           onBizChange={handleBizChange}
           onOpenAdvanced={openAdvanced}
         />
+
+        <BrandBrainPanel bizId={activeBizId} />
 
         {commandPanel ? (
           <article className={`lito-assistant-panel${commandPanel.error ? ' is-error' : ''}`} role="status" aria-live="polite">

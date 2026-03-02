@@ -1,5 +1,35 @@
 export type LITOChatMode = 'chat' | 'orchestrator' | 'orchestrator_safe';
 
+export type LITOBrandVoiceContext = {
+  tone: string[];
+  formality: 'tu' | 'voste' | 'mixt';
+  avoid: string[];
+  keywords: string[];
+  examples: string[];
+};
+
+export type LITOPoliciesContext = {
+  require_approval: boolean;
+  response_time_h: number;
+  never_mention: string[];
+  max_length_words: number;
+};
+
+export type LITOBusinessFactsContext = {
+  services: string[];
+  hours: string[];
+  location_notes: string;
+  seasonal_peaks: string[];
+  current_offers: string[];
+  faqs: string[];
+};
+
+export type LITOBusinessMemoryContext = {
+  brand_voice: LITOBrandVoiceContext;
+  policies: LITOPoliciesContext;
+  business_facts: LITOBusinessFactsContext;
+};
+
 export type LITOBusinessContext = {
   biz_id: string;
   org_id: string;
@@ -11,6 +41,7 @@ export type LITOBusinessContext = {
   formality: 'tu' | 'voste' | 'neutral';
   ai_provider_preference: 'auto' | 'openai' | 'anthropic';
   channels: Array<'instagram' | 'tiktok' | 'facebook'>;
+  memory: LITOBusinessMemoryContext;
 };
 
 export type LITOLearnedContext = {

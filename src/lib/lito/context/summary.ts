@@ -31,10 +31,11 @@ function buildLinesByLanguage(input: {
   const b = payload.business_context;
   const s = payload.state_context;
   const signals = payload.signals_context;
-  const learned = payload.learned_context;
   const topSignal = signals.top[0];
-  const profileHint = joinPoints(learned.profile_points, 2);
-  const voiceHint = joinPoints(learned.voice_points, 2);
+  const memory = b.memory;
+  const toneHint = joinPoints(memory.brand_voice.tone, 2) || '-';
+  const keywordHint = joinPoints(memory.brand_voice.keywords, 3) || '-';
+  const avoidHint = joinPoints(memory.brand_voice.avoid, 2) || joinPoints(memory.policies.never_mention, 2) || '-';
 
   if (language === 'es') {
     return [
@@ -47,7 +48,7 @@ function buildLinesByLanguage(input: {
           ? 'No consta publicación reciente.'
           : `Última publicación hace ${s.days_since_last_published} días.`,
       ),
-      compactLine(profileHint || voiceHint ? `Aprendido: ${joinPoints([profileHint, voiceHint].filter(Boolean), 2)}.` : 'Aprendido: sin memoria relevante.'),
+      compactLine(`Tono: ${toneHint} / Palabras clave: ${keywordHint} / Evitar: ${avoidHint}.`),
     ];
   }
 
@@ -62,7 +63,7 @@ function buildLinesByLanguage(input: {
           ? 'No recent publication registered.'
           : `Last publication ${s.days_since_last_published} days ago.`,
       ),
-      compactLine(profileHint || voiceHint ? `Learned: ${joinPoints([profileHint, voiceHint].filter(Boolean), 2)}.` : 'Learned: no relevant memory yet.'),
+      compactLine(`Voice tone: ${toneHint} / Keywords: ${keywordHint} / Avoid: ${avoidHint}.`),
     ];
   }
 
@@ -76,7 +77,7 @@ function buildLinesByLanguage(input: {
         ? 'No consta cap publicació recent.'
         : `Última publicació fa ${s.days_since_last_published} dies.`,
     ),
-    compactLine(profileHint || voiceHint ? `Aprés: ${joinPoints([profileHint, voiceHint].filter(Boolean), 2)}.` : 'Aprés: sense memòria rellevant.'),
+    compactLine(`To de veu: ${toneHint} / Paraules clau: ${keywordHint} / Evitar: ${avoidHint}.`),
   ];
 }
 

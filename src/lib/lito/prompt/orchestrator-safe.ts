@@ -7,6 +7,26 @@ function languageInstruction(language: 'ca' | 'es' | 'en'): string {
   return 'Escriu en català breu i proper.';
 }
 
+function formalityInstruction(input: {
+  language: 'ca' | 'es' | 'en';
+  formality: 'tu' | 'voste' | 'mixt';
+}): string {
+  if (input.language === 'es') {
+    if (input.formality === 'tu') return 'Tratamiento obligatorio: tú.';
+    if (input.formality === 'voste') return 'Tratamiento obligatorio: usted.';
+    return 'Tratamiento obligatorio: mixto (cercano y profesional).';
+  }
+  if (input.language === 'en') {
+    if (input.formality === 'tu') return 'Required tone: informal direct.';
+    if (input.formality === 'voste') return 'Required tone: formal and respectful.';
+    return 'Required tone: mixed, warm and professional.';
+  }
+
+  if (input.formality === 'tu') return 'Tractament obligatori: tu.';
+  if (input.formality === 'voste') return 'Tractament obligatori: vostè.';
+  return 'Tractament obligatori: mixt (proper i professional).';
+}
+
 function modeLimit(mode: ActionCardMode): number {
   return mode === 'advanced' ? 6 : 2;
 }
@@ -49,12 +69,41 @@ export function buildOrchestratorSafePrompt(input: {
   const limit = modeLimit(input.mode);
   const language = resolveLanguage(input.payload.business_context.language ?? 'ca');
   const langRule = languageInstruction(language);
+  const memory = input.payload.business_context.memory;
+  const maxWords = Number.isFinite(memory.policies.max_length_words)
+    ? Math.max(20, Math.min(300, Math.floor(memory.policies.max_length_words)))
+    : 120;
+  const avoidList = Array.from(
+    new Set(
+      [...memory.brand_voice.avoid, ...memory.policies.never_mention]
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 8);
+  const avoidLine = avoidList.length > 0
+    ? (
+      language === 'es'
+        ? `Nunca menciones: ${avoidList.join(', ')}.`
+        : language === 'en'
+          ? `Never mention: ${avoidList.join(', ')}.`
+          : `No mencionis mai: ${avoidList.join(', ')}.`
+    )
+    : (
+      language === 'es'
+        ? 'No menciones contenido sensible ni datos privados.'
+        : language === 'en'
+          ? 'Do not mention sensitive content or private data.'
+          : 'No mencionis contingut sensible ni dades privades.'
+    );
   const cardsList = renderCards(input.cards);
 
   return [
     'Ets LITO Orchestrator SAFE.',
     langRule,
     `Idioma obligatori de sortida: ${language}.`,
+    formalityInstruction({ language, formality: memory.brand_voice.formality || 'mixt' }),
+    `Límit de longitud: màxim ${maxWords} paraules per camp textual (greeting, priority_message, next_question, labels).`,
+    avoidLine,
     'No inventis cards noves. Només pots triar IDs de la llista rebuda.',
     `Has de seleccionar entre 1 i ${limit} cards (mode=${input.mode}).`,
     'No incloguis PII, ni tecnicismes, ni promeses d’accions automàtiques.',

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { sanitizeBusinessMemoryInput } from '@/lib/lito/brand-brain';
 import type { LITOBusinessContext } from '@/lib/lito/context/types';
 
 type BusinessRow = {
@@ -53,17 +54,28 @@ export async function loadBusinessContext(input: {
 
   const business = businessData as BusinessRow;
 
-  const { data: orgData, error: orgError } = await input.admin
-    .from('organizations')
-    .select('id, ai_provider')
-    .eq('id', business.org_id)
-    .maybeSingle();
+  const [{ data: orgData, error: orgError }, { data: memoryData, error: memoryError }] = await Promise.all([
+    input.admin
+      .from('organizations')
+      .select('id, ai_provider')
+      .eq('id', business.org_id)
+      .maybeSingle(),
+    input.admin
+      .from('business_memory')
+      .select('brand_voice, policies, business_facts')
+      .eq('biz_id', business.id)
+      .maybeSingle(),
+  ]);
 
   if (orgError) {
     throw new Error(orgError.message || 'lito_context_org_lookup_failed');
   }
+  if (memoryError) {
+    throw new Error(memoryError.message || 'lito_context_business_memory_lookup_failed');
+  }
 
   const organization = (orgData || null) as OrganizationRow | null;
+  const memory = sanitizeBusinessMemoryInput(memoryData || {});
 
   return {
     biz_id: business.id,
@@ -76,5 +88,6 @@ export async function loadBusinessContext(input: {
     formality: normalizeFormality(business.formality),
     ai_provider_preference: normalizeProvider(organization?.ai_provider),
     channels: ['instagram', 'tiktok'],
+    memory,
   };
 }
