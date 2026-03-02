@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { tokens, cx } from '@/lib/design/tokens';
 import { LITO_NAV_ITEMS, type LitoNavItem } from '@/components/lito/layout/nav';
+import { createClient } from '@/lib/supabase/client';
 
 function LogoIcon() {
   return (
@@ -108,6 +110,8 @@ export function LITOLayout({
   onCommandChange,
   onCommandSubmit,
 }: LITOLayoutProps) {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [localCommandValue, setLocalCommandValue] = useState('');
@@ -130,6 +134,22 @@ export function LITOLayout({
     }
     setLocalCommandValue('');
   }, [onCommandSubmit, submitDisabled]);
+
+  const handleUserMenuNavigate = useCallback((href: string) => {
+    setUserMenuOpen(false);
+    router.push(href);
+  }, [router]);
+
+  const handleSignOut = useCallback(async () => {
+    setUserMenuOpen(false);
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore sign-out errors and continue redirect to recover the session state.
+    }
+    router.push('/login');
+    router.refresh();
+  }, [router, supabase]);
 
   return (
     <div className={cx('lito-layout relative overflow-hidden', tokens.bg.page)}>
@@ -206,7 +226,7 @@ export function LITOLayout({
           {userMenuOpen ? (
             <div
               className={cx(
-                'absolute right-0 top-full z-[100] mt-2 w-44 p-1',
+                'absolute right-0 top-full z-[100] mt-2 w-48 p-1',
                 tokens.bg.surface,
                 tokens.border.default,
                 tokens.radius.button,
@@ -215,14 +235,46 @@ export function LITOLayout({
               )}
               role="menu"
             >
-              <Link
-                href="/logout"
-                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
+              <button
+                type="button"
+                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
                 role="menuitem"
-                onClick={() => setUserMenuOpen(false)}
+                onClick={() => handleUserMenuNavigate('/dashboard/lito?tab=config')}
+              >
+                Ajustes
+              </button>
+              <button
+                type="button"
+                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
+                role="menuitem"
+                onClick={() => handleUserMenuNavigate('/dashboard/lito?tab=config&section=language')}
+              >
+                Idioma
+              </button>
+              <button
+                type="button"
+                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
+                role="menuitem"
+                onClick={() => handleUserMenuNavigate('/dashboard/lito?tab=help')}
+              >
+                Ajuda
+              </button>
+              <button
+                type="button"
+                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
+                role="menuitem"
+                onClick={() => handleUserMenuNavigate('/dashboard/plans')}
+              >
+                Plans
+              </button>
+              <button
+                type="button"
+                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
+                role="menuitem"
+                onClick={() => { void handleSignOut(); }}
               >
                 Tancar sessio
-              </Link>
+              </button>
             </div>
           ) : null}
         </div>

@@ -13,12 +13,12 @@ export const LITO_NAV_ITEMS: LitoNavItem[] = [
   {
     key: 'inbox',
     label: 'Inbox',
-    href: '/dashboard/inbox',
+    href: '/dashboard/lito?tab=inbox',
   },
   {
     key: 'planner',
     label: 'Planner',
-    href: '/dashboard/planner',
+    href: '/dashboard/lito?tab=planner',
   },
   {
     key: 'health',
@@ -28,6 +28,6 @@ export const LITO_NAV_ITEMS: LitoNavItem[] = [
   {
     key: 'config',
     label: 'Config',
-    href: '/dashboard/config',
+    href: '/dashboard/lito?tab=config',
   },
 ];

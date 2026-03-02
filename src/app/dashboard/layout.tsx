@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 import { LITOLayout } from '@/components/lito/layout/LITOLayout';
 import { LITO_NAV_ITEMS } from '@/components/lito/layout/nav';
@@ -20,16 +20,23 @@ type CommandDisabledDetail = {
   disabled?: boolean;
 };
 
-function resolveActiveNav(pathname: string): string {
-  if (pathname.startsWith('/dashboard/inbox')) return 'inbox';
-  if (pathname.startsWith('/dashboard/planner')) return 'planner';
+function resolveActiveNav(pathname: string, tab: string | null): string {
   if (pathname.startsWith('/dashboard/health')) return 'health';
   if (pathname.startsWith('/dashboard/settings') || pathname.startsWith('/dashboard/config')) return 'config';
+  if (pathname.startsWith('/dashboard/inbox')) return 'inbox';
+  if (pathname.startsWith('/dashboard/planner')) return 'planner';
+  if (pathname.startsWith('/dashboard/lito')) {
+    if (tab === 'inbox') return 'inbox';
+    if (tab === 'planner') return 'planner';
+    if (tab === 'config') return 'config';
+    if (tab === 'health') return 'health';
+  }
   return 'lito';
 }
 
 function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { biz, membership } = useWorkspace();
   const supabase = useMemo(() => createClient(), []);
 
@@ -38,6 +45,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
   const [commandDisabled, setCommandDisabled] = useState(false);
 
   const showCommandBar = pathname === '/dashboard/lito';
+  const activeTab = pathname === '/dashboard/lito' ? searchParams?.get('tab') : null;
   const canSeeHealthNav = membership?.role === 'owner' || membership?.role === 'manager';
   const navItems = useMemo(
     () => (canSeeHealthNav ? LITO_NAV_ITEMS : LITO_NAV_ITEMS.filter((item) => item.key !== 'health')),
@@ -107,7 +115,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
 
   return (
     <LITOLayout
-      activeNav={resolveActiveNav(pathname)}
+      activeNav={resolveActiveNav(pathname, activeTab)}
       userName={userName}
       bizName={biz?.name || null}
       bizId={biz?.id || null}
