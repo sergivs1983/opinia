@@ -194,17 +194,11 @@ export default function BusinessMemorySettings({ biz, org }: BizOrgProps) {
         <div className="space-y-2">{[0,1,2].map(i => <div key={i} className="h-20 bg-white/10 rounded-xl animate-pulse" />)}</div>
       ) : entries.length === 0 ? (
         <div className={cn(glass, glassNoise, glassSweep, 'border border-white/10 p-8 text-center shadow-glass')}>
-          <p className="text-3xl mb-3">🧠</p>
-          <p className="font-medium text-white/90 mb-1">Business Memory buit</p>
+          <p className="font-medium text-white/90 mb-1">Encara no hi ha entrades</p>
           <p className="text-sm text-white/70 mb-4 max-w-md mx-auto">
-            Afegeix fets verificats (parking, horaris, WiFi, polítiques) perquè la IA doni respostes precises.
+            Afegeix fets verificats perquè LITO respongui amb precisió.
           </p>
-          <div className="flex flex-wrap gap-2 justify-center mb-5">
-            {['🅿️ parking, aparcar', '📶 wifi, internet', '🕐 horari, check-in', '📋 cancel·lació, mascotes', '🍽️ menú, carta'].map(ex => (
-              <span key={ex} className="px-2.5 py-1 bg-white/8 rounded-lg text-xs text-white/70 border border-white/14">{ex}</span>
-            ))}
-          </div>
-          <Button size="sm" onClick={() => setShowForm(true)}>+ Crear primera entrada</Button>
+          <Button size="sm" onClick={() => setShowForm(true)}>Afegir entrada</Button>
         </div>
       ) : (
         <div className="space-y-6">

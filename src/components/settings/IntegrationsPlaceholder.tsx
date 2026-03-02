@@ -604,73 +604,96 @@ export default function IntegrationsPlaceholder() {
 
   return (
     <>
-      <div className="lito-light-scope max-w-3xl space-y-4">
-        <div className={cn(glassStrong, glassNoise, glassSweep, 'p-6 space-y-4')}>
-          <div className="space-y-1">
-            <h3 className="font-semibold text-white/90">{t('settings.integrations.publishSectionTitle')}</h3>
-            <p className="text-xs text-white/70">{t('settings.integrations.webhookDesc')}</p>
+      <div className="lito-light-scope overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+        <section className="divide-y divide-black/10">
+          <div className="px-5 py-4">
+            <h3 className="text-base font-semibold text-zinc-900">{t('settings.integrations.publishSectionTitle')}</h3>
+            <p className="mt-1 text-sm text-zinc-500">{t('settings.integrations.webhookDesc')}</p>
           </div>
 
-          {businessOptions.length > 1 && (
-            <Select
-              label={t('settings.integrations.businessSelector')}
-              options={businessOptions}
-              value={selectedBizId || ''}
-              onChange={(event) => setSelectedBizId(event.target.value)}
-            />
-          )}
-
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-white/14 bg-white/8 px-3 py-2 transition-all duration-[220ms] ease-premium hover:border-brand-accent/20 hover:shadow-[0_0_16px_rgba(0,168,107,0.10)]">
-            <div>
-              <p className="text-sm font-medium text-white/90">{t('settings.integrations.webhookEnable')}</p>
-              <p className="text-xs text-white/70">{t('settings.integrations.webhookEnableHint')}</p>
+          {businessOptions.length > 1 ? (
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">{t('settings.integrations.businessSelector')}</p>
+                <p className="text-sm text-zinc-500">Selecciona el negoci a configurar.</p>
+              </div>
+              <Select
+                options={businessOptions}
+                value={selectedBizId || ''}
+                onChange={(event) => setSelectedBizId(event.target.value)}
+                className="border-black/10 bg-white text-zinc-900"
+              />
             </div>
-            <button
-              type="button"
-              onClick={() => setEnabled((prev) => !prev)}
+          ) : null}
+
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">{t('settings.integrations.webhookEnable')}</p>
+              <p className="text-sm text-zinc-500">{t('settings.integrations.webhookEnableHint')}</p>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50 px-3 py-2">
+              <span className="text-sm text-zinc-700">{enabled ? 'Activat' : 'Desactivat'}</span>
+              <button
+                type="button"
+                onClick={() => setEnabled((prev) => !prev)}
+                disabled={loading}
+                aria-pressed={enabled}
+                data-testid="webhook-enabled"
+                className={cn(
+                  'relative h-6 w-12 rounded-full transition-colors duration-[220ms] ease-premium disabled:opacity-50',
+                  enabled ? 'bg-brand-accent' : 'bg-zinc-300',
+                  ringAccent,
+                )}
+              >
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">{t('settings.integrations.webhookUrl')}</p>
+              <p className="text-sm text-zinc-500">URL del connector (Make, Zapier o equivalent).</p>
+            </div>
+            <Input
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://hook.make.com/... o https://hooks.zapier.com/..."
+              type="password"
+              autoComplete="off"
+              data-testid="webhook-url"
               disabled={loading}
-              aria-pressed={enabled}
-              data-testid="webhook-enabled"
-              className={cn(
-                'relative h-6 w-12 rounded-full transition-colors duration-[220ms] ease-premium disabled:opacity-50',
-                enabled ? 'bg-brand-accent' : 'bg-white/20',
-                ringAccent,
-              )}
-            >
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
-            </button>
+              className="border-black/10 bg-white text-zinc-900 placeholder:text-zinc-400"
+            />
           </div>
 
-          <Input
-            label={t('settings.integrations.webhookUrl')}
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://hook.make.com/... o https://hooks.zapier.com/..."
-            type="password"
-            autoComplete="off"
-            data-testid="webhook-url"
-            disabled={loading}
-          />
-
-          <div className="rounded-xl border border-white/14 bg-white/8 px-3 py-2 flex items-center justify-between gap-2 transition-all duration-[220ms] ease-premium hover:border-brand-accent/20 hover:shadow-[0_0_16px_rgba(0,168,107,0.10)]">
-            <p className="text-xs text-white/72">
-              {secretPresent ? t('settings.integrations.secretConfigured') : t('settings.integrations.secretMissing')}
-            </p>
-            <Button variant="secondary" onClick={() => void handleRegenerateSecret()} loading={saving}>
-              {t('settings.integrations.regenerateSecret')}
-            </Button>
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">Secret del webhook</p>
+              <p className="text-sm text-zinc-500">
+                {secretPresent ? t('settings.integrations.secretConfigured') : t('settings.integrations.secretMissing')}
+              </p>
+            </div>
+            <div>
+              <Button variant="secondary" onClick={() => void handleRegenerateSecret()} loading={saving} className="border-black/10 bg-white text-zinc-800 hover:bg-zinc-100">
+                {t('settings.integrations.regenerateSecret')}
+              </Button>
+            </div>
           </div>
 
-          <div className="space-y-2" data-testid="webhook-channels">
-            <p className="text-sm font-medium text-white/82">{t('settings.integrations.webhookChannels')}</p>
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr]" data-testid="webhook-channels">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">{t('settings.integrations.webhookChannels')}</p>
+              <p className="text-sm text-zinc-500">Canals habilitats per a notificacions sortints.</p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {CHANNEL_OPTIONS.map((option) => (
                 <label
                   key={option.value}
-                  className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs cursor-pointer transition-all duration-[220ms] ease-premium ${
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs transition ${
                     selectedChannels.has(option.value)
-                      ? 'bg-white/8 text-white border-brand-accent/30 ring-1 ring-brand-accent/20 shadow-[0_0_18px_rgba(0,168,107,0.12)]'
-                      : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/8 hover:text-white'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-black/10 bg-white text-zinc-700 hover:bg-zinc-50'
                   }`}
                   data-testid={`webhook-channel-${option.value}`}
                 >
@@ -685,103 +708,119 @@ export default function IntegrationsPlaceholder() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => void handleSave()} loading={saving} data-testid="webhook-save">
-              {t('common.save')}
-            </Button>
-            <Button variant="secondary" onClick={() => void handleTestWebhook()} loading={testing} data-testid="webhook-test" disabled={!connectorId}>
-              {t('settings.integrations.testWebhook')}
-            </Button>
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">Accions</p>
+              <p className="text-sm text-zinc-500">Desa la configuració o envia una prova.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => void handleSave()} loading={saving} data-testid="webhook-save">
+                {t('common.save')}
+              </Button>
+              <Button variant="secondary" onClick={() => void handleTestWebhook()} loading={testing} data-testid="webhook-test" disabled={!connectorId} className="border-black/10 bg-white text-zinc-800 hover:bg-zinc-100">
+                {t('settings.integrations.testWebhook')}
+              </Button>
+            </div>
           </div>
 
-          {webhookStatus && (
-            <div className={cn(glass, glassNoise, 'text-xs text-white/72 px-2.5 py-2 space-y-1')} data-testid="webhook-test-status">
+          {webhookStatus ? (
+            <div className="px-5 py-4 text-sm text-zinc-700" data-testid="webhook-test-status">
               <p>{webhookStatus}</p>
-              {webhookStatusRequestId && (
-                <div className="flex items-center gap-2">
+              {webhookStatusRequestId ? (
+                <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
                   <span>ID: {webhookStatusRequestId}</span>
                   <button
                     type="button"
                     onClick={() => void copyRequestId()}
-                    className={cn('rounded border border-white/14 bg-white/8 px-1.5 py-0.5 text-[10px] transition-all duration-[220ms] ease-premium hover:bg-white/12', ringAccent)}
+                    className="rounded border border-black/10 bg-white px-1.5 py-0.5 text-[10px] text-zinc-700 hover:bg-zinc-50"
                   >
                     {copiedRequestId ? t('dashboard.studio.copied') : t('settings.integrations.copyId')}
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
-        </div>
+          ) : null}
+        </section>
 
-        <div className={cn(glassStrong, glassNoise, glassSweep, 'p-6 space-y-4')}>
-          <div className="space-y-1">
-            <h3 className="font-semibold text-white/90">{t('settings.integrations.reputationSectionTitle')}</h3>
-            <p className="text-xs text-white/70">{t('settings.integrations.reputationSectionDesc')}</p>
+        <section className="divide-y divide-black/10 border-t border-black/10">
+          <div className="px-5 py-4">
+            <h3 className="text-base font-semibold text-zinc-900">{t('settings.integrations.reputationSectionTitle')}</h3>
+            <p className="mt-1 text-sm text-zinc-500">{t('settings.integrations.reputationSectionDesc')}</p>
           </div>
 
-          {businessOptions.length > 1 && (
-            <Select
-              label={t('settings.integrations.businessSelector')}
-              options={businessOptions}
-              value={selectedBizId || ''}
-              onChange={(event) => setSelectedBizId(event.target.value)}
-            />
-          )}
-
-          <div className="rounded-xl border border-white/14 bg-white/8 px-3 py-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-white/90">{t('settings.integrations.googleStatusLabel')}</p>
-              <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-xs', googleStatusClass)}>
-                {googleBusinessesLoading ? t('common.loading') : googleStatusLabel}
-              </span>
+          {businessOptions.length > 1 ? (
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">{t('settings.integrations.businessSelector')}</p>
+                <p className="text-sm text-zinc-500">Negoci sobre el qual consultem l&apos;estat de Google.</p>
+              </div>
+              <Select
+                options={businessOptions}
+                value={selectedBizId || ''}
+                onChange={(event) => setSelectedBizId(event.target.value)}
+                className="border-black/10 bg-white text-zinc-900"
+              />
             </div>
-            <p className="text-xs text-white/70">
-              {selectedBusiness?.name || t('common.unknown')}
-            </p>
+          ) : null}
+
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">{t('settings.integrations.googleStatusLabel')}</p>
+              <p className="text-sm text-zinc-500">{selectedBusiness?.name || t('common.unknown')}</p>
+            </div>
+            <span className={cn('inline-flex w-fit rounded-full border px-2.5 py-1 text-xs', googleStatusClass)}>
+              {googleBusinessesLoading ? t('common.loading') : googleStatusLabel}
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={() => void handleConnectGoogle()}
-              loading={googleConnectingBizId === selectedBizId}
-              disabled={googleBusinessesLoading || !selectedBizId}
-              data-testid="google-business-connect"
-            >
-              {googleStatus === 'needs_reauth'
-                ? t('settings.integrations.googleReconnect')
-                : t('settings.integrations.googleConnect')}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void loadGoogleBusinesses()}
-              disabled={googleBusinessesLoading}
-              data-testid="google-business-refresh-status"
-            >
-              {t('settings.integrations.googleRefreshStatus')}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={openLocationsModal}
-              disabled={addLocationDisabled}
-              data-testid="google-business-add-location"
-            >
-              {t('settings.integrations.googleAddLocation')}
-            </Button>
+          <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">Accions de connexió</p>
+              <p className="text-sm text-zinc-500">Connecta, refresca estat o importa ubicacions.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={() => void handleConnectGoogle()}
+                loading={googleConnectingBizId === selectedBizId}
+                disabled={googleBusinessesLoading || !selectedBizId}
+                data-testid="google-business-connect"
+              >
+                {googleStatus === 'needs_reauth'
+                  ? t('settings.integrations.googleReconnect')
+                  : t('settings.integrations.googleConnect')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void loadGoogleBusinesses()}
+                disabled={googleBusinessesLoading}
+                data-testid="google-business-refresh-status"
+                className="border-black/10 bg-white text-zinc-800 hover:bg-zinc-100"
+              >
+                {t('settings.integrations.googleRefreshStatus')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={openLocationsModal}
+                disabled={addLocationDisabled}
+                data-testid="google-business-add-location"
+                className="border-black/10 bg-white text-zinc-800 hover:bg-zinc-100"
+              >
+                {t('settings.integrations.googleAddLocation')}
+              </Button>
+            </div>
           </div>
 
-          <div className={cn(glass, glassNoise, 'p-3')}>
-            <p className="text-xs uppercase tracking-wide text-white/55 mb-2">
-              {t('settings.integrations.googleLocationsListTitle')}
-            </p>
+          <div className="px-5 py-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{t('settings.integrations.googleLocationsListTitle')}</p>
             <div className="space-y-2" data-testid="google-businesses-list">
               {(googleBusinesses || []).map((item) => (
                 <div
                   key={item.biz_id}
-                  className="rounded-lg border border-white/10 bg-white/6 px-3 py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+                  className="flex flex-col gap-2 rounded-lg border border-black/10 bg-zinc-50 px-3 py-2 md:flex-row md:items-center md:justify-between"
                 >
                   <div>
-                    <p className="text-sm text-white/90">{item.biz_name}</p>
-                    <p className="text-xs text-white/60">
+                    <p className="text-sm text-zinc-900">{item.biz_name}</p>
+                    <p className="text-xs text-zinc-500">
                       {item.city || item.slug || '—'}
                     </p>
                   </div>
@@ -790,10 +829,10 @@ export default function IntegrationsPlaceholder() {
                       className={cn(
                         'inline-flex rounded-full border px-2 py-0.5 text-xs',
                         item.state === 'connected'
-                          ? 'border-emerald-400/35 bg-emerald-400/12 text-emerald-100'
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                           : item.state === 'needs_reauth'
-                            ? 'border-amber-300/40 bg-amber-300/12 text-amber-100'
-                            : 'border-white/20 bg-white/8 text-white/82',
+                            ? 'border-amber-300 bg-amber-50 text-amber-700'
+                            : 'border-zinc-300 bg-white text-zinc-600',
                       )}
                     >
                       {item.state === 'connected'
@@ -810,6 +849,7 @@ export default function IntegrationsPlaceholder() {
                         void handleConnectGoogle(item.biz_id);
                       }}
                       loading={googleConnectingBizId === item.biz_id}
+                      className="border-black/10 bg-white text-zinc-800 hover:bg-zinc-100"
                     >
                       {item.state === 'needs_reauth'
                         ? t('settings.integrations.googleReconnect')
@@ -818,24 +858,24 @@ export default function IntegrationsPlaceholder() {
                   </div>
                 </div>
               ))}
-              {!googleBusinessesLoading && (!googleBusinesses || googleBusinesses.length === 0) && (
-                <p className="text-xs text-white/65">{t('settings.integrations.googleBusinessesEmpty')}</p>
-              )}
+              {!googleBusinessesLoading && (!googleBusinesses || googleBusinesses.length === 0) ? (
+                <p className="text-sm text-zinc-500">{t('settings.integrations.googleBusinessesEmpty')}</p>
+              ) : null}
             </div>
           </div>
 
-          {googleBusinesses.some((item) => item.state === 'needs_reauth') && (
-            <div className={cn(glass, glassNoise, 'text-xs text-amber-100 border border-amber-300/35 bg-amber-300/10 px-2.5 py-2')}>
+          {googleBusinesses.some((item) => item.state === 'needs_reauth') ? (
+            <div className="px-5 py-3 text-sm text-amber-700">
               {t('settings.integrations.googleReauthWarning')}
             </div>
-          )}
+          ) : null}
 
-          {googleFeedback && (
-            <div className={cn(glass, glassNoise, 'text-xs text-white/72 px-2.5 py-2')}>
+          {googleFeedback ? (
+            <div className="px-5 py-3 text-sm text-zinc-600">
               {googleFeedback}
             </div>
-          )}
-        </div>
+          ) : null}
+        </section>
       </div>
 
       {locationsModalOpen && (

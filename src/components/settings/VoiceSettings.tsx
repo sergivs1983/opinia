@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useT } from '@/components/i18n/I18nContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { glass, glassCard, glassInput, glassNoise, glassPill, glassSweep, textMain, textMuted, textSub } from '@/components/ui/glass';
+import { glassPill } from '@/components/ui/glass';
 import { cn } from '@/lib/utils';
 import { audit } from '@/lib/audit';
 import { hasSeoSchemaColumns, markSeoSchemaMissingAudit } from '@/lib/seo-schema';
@@ -374,211 +374,258 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
   })();
 
   return (
-    <div className={cn(glassCard, glassNoise, glassSweep, 'space-y-5 p-6 max-w-2xl')} data-testid="settings-voice-panel">
-      <Input
-        label={t('settings.voice.signature')}
-        value={signature}
-        onChange={e => setSignature(e.target.value)}
-        data-testid="settings-signature"
-      />
-      <div>
-        <label className={cn('block text-sm font-medium mb-1', textSub)}>{t('settings.voice.instructions')}</label>
-        <textarea value={instructions} onChange={e => setInstructions(e.target.value)}
-          placeholder={t('settings.voice.instructionsPlaceholder')}
-          className={cn(glassInput, 'w-full min-h-[100px] px-4 py-3 text-sm resize-y')} />
-      </div>
-      <Input label={t('settings.voice.posKeywords')} value={posKeywords} onChange={e => setPosKeywords(e.target.value)} placeholder={t('settings.voice.posPlaceholder')} />
-      <Input label={t('settings.voice.negKeywords')} value={negKeywords} onChange={e => setNegKeywords(e.target.value)} placeholder={t('settings.voice.negPlaceholder')} />
-
-      {/* AI Engine — provider abstracted */}
-      <div className={cn(glass, glassNoise, glassSweep, 'flex items-center gap-3 py-3 px-4')}>
-        <span className="text-lg">🤖</span>
-        <div>
-          <p className={cn('text-sm font-medium', textMain)}>OpinIA AI</p>
-          <p className={cn('text-xs', textMuted)}>{t('settings.voice.aiEngineDesc')}</p>
-        </div>
-      </div>
-
-      {/* SEO & Visibility */}
-      <div className="border-t glass-divider pt-5 space-y-4">
-        <div className="flex items-center justify-between">
+    <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm" data-testid="settings-voice-panel">
+      <div className="divide-y divide-black/10">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className={cn('text-sm font-semibold', textMain)}>🔍 {t('settings.voice.seo')}</h3>
-              {seoSchemaMissing && (
-                <span
-                  data-testid="settings-seo-schema-missing-badge"
-                  className="inline-flex items-center rounded-full border border-amber-300/45 bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-200"
-                >
-                  SEO no disponible en aquest entorn
-                </span>
-              )}
-            </div>
-            <p className={cn('text-xs mt-0.5', textMuted)}>{t('settings.voice.seoDesc')}</p>
-            {seoSchemaMissing && (
-              <p className="text-xs text-amber-200 mt-1" data-testid="settings-seo-fallback-note">
-                Es manté el fallback de compatibilitat, però els controls SEO estan desactivats fins migrar l&apos;schema.
-              </p>
-            )}
+            <p className="text-sm font-medium text-zinc-900">{t('settings.voice.signature')}</p>
+            <p className="text-sm text-zinc-500">Text final que afegim automàticament a les respostes.</p>
           </div>
-          <button
-            onClick={() => setSeoMode(!seoMode)}
-            data-testid="settings-seo-toggle"
-            aria-pressed={seoMode}
-            disabled={seoSchemaMissing}
-            className={cn(
-              'relative w-12 h-6 rounded-full transition-colors duration-[220ms] ease-premium',
-              seoMode ? 'bg-brand-500' : 'bg-white/20',
-              seoSchemaMissing && 'cursor-not-allowed opacity-50',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40'
-            )}>
-            <span className={cn('absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform', seoMode ? 'translate-x-6' : 'translate-x-0.5')} />
-          </button>
+          <Input
+            value={signature}
+            onChange={e => setSignature(e.target.value)}
+            data-testid="settings-signature"
+            className="border-black/10 bg-white text-zinc-900 placeholder:text-zinc-400"
+          />
+        </div>
+
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr]">
+          <div>
+            <p className="text-sm font-medium text-zinc-900">{t('settings.voice.instructions')}</p>
+            <p className="text-sm text-zinc-500">Context de marca i estil que ha de seguir LITO.</p>
+          </div>
+          <textarea
+            value={instructions}
+            onChange={e => setInstructions(e.target.value)}
+            placeholder={t('settings.voice.instructionsPlaceholder')}
+            className="min-h-[104px] w-full resize-y rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500/45 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          />
+        </div>
+
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+          <div>
+            <p className="text-sm font-medium text-zinc-900">{t('settings.voice.posKeywords')}</p>
+            <p className="text-sm text-zinc-500">Paraules clau associades a sentiment positiu.</p>
+          </div>
+          <Input
+            value={posKeywords}
+            onChange={e => setPosKeywords(e.target.value)}
+            placeholder={t('settings.voice.posPlaceholder')}
+            className="border-black/10 bg-white text-zinc-900 placeholder:text-zinc-400"
+          />
+        </div>
+
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+          <div>
+            <p className="text-sm font-medium text-zinc-900">{t('settings.voice.negKeywords')}</p>
+            <p className="text-sm text-zinc-500">Paraules clau associades a sentiment negatiu.</p>
+          </div>
+          <Input
+            value={negKeywords}
+            onChange={e => setNegKeywords(e.target.value)}
+            placeholder={t('settings.voice.negPlaceholder')}
+            className="border-black/10 bg-white text-zinc-900 placeholder:text-zinc-400"
+          />
+        </div>
+
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+          <div>
+            <p className="text-sm font-medium text-zinc-900">Motor d&apos;IA</p>
+            <p className="text-sm text-zinc-500">{t('settings.voice.aiEngineDesc')}</p>
+          </div>
+          <div className="rounded-xl border border-black/10 bg-zinc-50 px-3 py-2.5">
+            <p className="text-sm font-medium text-zinc-900">OpinIA AI</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+          <div>
+            <p className="text-sm font-medium text-zinc-900">SEO</p>
+            <p className="text-sm text-zinc-500">{t('settings.voice.seoDesc')}</p>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50 px-3 py-2">
+            <span className="text-sm text-zinc-700">{seoMode ? 'Activat' : 'Desactivat'}</span>
+            <button
+              onClick={() => setSeoMode(!seoMode)}
+              data-testid="settings-seo-toggle"
+              aria-pressed={seoMode}
+              disabled={seoSchemaMissing}
+              className={cn(
+                'relative h-6 w-12 rounded-full transition-colors duration-[220ms] ease-premium',
+                seoMode ? 'bg-brand-500' : 'bg-zinc-300',
+                seoSchemaMissing && 'cursor-not-allowed opacity-50',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40'
+              )}
+            >
+              <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform', seoMode ? 'translate-x-6' : 'translate-x-0.5')} />
+            </button>
+          </div>
         </div>
 
         {seoSchemaMissing && (
-          <div className={cn(glass, glassNoise, 'border-amber-300/40 p-3 space-y-2')} data-testid="settings-seo-migration-callout">
-            <p className="text-xs text-amber-200">
-              Falten columnes SEO a `businesses`. Activa-les amb les migracions del projecte.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void copyMigrationCommand()}
-                className={cn(glassPill, 'px-2.5 py-1 text-xs hover:bg-white/14')}
-                data-testid="settings-seo-run-migration"
-              >
-                {copiedMigrationCommand ? 'Command copied' : 'Run migration'}
-              </button>
-              <code className="text-[11px] text-white/72">{seoCapabilities?.migration?.command || 'supabase db push'}</code>
+          <div className="px-5 py-4">
+            <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-xs text-amber-900" data-testid="settings-seo-migration-callout">
+              <p data-testid="settings-seo-fallback-note">Falten columnes SEO a `businesses`. Cal aplicar la migració.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyMigrationCommand()}
+                  className={cn(glassPill, 'border border-black/10 bg-white px-2.5 py-1 text-xs text-zinc-700')}
+                  data-testid="settings-seo-run-migration"
+                >
+                  {copiedMigrationCommand ? 'Command copied' : 'Run migration'}
+                </button>
+                <code className="text-[11px] text-zinc-700">{seoCapabilities?.migration?.command || 'supabase db push'}</code>
+              </div>
             </div>
-            {seoCapabilities?.migration?.files?.length ? (
-              <p className="text-[11px] text-white/62">
-                Files: {seoCapabilities.migration.files.join(', ')}
-              </p>
-            ) : null}
           </div>
         )}
 
         {(seoMode || seoSchemaMissing) && (
           <>
-            <Input
-              label={t('settings.voice.seoKeywords')}
-              value={seoKeywords}
-              onChange={e => setSeoKeywords(e.target.value)}
-              placeholder={t('settings.voice.seoKeywordsPlaceholder')}
-              data-testid="settings-seo-keywords"
-              disabled={seoSchemaMissing}
-            />
-            <div>
-              <label className={cn('block text-sm font-medium mb-2', textSub)}>
-                {t('settings.voice.seoIntensity')}: {seoLevels[seoMaxKw] || seoMaxKw}
-                <span className={cn('text-xs ml-2', textMuted)}>
-                  ({t('settings.voice.seoMaxKw', { n: seoMaxKw })})
-                </span>
-              </label>
-              <input
-                type="range" min={1} max={3} value={seoMaxKw}
-                onChange={e => setSeoMaxKw(Number(e.target.value))}
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">{t('settings.voice.seoKeywords')}</p>
+                <p className="text-sm text-zinc-500">Keywords prioritzades a les respostes.</p>
+              </div>
+              <Input
+                value={seoKeywords}
+                onChange={e => setSeoKeywords(e.target.value)}
+                placeholder={t('settings.voice.seoKeywordsPlaceholder')}
+                data-testid="settings-seo-keywords"
                 disabled={seoSchemaMissing}
-                className="w-full h-2 bg-white/12 rounded-lg appearance-none cursor-pointer accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="border-black/10 bg-white text-zinc-900 placeholder:text-zinc-400"
               />
-              <div className={cn('flex justify-between text-[10px] mt-1', textMuted)}>
-                <span>{seoLevels[1]}</span><span>{seoLevels[2]}</span><span>{seoLevels[3]}</span>
+            </div>
+
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr]">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">{t('settings.voice.seoIntensity')}</p>
+                <p className="text-sm text-zinc-500">{t('settings.voice.seoMaxKw', { n: seoMaxKw })}</p>
+              </div>
+              <div>
+                <p className="mb-2 text-sm text-zinc-700">{seoLevels[seoMaxKw] || seoMaxKw}</p>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  value={seoMaxKw}
+                  onChange={e => setSeoMaxKw(Number(e.target.value))}
+                  disabled={seoSchemaMissing}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-zinc-200 accent-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+                />
               </div>
             </div>
 
-            {/* Advanced SEO rules */}
-            <div className="border-t glass-divider pt-3 space-y-3">
-              <p className={cn('text-[10px] uppercase font-bold tracking-wider', textMuted)}>Advanced</p>
-              <label className={cn('flex items-center gap-2 text-sm cursor-pointer', textSub)}>
-                <input type="checkbox" checked={seoAvoidNeg} onChange={e => setSeoAvoidNeg(e.target.checked)}
-                  disabled={seoSchemaMissing}
-                  className="rounded border-white/20 bg-white/10 text-brand-600 focus:ring-brand-500" />
-                Skip SEO keywords on negative reviews
-              </label>
-              <div className="flex items-center gap-3">
-                <label className={cn('text-sm', textSub)}>Min rating for keywords:</label>
-                <select value={seoMinRating} onChange={e => setSeoMinRating(Number(e.target.value))}
-                  disabled={seoSchemaMissing}
-                  className={cn(glassInput, 'px-3 py-1.5 text-sm')}>
-                  <option value={1}>1+</option>
-                  <option value={2}>2+</option>
-                  <option value={3}>3+</option>
-                  <option value={4}>4+</option>
-                  <option value={5}>5 only</option>
-                </select>
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-center">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">Regles avançades</p>
+                <p className="text-sm text-zinc-500">Control sobre context negatiu i llindar de rating.</p>
+              </div>
+              <div className="space-y-3 rounded-xl border border-black/10 bg-zinc-50 p-3">
+                <label className="flex items-center gap-2 text-sm text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={seoAvoidNeg}
+                    onChange={e => setSeoAvoidNeg(e.target.checked)}
+                    disabled={seoSchemaMissing}
+                    className="rounded border-zinc-300 bg-white text-brand-600"
+                  />
+                  Ometre keywords SEO en ressenyes negatives
+                </label>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-zinc-700">Rating mínim:</label>
+                  <select
+                    value={seoMinRating}
+                    onChange={e => setSeoMinRating(Number(e.target.value))}
+                    disabled={seoSchemaMissing}
+                    className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-sm text-zinc-800"
+                  >
+                    <option value={1}>1+</option>
+                    <option value={2}>2+</option>
+                    <option value={3}>3+</option>
+                    <option value={4}>4+</option>
+                    <option value={5}>5 only</option>
+                  </select>
+                </div>
               </div>
             </div>
           </>
         )}
-      </div>
 
-      <div className="border-t border-white/10 pt-5 space-y-3">
-        <div>
-          <h3 className={cn('text-sm font-semibold', textMain)}>🖼️ {t('settings.voice.brandImageTitle')}</h3>
-          <p className={cn('text-xs mt-0.5', textMuted)}>{t('settings.voice.brandImageDesc')}</p>
-        </div>
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr]">
+          <div>
+            <p className="text-sm font-medium text-zinc-900">{t('settings.voice.brandImageTitle')}</p>
+            <p className="text-sm text-zinc-500">{t('settings.voice.brandImageDesc')}</p>
+          </div>
+          <div className="space-y-3 rounded-xl border border-black/10 bg-zinc-50 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <select
+                value={brandKind}
+                onChange={(event) => setBrandKind(event.target.value === 'cover' ? 'cover' : 'logo')}
+                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900"
+                data-testid="business-brand-kind"
+              >
+                <option value="logo">{t('settings.voice.brandImageLogo')}</option>
+                <option value="cover">{t('settings.voice.brandImageCover')}</option>
+              </select>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <select
-            value={brandKind}
-            onChange={(event) => setBrandKind(event.target.value === 'cover' ? 'cover' : 'logo')}
-            className={cn(glassInput, 'px-3 py-2 text-sm')}
-            data-testid="business-brand-kind"
-          >
-            <option value="logo">{t('settings.voice.brandImageLogo')}</option>
-            <option value="cover">{t('settings.voice.brandImageCover')}</option>
-          </select>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => handleBrandFileChange(event.target.files?.[0] || null)}
+                data-testid="business-brand-upload"
+                className="block text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border file:border-black/10 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700"
+              />
 
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(event) => handleBrandFileChange(event.target.files?.[0] || null)}
-            data-testid="business-brand-upload"
-            className={cn('block text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50/50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-emerald-200', textSub)}
-          />
-
-          <Button
-            onClick={handleBrandSave}
-            loading={brandSaving}
-            data-testid="business-brand-save"
-            disabled={!brandFile}
-          >
-            {t('common.save')}
-          </Button>
-        </div>
-
-        <div className={cn(glass, glassNoise, 'flex items-center gap-3 p-3')}>
-          {brandPreviewUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={brandPreviewUrl}
-              alt="Business brand image"
-              className="h-14 w-14 rounded-xl border border-white/20 object-cover"
-              data-testid="business-brand-preview"
-            />
-          ) : (
-            <div
-              className="h-14 w-14 rounded-xl border border-dashed border-white/25 bg-white/6 text-white/62 flex items-center justify-center text-xs"
-              data-testid="business-brand-preview"
-            >
-              {biz.name.charAt(0).toUpperCase()}
+              <Button
+                onClick={handleBrandSave}
+                loading={brandSaving}
+                data-testid="business-brand-save"
+                disabled={!brandFile}
+              >
+                {t('common.save')}
+              </Button>
             </div>
-          )}
-          <div className={cn('text-xs', textMuted)}>
-            <p>{t('settings.voice.brandImageFormats')}</p>
-            <p>{t('settings.voice.brandImageMaxSize')}</p>
+
+            <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-3">
+              {brandPreviewUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={brandPreviewUrl}
+                  alt="Business brand image"
+                  className="h-14 w-14 rounded-xl border border-black/10 object-cover"
+                  data-testid="business-brand-preview"
+                />
+              ) : (
+                <div
+                  className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-black/20 bg-zinc-50 text-xs text-zinc-500"
+                  data-testid="business-brand-preview"
+                >
+                  {biz.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="text-xs text-zinc-600">
+                <p>{t('settings.voice.brandImageFormats')}</p>
+                <p>{t('settings.voice.brandImageMaxSize')}</p>
+              </div>
+            </div>
+
+            {brandError && <p className="text-xs text-rose-600">{brandError}</p>}
+            {brandSaved && <p className="text-xs text-emerald-700">✅ {t('settings.voice.brandImageSaved')}</p>}
           </div>
         </div>
-
-        {brandError && <p className="text-xs text-rose-300">{brandError}</p>}
-        {brandSaved && <p className="text-xs text-emerald-300">✅ {t('settings.voice.brandImageSaved')}</p>}
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={handleSave} loading={saving} data-testid="settings-save">{t('settings.voice.saveChanges')}</Button>
-        {saved && <span className="text-sm text-emerald-300 font-medium animate-fade-in" data-testid="settings-saved-indicator">✅ {t('common.saved')}</span>}
+      <div className="border-t border-black/10 bg-zinc-50/70 px-5 py-3">
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} loading={saving} data-testid="settings-save">{t('settings.voice.saveChanges')}</Button>
+          {saved ? (
+            <span className="text-sm font-medium text-emerald-700 animate-fade-in" data-testid="settings-saved-indicator">
+              ✅ {t('common.saved')}
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );
