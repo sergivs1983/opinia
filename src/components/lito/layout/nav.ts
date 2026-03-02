@@ -23,7 +23,7 @@ export const LITO_NAV_ITEMS: LitoNavItem[] = [
   {
     key: 'health',
     label: 'Health',
-    href: '/dashboard/health',
+    href: '/dashboard/lito?tab=health',
   },
   {
     key: 'config',

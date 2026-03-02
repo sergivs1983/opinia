@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { tokens, cx } from '@/lib/design/tokens';
@@ -74,13 +74,6 @@ function bizLabelFromProps(input: { bizName?: string | null; bizId?: string | nu
   return 'Sense negoci actiu';
 }
 
-function resolveActiveNav(input: string | undefined, items: LitoNavItem[]): string {
-  const fallback = items.find((item) => item.key === 'lito')?.key || items[0]?.key || 'lito';
-  if (!input) return fallback;
-  if (items.some((item) => item.key === input)) return input;
-  return fallback;
-}
-
 export type LITOLayoutProps = {
   children: ReactNode;
   activeNav?: string;
@@ -110,14 +103,37 @@ export function LITOLayout({
   onCommandChange,
   onCommandSubmit,
 }: LITOLayoutProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [localCommandValue, setLocalCommandValue] = useState('');
 
+  const tab = searchParams?.get('tab') ?? 'inbox';
   const resolvedNavItems = navItems && navItems.length > 0 ? navItems : LITO_NAV_ITEMS;
-  const selectedNav = resolveActiveNav(activeNav, resolvedNavItems);
+  const selectedNav = useMemo(() => {
+    if (pathname === '/dashboard/lito') {
+      const rawTab = searchParams?.get('tab');
+      if (!rawTab) return 'lito';
+      return resolvedNavItems.some((item) => item.key === tab) ? tab : 'inbox';
+    }
+
+    if (pathname.startsWith('/dashboard/lito/')) {
+      return 'lito';
+    }
+
+    if (pathname.startsWith('/dashboard/health')) {
+      return 'health';
+    }
+
+    if (activeNav && resolvedNavItems.some((item) => item.key === activeNav)) {
+      return activeNav;
+    }
+
+    return 'lito';
+  }, [activeNav, pathname, resolvedNavItems, searchParams, tab]);
   const businessLabel = bizLabelFromProps({ bizName, bizId });
   const avatarText = useMemo(() => initialFromName(userName), [userName]);
 
