@@ -1,7 +1,7 @@
-import { redirect } from 'next/navigation';
+import PlannerDashboardPage from '@/components/dashboard/pages/PlannerDashboardPage';
 
 export const dynamic = 'force-dynamic';
 
 export default function DashboardPlannerPage() {
-  redirect('/dashboard/lito?tab=planner');
+  return <PlannerDashboardPage />;
 }

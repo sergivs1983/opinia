@@ -1,8 +1,6 @@
-import LITOChatTab from '@/components/lito/tabs/LITOChatTab';
-import LITOConfigTab from '@/components/lito/tabs/LITOConfigTab';
-import LITOHealthTab from '@/components/lito/tabs/LITOHealthTab';
-import LITOInboxTab from '@/components/lito/tabs/LITOInboxTab';
-import LITOPlannerTab from '@/components/lito/tabs/LITOPlannerTab';
+import { redirect } from 'next/navigation';
+
+import LitoDashboardPage from '@/components/dashboard/pages/LitoDashboardPage';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,19 +10,20 @@ type DashboardLitoPageProps = {
   };
 };
 
-function readTab(value: string | string[] | undefined): string {
-  const raw = Array.isArray(value) ? value[0] || 'chat' : value || 'chat';
-  if (raw === 'chat' || raw === 'inbox' || raw === 'planner' || raw === 'config' || raw === 'health') return raw;
-  return 'chat';
+function readTab(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] || null;
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  return null;
 }
 
 export default function DashboardLitoPage({ searchParams }: DashboardLitoPageProps) {
   const tab = readTab(searchParams?.tab);
 
-  if (tab === 'chat') return <LITOChatTab />;
-  if (tab === 'planner') return <LITOPlannerTab />;
-  if (tab === 'config') return <LITOConfigTab />;
-  if (tab === 'health') return <LITOHealthTab />;
+  if (tab === 'planner') redirect('/dashboard/planner');
+  if (tab === 'inbox' || tab === 'review' || tab === 'archive' || tab === 'arxiu') redirect('/dashboard/arxiu');
+  if (tab === 'config') redirect('/dashboard/settings?panel=config');
+  if (tab === 'health') redirect('/dashboard/settings?panel=health');
+  if (tab === 'plans') redirect('/dashboard/settings?panel=plans');
 
-  return <LITOInboxTab />;
+  return <LitoDashboardPage />;
 }
