@@ -85,7 +85,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   const businessLabel = biz?.name || 'Sense negoci actiu';
   const initial = userInitial(userName);
-  const showCommandBar = pathname.startsWith('/dashboard/lito');
+  const showCommandBar = false;
+  const contentMaxWidth = pathname.startsWith('/dashboard/lito') ? 540 : 1040;
 
   return (
     <div style={{ minHeight: '100dvh', background: shellTokens.bg, color: shellTokens.textPrimary }}>
@@ -269,8 +270,24 @@ export default function MainLayout({ children }: MainLayoutProps) {
             </div>
           </header>
 
-          <main style={{ flex: 1, overflowY: 'auto', padding: '48px 48px 120px' }}>
-            <div style={{ width: '100%', maxWidth: 1200 }}>{children}</div>
+          <main
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              display: 'flex',
+              justifyContent: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                maxWidth: contentMaxWidth,
+                margin: '0 auto',
+                padding: '48px 24px 120px',
+              }}
+            >
+              {children}
+            </div>
           </main>
         </div>
       </div>
