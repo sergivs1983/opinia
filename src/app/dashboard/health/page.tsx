@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import GlassCard from '@/components/ui/GlassCard';
 import Button from '@/components/ui/Button';
@@ -104,7 +104,7 @@ function trendLabel(trend: Trend | undefined, baseline: number | undefined): str
 }
 
 export default function DashboardHealthPage() {
-  const { org, membership } = useWorkspace();
+  const { org, biz, membership } = useWorkspace();
   const { toast } = useToast();
 
   const canManage = useMemo(() => {
@@ -115,33 +115,35 @@ export default function DashboardHealthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<SummaryPayload | null>(null);
+  const [devAction, setDevAction] = useState<'rate_limit' | 'orchestrator_cap' | null>(null);
 
-  useEffect(() => {
+  const loadSummary = useCallback(async () => {
     if (!org?.id || !canManage) return;
-
     setLoading(true);
     setError(null);
 
-    void (async () => {
-      try {
-        const response = await fetch(`/api/telemetry/summary?org_id=${org.id}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-store',
-          },
-        });
-        const payload = (await response.json().catch(() => ({}))) as SummaryPayload;
-        if (!response.ok || !payload.ok) {
-          throw new Error(payload.message || 'No s\'ha pogut carregar la telemetria.');
-        }
-        setSummary(payload);
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : 'No s\'ha pogut carregar la telemetria.');
-      } finally {
-        setLoading(false);
+    try {
+      const response = await fetch(`/api/telemetry/summary?org_id=${org.id}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      });
+      const payload = (await response.json().catch(() => ({}))) as SummaryPayload;
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.message || 'No s\'ha pogut carregar la telemetria.');
       }
-    })();
+      setSummary(payload);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'No s\'ha pogut carregar la telemetria.');
+    } finally {
+      setLoading(false);
+    }
   }, [canManage, org?.id]);
+
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
 
   const countByEvent = useMemo(() => {
     const map = new Map<string, number>();
@@ -167,6 +169,91 @@ export default function DashboardHealthPage() {
     } catch {
       toast('No s\'ha pogut copiar el debug', 'error');
     }
+  };
+
+  const runDevGuardrailSimulation = useCallback(async (kind: 'rate_limit' | 'orchestrator_cap') => {
+    if (!biz?.id) {
+      toast('Selecciona un negoci', 'warning');
+      return;
+    }
+
+    setDevAction(kind);
+    const isRateLimit = kind === 'rate_limit';
+
+    try {
+      const query = isRateLimit ? '__force_rate_limit=1' : '__force_orchestrator_cap=1';
+      const payload = isRateLimit
+        ? {
+          biz_id: biz.id,
+          message: 'dev-hook-rate-limit',
+          mode: 'chat',
+        }
+        : {
+          biz_id: biz.id,
+          message: 'dev-hook-orchestrator-cap',
+          mode: 'orchestrator_safe',
+        };
+
+      const response = await fetch(`/api/lito/chat?${query}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (isRateLimit) {
+        if (response.status === 429) {
+          toast('OK (429)', 'success');
+        } else {
+          toast(`Error: ${response.status}`, 'error');
+        }
+      } else if (response.status >= 400) {
+        toast(`OK (${response.status})`, 'success');
+      } else {
+        toast(`Error: ${response.status}`, 'error');
+      }
+    } catch {
+      toast('Error: network', 'error');
+    } finally {
+      await loadSummary();
+      setDevAction(null);
+    }
+  }, [biz?.id, loadSummary, toast]);
+
+  const renderDevTools = () => {
+    if (process.env.NODE_ENV === 'production') return null;
+
+    return (
+      <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className={cn('text-sm font-semibold md:text-base', textMain)}>DEV Tools (Guardrails)</h2>
+          <span className={cn('text-xs', textSub)}>Només DEV</span>
+        </div>
+        <p className={cn('text-sm', textSub)}>
+          {biz?.id ? 'Simula bloquejos de guardrails i refresca KPI al moment.' : 'Selecciona un negoci'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => { void runDevGuardrailSimulation('rate_limit'); }}
+            disabled={!biz?.id || devAction !== null}
+          >
+            {devAction === 'rate_limit' ? 'Simulant…' : 'Simular rate limit (429)'}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => { void runDevGuardrailSimulation('orchestrator_cap'); }}
+            disabled={!biz?.id || devAction !== null}
+          >
+            {devAction === 'orchestrator_cap' ? 'Simulant…' : 'Simular orchestrator cap (429)'}
+          </Button>
+        </div>
+      </GlassCard>
+    );
   };
 
   if (!canManage) {
@@ -210,6 +297,8 @@ export default function DashboardHealthPage() {
           </GlassCard>
         ))}
       </section>
+
+      {renderDevTools()}
 
       <section className="grid gap-3 sm:grid-cols-2">
         <GlassCard variant="glass" className="space-y-1 p-4">
