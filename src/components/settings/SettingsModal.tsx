@@ -163,11 +163,11 @@ export default function SettingsModal({ panel, onClose, onSelectPanel }: Setting
         className="grid max-h-[80vh] w-full max-w-[920px] grid-cols-1 overflow-hidden rounded-2xl border border-black/10 bg-white/90 shadow-2xl backdrop-blur-xl md:grid-cols-[16rem_minmax(0,1fr)]"
       >
         <aside
-          className="max-h-[80vh] overflow-y-auto border-b border-black/10 bg-zinc-50/80 p-4 md:border-b-0 md:border-r md:p-5"
+          className="overflow-hidden border-b border-black/10 bg-zinc-50/80 p-4 md:border-b-0 md:border-r md:p-5"
         >
           <div>
             <p className="font-serif text-[28px] font-semibold leading-tight tracking-[-0.02em] text-zinc-900">Configuració</p>
-            <p className="mt-1 text-xs text-zinc-500">Patró modal tipus ChatGPT</p>
+            <p className="mt-1 text-xs text-zinc-500">Gestiona el comportament i les fonts de context de LITO.</p>
           </div>
 
           <nav className="mt-4 flex flex-col gap-1.5">
@@ -203,26 +203,28 @@ export default function SettingsModal({ panel, onClose, onSelectPanel }: Setting
           </nav>
         </aside>
 
-        <section className="min-h-0 overflow-y-auto">
-          <header
-            className="sticky top-0 z-20 flex min-h-[72px] items-start justify-between border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:items-center md:px-6"
-          >
-            <div>
-              <p className="text-[15px] font-semibold text-zinc-900">{panelMeta.title}</p>
-              <p className="mt-1 text-xs text-zinc-500">{panelMeta.description}</p>
-            </div>
-            <button
-              type="button"
-              aria-label="Tancar configuració"
-              onClick={onClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 bg-white text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-800"
+        <section className="min-h-0 min-w-0 overflow-hidden">
+          <div className="min-h-0 h-full overflow-y-auto">
+            <header
+              className="sticky top-0 z-20 flex min-h-[72px] items-start justify-between border-b border-black/10 bg-white/95 px-5 py-3 backdrop-blur md:items-center md:px-6"
             >
-              <X size={16} aria-hidden="true" />
-            </button>
-          </header>
+              <div>
+                <p className="text-[15px] font-semibold text-zinc-900">{panelMeta.title}</p>
+                <p className="mt-1 text-xs text-zinc-500">{panelMeta.description}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Tancar configuració"
+                onClick={onClose}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black/10 bg-white text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-800"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </header>
 
-          <div className="lito-light-scope space-y-4 p-5 md:p-6">
-            {renderPanel()}
+            <div className="lito-light-scope space-y-4 p-5 md:p-6">
+              {renderPanel()}
+            </div>
           </div>
         </section>
       </div>
