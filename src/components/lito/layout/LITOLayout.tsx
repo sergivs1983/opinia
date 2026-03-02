@@ -1,10 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 
 import { tokens, cx } from '@/lib/design/tokens';
-import { LITO_NAV_ITEMS, type LitoNavItem } from '@/components/lito/layout/nav';
+import { LITO_NAV_ITEMS } from '@/components/lito/layout/nav';
 
 function LogoIcon() {
   return (
@@ -97,7 +97,6 @@ export function LITOLayout({
   onCommandChange,
   onCommandSubmit,
 }: LITOLayoutProps) {
-  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [localCommandValue, setLocalCommandValue] = useState('');
 
@@ -109,14 +108,6 @@ export function LITOLayout({
   const setInputValue = onCommandChange || setLocalCommandValue;
 
   const submitDisabled = commandDisabled || inputValue.trim().length === 0;
-
-  const onNavClick = useCallback(
-    (item: LitoNavItem) => {
-      setSidebarOpen(false);
-      router.push(item.href);
-    },
-    [router],
-  );
 
   const handleSubmit = useCallback(() => {
     if (submitDisabled) return;
@@ -165,31 +156,42 @@ export function LITOLayout({
           <span className="truncate">{businessLabel}</span>
         </div>
 
-        <span
-          className={cx(
-            'inline-flex h-8 w-8 items-center justify-center',
-            tokens.radius.pill,
-            tokens.bg.soft,
-            tokens.text.secondary,
-            tokens.text.tiny,
-          )}
-          aria-hidden="true"
-        >
-          {avatarText}
-        </span>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/logout"
+            className={cx('hidden sm:inline-flex', tokens.button.ghost, tokens.text.tiny)}
+          >
+            Tancar sessio
+          </Link>
+          <Link
+            href="/logout"
+            className={cx(
+              'inline-flex h-8 w-8 items-center justify-center',
+              tokens.radius.pill,
+              tokens.bg.soft,
+              tokens.text.secondary,
+              tokens.text.tiny,
+            )}
+            aria-label="Tancar sessio"
+            title="Tancar sessio"
+          >
+            {avatarText}
+          </Link>
+        </div>
       </header>
 
       <div className={cx('flex h-full pt-12', showCommandBar ? 'pb-0' : 'pb-0')}>
-        <div
-          className={cx(
-            'fixed inset-0 z-20 lg:hidden',
-            tokens.bg.overlay,
-            tokens.anim.fade,
-            sidebarOpen ? 'block' : 'hidden',
-          )}
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
+        {sidebarOpen ? (
+          <div
+            className={cx(
+              'fixed inset-0 z-20 lg:hidden pointer-events-auto',
+              tokens.bg.overlay,
+              tokens.anim.fade,
+            )}
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        ) : null}
 
         <aside
           className={cx(
@@ -198,17 +200,19 @@ export function LITOLayout({
             tokens.bg.surface,
             tokens.border.right,
             'transform transition-transform duration-200',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+            sidebarOpen
+              ? 'pointer-events-auto translate-x-0'
+              : 'pointer-events-none -translate-x-full lg:pointer-events-auto lg:translate-x-0',
           )}
         >
           <nav className="flex-1 overflow-y-auto px-2 py-3">
             {LITO_NAV_ITEMS.map((item) => {
               const isActive = item.key === selectedNav;
               return (
-                <button
+                <Link
                   key={item.key}
-                  type="button"
-                  onClick={() => onNavClick(item)}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
                   className={cx(
                     'mb-1 flex w-full items-center gap-2.5 px-3 py-2 text-left',
                     tokens.radius.button,
@@ -218,7 +222,7 @@ export function LITOLayout({
                 >
                   <NavIcon />
                   <span>{item.label}</span>
-                </button>
+                </Link>
               );
             })}
           </nav>

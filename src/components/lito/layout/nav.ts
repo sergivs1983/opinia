@@ -28,6 +28,6 @@ export const LITO_NAV_ITEMS: LitoNavItem[] = [
   {
     key: 'config',
     label: 'Config',
-    href: '/dashboard/settings',
+    href: '/dashboard/config',
   },
 ];

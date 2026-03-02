@@ -8,8 +8,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import GlassCard from '@/components/ui/GlassCard';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { textMain, textSub } from '@/components/ui/glass';
-import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 type SummaryEvent = {
@@ -228,10 +226,10 @@ export default function DashboardHealthPage() {
     return (
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className={cn('text-sm font-semibold md:text-base', textMain)}>DEV Tools (Guardrails)</h2>
-          <span className={cn('text-xs', textSub)}>Només DEV</span>
+          <h2 className="text-sm font-semibold text-zinc-900 md:text-base">DEV Tools (Guardrails)</h2>
+          <span className="text-xs text-zinc-600">Només DEV</span>
         </div>
-        <p className={cn('text-sm', textSub)}>
+        <p className="text-sm text-zinc-600">
           {biz?.id ? 'Simula bloquejos de guardrails i refresca KPI al moment.' : 'Selecciona un negoci'}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -258,14 +256,14 @@ export default function DashboardHealthPage() {
 
   if (!canManage) {
     return (
-      <div className="space-y-6 pb-16" data-testid="dashboard-health-page">
+      <div className="space-y-6 bg-transparent pb-16 text-zinc-900" data-testid="dashboard-health-page">
         <header className="space-y-1">
-          <h1 className={cn('text-2xl font-semibold md:text-3xl', textMain)}>Health</h1>
-          <p className={cn('text-sm md:text-base', textSub)}>Telemetria de plataforma (24h).</p>
+          <h1 className="text-2xl font-semibold text-zinc-900 md:text-3xl">Health</h1>
+          <p className="text-sm text-zinc-600 md:text-base">Telemetria de plataforma (24h).</p>
         </header>
         <GlassCard variant="glass" className="space-y-2 p-4 md:p-5">
-          <p className={cn('text-sm font-medium', textMain)}>Accés restringit</p>
-          <p className={cn('text-sm', textSub)}>Només owner/manager pot veure la telemetria.</p>
+          <p className="text-sm font-medium text-zinc-900">Accés restringit</p>
+          <p className="text-sm text-zinc-600">Només owner/manager pot veure la telemetria.</p>
           <Link href="/dashboard">
             <Button size="sm">Tornar al dashboard</Button>
           </Link>
@@ -275,11 +273,11 @@ export default function DashboardHealthPage() {
   }
 
   return (
-    <div className="space-y-6 pb-16" data-testid="dashboard-health-page">
+    <div className="space-y-6 bg-transparent pb-16 text-zinc-900" data-testid="dashboard-health-page">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className={cn('text-2xl font-semibold md:text-3xl', textMain)}>Health</h1>
-          <p className={cn('text-sm md:text-base', textSub)}>
+          <h1 className="text-2xl font-semibold text-zinc-900 md:text-3xl">Health</h1>
+          <p className="text-sm text-zinc-600 md:text-base">
             KPI de telemetria de les últimes 24 hores + últims errors.
           </p>
         </div>
@@ -291,9 +289,9 @@ export default function DashboardHealthPage() {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {KPI_ORDER.map((eventName) => (
           <GlassCard key={eventName} variant="glass" className="space-y-1 p-4">
-            <p className={cn('text-xs uppercase tracking-wide', textSub)}>{KPI_LABELS[eventName]}</p>
-            <p className={cn('text-2xl font-semibold', textMain)}>{countByEvent.get(eventName) ?? 0}</p>
-            <p className={cn('text-xs', textSub)}>Últimes 24h</p>
+            <p className="text-xs uppercase tracking-wide text-zinc-600">{KPI_LABELS[eventName]}</p>
+            <p className="text-2xl font-semibold text-zinc-900">{countByEvent.get(eventName) ?? 0}</p>
+            <p className="text-xs text-zinc-600">Últimes 24h</p>
           </GlassCard>
         ))}
       </section>
@@ -302,16 +300,16 @@ export default function DashboardHealthPage() {
 
       <section className="grid gap-3 sm:grid-cols-2">
         <GlassCard variant="glass" className="space-y-1 p-4">
-          <p className={cn('text-xs uppercase tracking-wide', textSub)}>Rate limits (última hora)</p>
-          <p className={cn('text-2xl font-semibold', textMain)}>{rateLimitedLast60m}</p>
-          <p className={cn('text-xs', textSub)}>
+          <p className="text-xs uppercase tracking-wide text-zinc-600">Rate limits (última hora)</p>
+          <p className="text-2xl font-semibold text-zinc-900">{rateLimitedLast60m}</p>
+          <p className="text-xs text-zinc-600">
             {trendLabel(guardrails?.rate_limits_last_60m?.trend, rateLimitedPrev60m)}
           </p>
         </GlassCard>
         <GlassCard variant="glass" className="space-y-1 p-4">
-          <p className={cn('text-xs uppercase tracking-wide', textSub)}>Orchestrator cap (avui)</p>
-          <p className={cn('text-2xl font-semibold', textMain)}>{orchestratorCapToday}</p>
-          <p className={cn('text-xs', textSub)}>
+          <p className="text-xs uppercase tracking-wide text-zinc-600">Orchestrator cap (avui)</p>
+          <p className="text-2xl font-semibold text-zinc-900">{orchestratorCapToday}</p>
+          <p className="text-xs text-zinc-600">
             {trendLabel(guardrails?.orchestrator_cap_today?.trend, orchestratorCapPrevDay)}
           </p>
         </GlassCard>
@@ -319,36 +317,36 @@ export default function DashboardHealthPage() {
 
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
-          <h2 className={cn('text-sm font-semibold md:text-base', textMain)}>Recent issues</h2>
-          {loading ? <span className={cn('text-xs', textSub)}>Carregant…</span> : null}
+          <h2 className="text-sm font-semibold text-zinc-900 md:text-base">Recent issues</h2>
+          {loading ? <span className="text-xs text-zinc-600">Carregant…</span> : null}
         </div>
 
-        {error ? <p className="text-sm text-amber-300">{error}</p> : null}
+        {error ? <p className="text-sm text-amber-700">{error}</p> : null}
 
         {!loading && !error && recentIssues.length === 0 ? (
-          <p className={cn('text-sm', textSub)}>No hi ha errors recents a les últimes 24h.</p>
+          <p className="text-sm text-zinc-600">No hi ha errors recents a les últimes 24h.</p>
         ) : null}
 
         {recentIssues.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-white/10 text-left">
-                  <th className="py-2 pr-3 font-medium text-white/85">Event</th>
-                  <th className="py-2 pr-3 font-medium text-white/85">Quan</th>
-                  <th className="py-2 pr-3 font-medium text-white/85">Request ID</th>
-                  <th className="py-2 font-medium text-white/85">Detall</th>
+                <tr className="border-b border-zinc-200 text-left">
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Event</th>
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Quan</th>
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Request ID</th>
+                  <th className="py-2 font-medium text-zinc-800">Detall</th>
                 </tr>
               </thead>
               <tbody>
                 {recentIssues.map((item) => (
-                  <tr key={`${item.event_name}-${item.created_at}-${item.request_id || 'none'}`} className="border-b border-white/5">
-                    <td className="py-2 pr-3 align-top text-white/90">{item.event_name}</td>
-                    <td className="py-2 pr-3 align-top text-white/75">{formatWhen(item.created_at)}</td>
-                    <td className="py-2 pr-3 align-top font-mono text-xs text-white/65">
+                  <tr key={`${item.event_name}-${item.created_at}-${item.request_id || 'none'}`} className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 align-top text-zinc-900">{item.event_name}</td>
+                    <td className="py-2 pr-3 align-top text-zinc-700">{formatWhen(item.created_at)}</td>
+                    <td className="py-2 pr-3 align-top font-mono text-xs text-zinc-600">
                       {item.request_id || '—'}
                     </td>
-                    <td className="py-2 align-top text-xs text-white/70">{compactJson(item.props)}</td>
+                    <td className="py-2 align-top text-xs text-zinc-700">{compactJson(item.props)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -359,34 +357,34 @@ export default function DashboardHealthPage() {
 
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
-          <h2 className={cn('text-sm font-semibold md:text-base', textMain)}>Guardrails recents</h2>
-          {loading ? <span className={cn('text-xs', textSub)}>Carregant…</span> : null}
+          <h2 className="text-sm font-semibold text-zinc-900 md:text-base">Guardrails recents</h2>
+          {loading ? <span className="text-xs text-zinc-600">Carregant…</span> : null}
         </div>
 
         {!loading && !error && guardrailRecent.length === 0 ? (
-          <p className={cn('text-sm', textSub)}>No hi ha bloquejos recents en les últimes 24h.</p>
+          <p className="text-sm text-zinc-600">No hi ha bloquejos recents en les últimes 24h.</p>
         ) : null}
 
         {guardrailRecent.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-white/10 text-left">
-                  <th className="py-2 pr-3 font-medium text-white/85">Event</th>
-                  <th className="py-2 pr-3 font-medium text-white/85">Quan</th>
-                  <th className="py-2 pr-3 font-medium text-white/85">Org</th>
-                  <th className="py-2 pr-3 font-medium text-white/85">Biz</th>
-                  <th className="py-2 font-medium text-white/85">Detall</th>
+                <tr className="border-b border-zinc-200 text-left">
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Event</th>
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Quan</th>
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Org</th>
+                  <th className="py-2 pr-3 font-medium text-zinc-800">Biz</th>
+                  <th className="py-2 font-medium text-zinc-800">Detall</th>
                 </tr>
               </thead>
               <tbody>
                 {guardrailRecent.map((item) => (
-                  <tr key={`${item.event_name}-${item.created_at}-${item.biz_id || 'none'}`} className="border-b border-white/5">
-                    <td className="py-2 pr-3 align-top text-white/90">{item.event_name}</td>
-                    <td className="py-2 pr-3 align-top text-white/75">{formatWhen(item.created_at)}</td>
-                    <td className="py-2 pr-3 align-top font-mono text-xs text-white/65">{item.org_id || '—'}</td>
-                    <td className="py-2 pr-3 align-top font-mono text-xs text-white/65">{item.biz_id || '—'}</td>
-                    <td className="py-2 align-top text-xs text-white/70">{compactJson(item.props)}</td>
+                  <tr key={`${item.event_name}-${item.created_at}-${item.biz_id || 'none'}`} className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 align-top text-zinc-900">{item.event_name}</td>
+                    <td className="py-2 pr-3 align-top text-zinc-700">{formatWhen(item.created_at)}</td>
+                    <td className="py-2 pr-3 align-top font-mono text-xs text-zinc-600">{item.org_id || '—'}</td>
+                    <td className="py-2 pr-3 align-top font-mono text-xs text-zinc-600">{item.biz_id || '—'}</td>
+                    <td className="py-2 align-top text-xs text-zinc-700">{compactJson(item.props)}</td>
                   </tr>
                 ))}
               </tbody>
