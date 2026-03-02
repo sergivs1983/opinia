@@ -399,6 +399,124 @@
 
   .separator   { height: 1px; background: var(--color-border); }
   .separator-v { width: 1px;  background: var(--color-border); }
+
+  /* ─── Dark mode overrides for hardcoded-colour component classes ─── */
+  .dark .glass-panel,
+  .dark .glass-card,
+  .dark .card {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .dark .card-interactive:hover {
+    background: var(--color-bg-muted);
+  }
+
+  .dark .glass-input {
+    background: var(--color-bg-muted);
+    border-color: var(--color-border);
+    color: var(--color-text);
+  }
+
+  .dark .glass-input::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  .dark .glass-input:focus {
+    background: var(--color-bg-elevated);
+  }
+
+  .dark .glass-pill {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+  }
+
+  .dark .glass-pill:hover {
+    background: var(--color-bg-muted);
+    color: var(--color-text);
+  }
+
+  .dark .glass-panel::before,
+  .dark .glass-card::before {
+    background: linear-gradient(to bottom, rgba(255,255,255,0.04), transparent);
+  }
+
+  .dark .nav-item {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+  }
+
+  .dark .nav-item:hover {
+    background: var(--color-bg-muted);
+    color: var(--color-text);
+  }
+
+  .dark .nav-item-active {
+    background: var(--color-bg-muted);
+    color: var(--color-text);
+  }
+
+  .dark .dropdown {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+  }
+
+  .dark .spotlight-card-surface {
+    background: var(--color-bg-elevated);
+  }
+
+  /* Shell layout (sidebar, topbar) dark mode — applied via data attr */
+  .dark [data-shell="sidebar"] {
+    background: var(--color-bg-elevated) !important;
+    border-right-color: var(--color-border) !important;
+  }
+
+  .dark [data-shell="topbar"] {
+    background: rgba(9,9,11,0.92) !important;
+    border-bottom-color: var(--color-border) !important;
+  }
+
+  .dark [data-shell="nav-active"] {
+    background: var(--color-bg-muted) !important;
+    color: var(--color-text) !important;
+  }
+
+  .dark [data-shell="nav-idle"] {
+    color: var(--color-text-tertiary) !important;
+  }
+
+  .dark [data-shell="settings-modal"] {
+    background: var(--color-bg-elevated) !important;
+    border-color: var(--color-border) !important;
+  }
+
+  .dark [data-shell="settings-nav"] {
+    border-right-color: var(--color-border) !important;
+  }
+
+  /* LITOHome cards dark mode */
+  .dark [data-lito="review-card"] {
+    background: var(--color-bg-elevated) !important;
+    border-color: var(--color-border) !important;
+  }
+
+  .dark [data-lito="queue-pill"] {
+    background: var(--color-bg-elevated) !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text-secondary) !important;
+  }
+
+  .dark [data-lito="command-bar"] {
+    background: rgba(28,28,31,0.97) !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text) !important;
+  }
+
+  .dark [data-lito="success-card"] {
+    background: var(--color-bg-elevated) !important;
+  }
 }
 
 /* ── Scrollbar ── */
