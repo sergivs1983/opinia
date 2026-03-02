@@ -48,10 +48,10 @@ export async function getLitoCardsCacheByBiz(input: {
 }
 
 export async function enqueueRebuildCards(input: {
-  admin: SupabaseClient;
+  supabase: SupabaseClient;
   bizId: string;
 }): Promise<void> {
-  const { error } = await input.admin.rpc('enqueue_rebuild_cards', { p_biz_id: input.bizId });
+  const { error } = await input.supabase.rpc('enqueue_rebuild_cards', { p_biz_id: input.bizId });
   if (error) throw new Error(error.message || 'enqueue_rebuild_cards_failed');
 }
 

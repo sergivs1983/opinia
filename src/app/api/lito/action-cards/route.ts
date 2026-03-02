@@ -41,11 +41,11 @@ function parseMode(mode: string | null | undefined): ActionCardMode {
 }
 
 function enqueueInBackground(input: {
-  admin: ReturnType<typeof createAdminClient>;
+  supabase: ReturnType<typeof createServerSupabaseClient>;
   bizId: string;
   log: ReturnType<typeof createLogger>;
 }): void {
-  void enqueueRebuildCards({ admin: input.admin, bizId: input.bizId }).catch((error) => {
+  void enqueueRebuildCards({ supabase: input.supabase, bizId: input.bizId }).catch((error) => {
     input.log.warn('lito_action_cards_enqueue_failed', {
       biz_id: input.bizId,
       error: error instanceof Error ? error.message : String(error),
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const cached = await getLitoCardsCacheByBiz({ admin, bizId: payload.biz_id });
 
     if (!cached) {
-      enqueueInBackground({ admin, bizId: payload.biz_id, log });
+      enqueueInBackground({ supabase, bizId: payload.biz_id, log });
       return withNoStore(
         NextResponse.json({
           ok: true,
@@ -116,6 +116,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           mode: 'basic',
           cards: [],
           queue_count: 0,
+          source: 'empty',
           request_id: requestId,
         }),
         requestId,
@@ -129,7 +130,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const visibleCards = sliceCardsByMode(sortedCards, mode);
 
     if (cached.stale) {
-      enqueueInBackground({ admin, bizId: payload.biz_id, log });
+      enqueueInBackground({ supabase, bizId: payload.biz_id, log });
     }
 
     return withNoStore(
@@ -139,6 +140,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         mode,
         cards: visibleCards,
         queue_count: sortedCards.length,
+        source: 'cache',
         request_id: requestId,
       }),
       requestId,
