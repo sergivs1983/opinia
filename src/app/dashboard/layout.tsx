@@ -44,7 +44,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
   const [commandValue, setCommandValue] = useState('');
   const [commandDisabled, setCommandDisabled] = useState(false);
 
-  const showCommandBar = pathname === '/dashboard/lito';
+  const showCommandBar = false;
   const activeTab = pathname === '/dashboard/lito' ? searchParams?.get('tab') : null;
   const canSeeHealthNav = membership?.role === 'owner' || membership?.role === 'manager';
   const navItems = useMemo(
