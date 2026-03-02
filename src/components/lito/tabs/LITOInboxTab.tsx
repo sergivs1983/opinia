@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import LitoCard from '@/components/ui/LitoCard';
+import PageHeader from '@/components/ui/PageHeader';
 import StarRating from '@/components/ui/StarRating';
 import Chip from '@/components/ui/Chip';
 import EmptyState from '@/components/ui/EmptyState';
@@ -276,7 +278,7 @@ export default function LITOInboxTab() {
 
   if (!biz) {
     return (
-      <div className="flex h-[60vh] items-center justify-center text-white/55">
+      <div className="flex h-[60vh] items-center justify-center text-zinc-500">
         <div className="text-center">
           <p className="mb-3 text-4xl">📭</p>
           <p className="font-medium">{t('dashboard.inbox.businessMissing')}</p>
@@ -287,15 +289,20 @@ export default function LITOInboxTab() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] min-h-0 flex-col gap-3" data-testid="inbox-page">
+    <div className="lito-light-scope flex min-h-0 flex-col gap-4 pb-10" data-testid="inbox-page">
+      <PageHeader
+        title="Inbox"
+        subtitle="Ressenyes pendents, generació de resposta i aprovació."
+      />
+
       {biz.panic_mode && (
-        <div className="rounded-xl border border-red-500/35 bg-red-500/15 px-4 py-3 text-sm text-red-100">
+        <LitoCard spotlight={false} className="rounded-xl border border-red-500/35 bg-red-50 px-4 py-3 text-sm text-red-700">
           <span className="font-medium">{t('dashboard.inbox.panicBanner')}</span>
           {biz.panic_reason ? <span className="ml-1 opacity-80">— {biz.panic_reason}</span> : null}
-        </div>
+        </LitoCard>
       )}
 
-      <div className={cn(glass, 'md:hidden p-2')}>
+      <LitoCard spotlight={false} className={cn('md:hidden p-2')}>
         <div className="flex items-center gap-2 overflow-x-auto">
           {MOBILE_TABS.map((tab) => (
             <Chip key={tab.id} active={mobileTab === tab.id} onClick={() => setMobileTab(tab.id)}>
@@ -303,7 +310,7 @@ export default function LITOInboxTab() {
             </Chip>
           ))}
         </div>
-      </div>
+      </LitoCard>
 
       <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         <section className={cn(glassStrong, 'min-h-0 overflow-hidden border border-white/10 p-4 shadow-glass', mobileTab === 'list' ? 'block' : 'hidden', 'md:block')}>

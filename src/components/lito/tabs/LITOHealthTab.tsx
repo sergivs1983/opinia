@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import Button from '@/components/ui/Button';
-import GlassCard from '@/components/ui/GlassCard';
+import LitoCard from '@/components/ui/LitoCard';
+import PageHeader from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { tokens, cx } from '@/lib/design/tokens';
@@ -223,7 +224,7 @@ export default function LITOHealthTab() {
     if (process.env.NODE_ENV === 'production') return null;
 
     return (
-      <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
+      <LitoCard spotlight={false} className="space-y-3 p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className={cx('text-sm font-semibold md:text-base', tokens.text.primary)}>DEV Tools (Guardrails)</h2>
           <span className={cx('text-xs', tokens.text.secondary)}>Només DEV</span>
@@ -249,72 +250,63 @@ export default function LITOHealthTab() {
             {devAction === 'orchestrator_cap' ? 'Simulant…' : 'Simular orchestrator cap (429)'}
           </Button>
         </div>
-      </GlassCard>
+      </LitoCard>
     );
   };
 
   if (!canManage) {
     return (
       <div className={cx('space-y-6 pb-16', tokens.bg.global, tokens.text.primary)} data-testid="dashboard-health-page">
-        <header className="space-y-1">
-          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Health</h1>
-          <p className={cx('text-sm md:text-base', tokens.text.secondary)}>Telemetria de plataforma (24h).</p>
-        </header>
-        <GlassCard variant="glass" className="space-y-2 p-4 md:p-5">
+        <PageHeader title="Health" subtitle="Telemetria de plataforma (24h)." />
+        <LitoCard spotlight={false} className="space-y-2 p-4 md:p-5">
           <p className={cx('text-sm font-medium', tokens.text.primary)}>Accés restringit</p>
           <p className={cx('text-sm', tokens.text.secondary)}>Només owner/manager pot veure la telemetria.</p>
           <Link href="/dashboard/lito">
             <Button size="sm">Tornar a LITO</Button>
           </Link>
-        </GlassCard>
+        </LitoCard>
       </div>
     );
   }
 
   return (
     <div className={cx('space-y-6 pb-16', tokens.bg.global, tokens.text.primary)} data-testid="dashboard-health-page">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Health</h1>
-          <p className={cx('text-sm md:text-base', tokens.text.secondary)}>
-            KPI de telemetria de les últimes 24 hores + últims errors.
-          </p>
-        </div>
-        <Button size="sm" variant="secondary" onClick={handleCopyDebug} disabled={!summary}>
-          Copy debug
-        </Button>
-      </header>
+      <PageHeader
+        title="Health"
+        subtitle="KPI de telemetria de les últimes 24 hores + últims errors."
+        actions={<Button size="sm" variant="secondary" onClick={handleCopyDebug} disabled={!summary}>Copy debug</Button>}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {KPI_ORDER.map((eventName) => (
-          <GlassCard key={eventName} variant="glass" className="space-y-1 p-4">
+          <LitoCard key={eventName} spotlight={false} className="space-y-1 p-4">
             <p className={cx('text-xs uppercase tracking-wide', tokens.text.secondary)}>{KPI_LABELS[eventName]}</p>
             <p className={cx('text-2xl font-semibold', tokens.text.primary)}>{countByEvent.get(eventName) ?? 0}</p>
             <p className={cx('text-xs', tokens.text.secondary)}>Últimes 24h</p>
-          </GlassCard>
+          </LitoCard>
         ))}
       </section>
 
       {renderDevTools()}
 
       <section className="grid gap-3 sm:grid-cols-2">
-        <GlassCard variant="glass" className="space-y-1 p-4">
+        <LitoCard spotlight={false} className="space-y-1 p-4">
           <p className={cx('text-xs uppercase tracking-wide', tokens.text.secondary)}>Rate limits (última hora)</p>
           <p className={cx('text-2xl font-semibold', tokens.text.primary)}>{rateLimitedLast60m}</p>
           <p className={cx('text-xs', tokens.text.secondary)}>
             {trendLabel(guardrails?.rate_limits_last_60m?.trend, rateLimitedPrev60m)}
           </p>
-        </GlassCard>
-        <GlassCard variant="glass" className="space-y-1 p-4">
+        </LitoCard>
+        <LitoCard spotlight={false} className="space-y-1 p-4">
           <p className={cx('text-xs uppercase tracking-wide', tokens.text.secondary)}>Orchestrator cap (avui)</p>
           <p className={cx('text-2xl font-semibold', tokens.text.primary)}>{orchestratorCapToday}</p>
           <p className={cx('text-xs', tokens.text.secondary)}>
             {trendLabel(guardrails?.orchestrator_cap_today?.trend, orchestratorCapPrevDay)}
           </p>
-        </GlassCard>
+        </LitoCard>
       </section>
 
-      <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
+      <LitoCard spotlight={false} className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
           <h2 className={cx('text-sm font-semibold md:text-base', tokens.text.primary)}>Recent issues</h2>
           {loading ? <span className={cx('text-xs', tokens.text.secondary)}>Carregant…</span> : null}
@@ -352,9 +344,9 @@ export default function LITOHealthTab() {
             </table>
           </div>
         ) : null}
-      </GlassCard>
+      </LitoCard>
 
-      <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
+      <LitoCard spotlight={false} className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
           <h2 className={cx('text-sm font-semibold md:text-base', tokens.text.primary)}>Guardrails recents</h2>
           {loading ? <span className={cx('text-xs', tokens.text.secondary)}>Carregant…</span> : null}
@@ -390,7 +382,7 @@ export default function LITOHealthTab() {
             </table>
           </div>
         ) : null}
-      </GlassCard>
+      </LitoCard>
     </div>
   );
 }

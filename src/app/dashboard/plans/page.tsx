@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import Button from '@/components/ui/Button';
+import LitoCard from '@/components/ui/LitoCard';
+import PageHeader from '@/components/ui/PageHeader';
+import Section from '@/components/ui/Section';
 import { useT } from '@/components/i18n/I18nContext';
 import { getOrgPlanConfig } from '@/lib/ai/quota';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -171,51 +174,45 @@ export default function DashboardPlansPage() {
   if (!canManage) {
     return (
       <div className={cx('space-y-6 pb-16', tokens.text.primary)} data-testid="dashboard-plans-page">
-        <header className="space-y-1">
-          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Plans i Entitlements</h1>
-        </header>
+        <PageHeader title="Plans i Entitlements" />
 
-        <section className={cx('space-y-2 p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.radius.card, tokens.shadow.card)}>
+        <LitoCard spotlight={false} className="space-y-2 p-4 md:p-5">
           <p className={cx('text-sm font-medium', tokens.text.primary)}>Accés restringit</p>
           <p className={cx('text-sm', tokens.text.secondary)}>Només owner/manager pot veure i gestionar facturació.</p>
           <Link href="/dashboard/lito">
             <Button size="sm">Tornar a LITO</Button>
           </Link>
-        </section>
+        </LitoCard>
       </div>
     );
   }
 
   return (
     <div className={cx('space-y-6 pb-16', tokens.text.primary)} data-testid="dashboard-plans-page">
-      <header className="space-y-1">
-        <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Plans i Entitlements</h1>
-        <p className={cx('text-sm md:text-base', tokens.text.secondary)}>
-          Paquets per locals, equip i Drafts LITO mensuals.
-        </p>
-      </header>
+      <PageHeader
+        title="Plans i Entitlements"
+        subtitle="Paquets per locals, equip i Drafts LITO mensuals."
+      />
 
-      <section className={cx('space-y-2 p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.radius.card, tokens.shadow.card)}>
+      <LitoCard spotlight={false} className="space-y-2 p-4 md:p-5">
         <p className={cx('text-sm font-medium', tokens.text.primary)}>Consum actual</p>
         <p className={cx('text-sm', tokens.text.secondary)}>Drafts mes: {usedDrafts}/{limitDrafts}</p>
         <p className={cx('text-sm', tokens.text.secondary)}>Signals: {signals}</p>
         {loading ? <p className={cx('text-xs', tokens.text.secondary)}>{t('common.loading')}</p> : null}
         {error ? <p className={cx('text-xs', tokens.text.warning)}>{error}</p> : null}
-      </section>
+      </LitoCard>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <Section title="Plans disponibles" contentClassName="grid gap-4 lg:grid-cols-3">
         {PLAN_CARDS.map((plan) => {
           const active = currentPlan === plan.id;
           return (
-            <article
+            <LitoCard
               key={plan.id}
               className={cx(
                 'relative overflow-hidden p-5',
-                tokens.bg.surface,
                 active ? tokens.border.strong : tokens.border.default,
-                tokens.radius.card,
-                tokens.shadow.card,
               )}
+              spotlight={false}
             >
               {plan.recommended ? (
                 <span className={cx('absolute right-3 top-3 rounded-full px-2 py-0.5 text-[11px] font-semibold', tokens.bg.soft, tokens.text.secondary)}>
@@ -251,12 +248,12 @@ export default function DashboardPlansPage() {
                   </a>
                 )}
               </div>
-            </article>
+            </LitoCard>
           );
         })}
-      </section>
+      </Section>
 
-      <section className={cx('space-y-3 p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.radius.card, tokens.shadow.card)}>
+      <LitoCard spotlight={false} className="space-y-3 p-4 md:p-5">
         <p className={cx('text-sm', tokens.text.secondary)}>
           Billing gestionat amb Stripe.
           {stripePortalUrl ? (
@@ -278,7 +275,7 @@ export default function DashboardPlansPage() {
             <Button size="sm">Obrir configuració</Button>
           </Link>
         </div>
-      </section>
+      </LitoCard>
     </div>
   );
 }

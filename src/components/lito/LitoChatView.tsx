@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@/components/ui/Button';
-import GlassCard from '@/components/ui/GlassCard';
+import LitoCard from '@/components/ui/LitoCard';
 import EntitlementPaywallModal, { type EntitlementModalType } from '@/components/billing/EntitlementPaywallModal';
 import { useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -1935,18 +1935,18 @@ export default function LitoChatView() {
   if (!biz) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <GlassCard variant="strong" className="w-full max-w-xl p-8 text-center">
+        <LitoCard spotlight={false} className="w-full max-w-xl p-8 text-center">
           <p className={cn('text-sm', textSub)}>{t('dashboard.metrics.selectBusiness')}</p>
           <Button className="mt-5" onClick={() => router.push('/dashboard')}>
             {t('dashboard.home.navHome')}
           </Button>
-        </GlassCard>
+        </LitoCard>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4" data-testid="dashboard-lito-chat-page">
+    <div className="lito-light-scope mx-auto w-full max-w-5xl space-y-4" data-testid="dashboard-lito-chat-page">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className={cn('text-2xl font-semibold tracking-tight', textMain)}>

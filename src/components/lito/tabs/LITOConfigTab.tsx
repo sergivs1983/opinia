@@ -14,6 +14,9 @@ import {
   TeamSettings,
   VoiceSettings,
 } from '@/components/settings';
+import LitoCard from '@/components/ui/LitoCard';
+import PageHeader from '@/components/ui/PageHeader';
+import Section from '@/components/ui/Section';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { tokens, cx } from '@/lib/design/tokens';
 
@@ -71,44 +74,44 @@ export default function LITOConfigTab() {
   if (!biz || !org) {
     return (
       <section className="space-y-4 pb-12" data-testid="lito-config-tab">
-        <header className="space-y-1">
-          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Config</h1>
-          <p className={cx('text-sm md:text-base', tokens.text.secondary)}>Selecciona un negoci per gestionar configuració i integracions.</p>
-        </header>
+        <PageHeader
+          title="Config"
+          subtitle="Selecciona un negoci per gestionar configuració i integracions."
+        />
       </section>
     );
   }
 
   return (
-    <section className="space-y-4 pb-12" data-testid="lito-config-tab">
-      <header className="space-y-1">
-        <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>{title}</h1>
-        <p className={cx('text-sm md:text-base', tokens.text.secondary)}>
-          Integracions, Brand Brain, seguretat i configuració operativa.
-        </p>
-      </header>
+    <section className="lito-light-scope space-y-4 pb-12" data-testid="lito-config-tab">
+      <PageHeader
+        title={title}
+        subtitle="Integracions, Brand Brain, seguretat i configuració operativa."
+      />
 
-      <div className="flex flex-wrap gap-2">
-        {CONFIG_SECTIONS.map((item) => {
-          const isActive = item.key === activeSection;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setActiveSection(item.key)}
-              className={cx(
-                'px-3 py-2 text-sm',
-                tokens.radius.button,
-                isActive ? cx(tokens.nav.itemActive, tokens.border.default) : cx(tokens.nav.itemIdle, tokens.border.subtle),
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+      <Section title="Seccions">
+        <div className="flex flex-wrap gap-2">
+          {CONFIG_SECTIONS.map((item) => {
+            const isActive = item.key === activeSection;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setActiveSection(item.key)}
+                className={cx(
+                  'px-3 py-2 text-sm',
+                  tokens.radius.button,
+                  isActive ? cx(tokens.nav.itemActive, tokens.border.default) : cx(tokens.nav.itemIdle, tokens.border.subtle),
+                )}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </Section>
 
-      <div className={cx('rounded-2xl p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.shadow.card)}>
+      <LitoCard spotlight={false} className="p-4 md:p-5">
         {activeSection === 'integrations' ? <IntegrationsPlaceholder /> : null}
         {activeSection === 'voice' ? <VoiceSettings biz={biz} onSaved={reload} /> : null}
         {activeSection === 'kb' ? <BusinessMemorySettings biz={biz} org={org} /> : null}
@@ -118,7 +121,7 @@ export default function LITOConfigTab() {
         {activeSection === 'triggers' ? <ActionTriggersSettings biz={biz} org={org} /> : null}
         {activeSection === 'team' ? <TeamSettings org={org} /> : null}
         {activeSection === 'language' ? <LanguageSettings /> : null}
-      </div>
+      </LitoCard>
     </section>
   );
 }

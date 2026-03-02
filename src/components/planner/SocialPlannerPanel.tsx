@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 
 import Button from '@/components/ui/Button';
-import GlassCard from '@/components/ui/GlassCard';
+import LitoCard from '@/components/ui/LitoCard';
 import { useLocale, useT } from '@/components/i18n/I18nContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { useToast } from '@/components/ui/Toast';
@@ -210,7 +210,7 @@ export default function SocialPlannerPanel() {
 
   const canManageSchedules = viewerRole === 'owner' || viewerRole === 'manager';
   const canMarkPublished = viewerRole === 'owner' || viewerRole === 'manager' || viewerRole === 'staff';
-  const canSnoozeSchedules = viewerRole === 'owner' || viewerRole === 'manager';
+  const canSnoozeSchedules = viewerRole === 'owner' || viewerRole === 'manager' || viewerRole === 'staff';
   const preselectedDraftId = searchParams.get('draft_id');
   const preselectedRecommendationId = searchParams.get('recommendation_id');
   const highlightedScheduleId = searchParams.get('schedule_id');
@@ -728,7 +728,7 @@ export default function SocialPlannerPanel() {
   }
 
   return (
-    <GlassCard variant="strong" className="p-4 md:p-5" data-testid="dashboard-social-planner">
+    <LitoCard spotlight={false} className="lito-light-scope p-4 md:p-5" data-testid="dashboard-social-planner">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className={cn('text-base font-semibold', textMain)}>{t('dashboard.home.socialPlanner.title')}</h2>
@@ -910,10 +910,10 @@ export default function SocialPlannerPanel() {
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
+      <div className={cn('mt-4 grid gap-4', showAdvanced ? 'md:grid-cols-3' : 'grid-cols-1')}>
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
           <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
-            {`${t('dashboard.home.socialPlanner.scheduledList')} (${scheduledItems.length})`}
+            {`${t(showAdvanced ? 'dashboard.home.socialPlanner.scheduledList' : 'dashboard.home.socialPlanner.thisWeek')} (${scheduledItems.length})`}
           </p>
           <div className="mt-2 space-y-2">
             {loading ? (
@@ -1089,93 +1089,97 @@ export default function SocialPlannerPanel() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
-            {`${t('dashboard.home.socialPlanner.publishedList')} (${publishedItems.length})`}
-          </p>
-          <div className="mt-2 space-y-2">
-            {publishedItems.length === 0 ? (
-              <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyPublished')}</p>
-            ) : (
-              publishedItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    'rounded-lg border border-emerald-300/20 bg-emerald-500/10 p-2',
-                    highlightedScheduleId === item.id && 'border-emerald-200/70',
-                  )}
-                >
-                  <p className={cn('line-clamp-1 text-xs font-semibold text-emerald-100')}>
-                    {item.draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle')}
-                  </p>
-                  <p className="mt-1 text-[11px] text-emerald-100/80">{formatDateLabel(item.published_at || item.updated_at, locale)}</p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    <Button
-                      variant="secondary"
-                      className="h-7 px-2 text-[11px]"
-                      onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`)}
+        {showAdvanced ? (
+          <>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+                {`${t('dashboard.home.socialPlanner.publishedList')} (${publishedItems.length})`}
+              </p>
+              <div className="mt-2 space-y-2">
+                {publishedItems.length === 0 ? (
+                  <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyPublished')}</p>
+                ) : (
+                  publishedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        'rounded-lg border border-emerald-300/20 bg-emerald-500/10 p-2',
+                        highlightedScheduleId === item.id && 'border-emerald-200/70',
+                      )}
                     >
-                      {t('dashboard.home.socialPlanner.viewItem')}
-                    </Button>
-                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(normalizeScheduleCopy(item.draft || null))}>
-                      {t('dashboard.home.socialPlanner.quickCopy')}
-                    </Button>
-                    <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => handleOpenPlatform(item.platform, item.id)}>
-                      {t('dashboard.home.socialPlanner.quickOpen')}
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                      <p className={cn('line-clamp-1 text-xs font-semibold text-emerald-100')}>
+                        {item.draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle')}
+                      </p>
+                      <p className="mt-1 text-[11px] text-emerald-100/80">{formatDateLabel(item.published_at || item.updated_at, locale)}</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Button
+                          variant="secondary"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`)}
+                        >
+                          {t('dashboard.home.socialPlanner.viewItem')}
+                        </Button>
+                        <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => void handleCopyDraft(normalizeScheduleCopy(item.draft || null))}>
+                          {t('dashboard.home.socialPlanner.quickCopy')}
+                        </Button>
+                        <Button variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => handleOpenPlatform(item.platform, item.id)}>
+                          {t('dashboard.home.socialPlanner.quickOpen')}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
 
-        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
-            {`${t('dashboard.home.socialPlanner.missedList')} (${missedItems.length})`}
-          </p>
-          <div className="mt-2 space-y-2">
-            {missedItems.length === 0 ? (
-              <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyMissed')}</p>
-            ) : (
-              missedItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    'rounded-lg border border-amber-300/20 bg-amber-500/10 p-2',
-                    highlightedScheduleId === item.id && 'border-amber-100/70',
-                  )}
-                >
-                  <p className={cn('line-clamp-1 text-xs font-semibold text-amber-100')}>
-                    {item.draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle')}
-                  </p>
-                  <p className="mt-1 text-[11px] text-amber-100/80">{formatDateLabel(item.scheduled_at, locale)}</p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    <Button
-                      variant="secondary"
-                      className="h-7 px-2 text-[11px]"
-                      onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`)}
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className={cn('text-xs font-semibold uppercase tracking-wide text-white/70')}>
+                {`${t('dashboard.home.socialPlanner.missedList')} (${missedItems.length})`}
+              </p>
+              <div className="mt-2 space-y-2">
+                {missedItems.length === 0 ? (
+                  <p className={cn('text-xs', textSub)}>{t('dashboard.home.socialPlanner.emptyMissed')}</p>
+                ) : (
+                  missedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        'rounded-lg border border-amber-300/20 bg-amber-500/10 p-2',
+                        highlightedScheduleId === item.id && 'border-amber-100/70',
+                      )}
                     >
-                      {t('dashboard.home.socialPlanner.viewItem')}
-                    </Button>
-                    {canSnoozeSchedules ? (
-                      <Button
-                        variant="ghost"
-                        className="h-7 px-2 text-[11px]"
-                        onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' }, {
-                          platformTarget: item.platform,
-                        })}
-                      >
-                        {t('dashboard.home.socialPlanner.snoozeTomorrow')}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                      <p className={cn('line-clamp-1 text-xs font-semibold text-amber-100')}>
+                        {item.draft?.title || t('dashboard.home.socialPlanner.defaultScheduledTitle')}
+                      </p>
+                      <p className="mt-1 text-[11px] text-amber-100/80">{formatDateLabel(item.scheduled_at, locale)}</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Button
+                          variant="secondary"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => router.push(`/dashboard/lito/review?biz_id=${biz.id}&draft_id=${item.draft_id}`)}
+                        >
+                          {t('dashboard.home.socialPlanner.viewItem')}
+                        </Button>
+                        {canSnoozeSchedules ? (
+                          <Button
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => void mutateSchedule(item.id, 'snooze', { mode: 'tomorrow_same_time' }, {
+                              platformTarget: item.platform,
+                            })}
+                          >
+                            {t('dashboard.home.socialPlanner.snoozeTomorrow')}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
-    </GlassCard>
+    </LitoCard>
   );
 }
