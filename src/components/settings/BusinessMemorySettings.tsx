@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useT } from '@/components/i18n/I18nContext';
 import Button from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
-import { glass, glassNoise, glassStrong, glassSweep, ringAccent } from '@/components/ui/glass';
+import { glass, glassNoise, glassSweep } from '@/components/ui/glass';
 import type { KnowledgeBaseEntry } from '@/types/database';
 import type { BizOrgProps } from './types';
 
@@ -145,46 +145,87 @@ export default function BusinessMemorySettings({ biz, org }: BizOrgProps) {
 
       {/* Form */}
       {showForm && (
-        <div className={cn(glassStrong, glassNoise, glassSweep, 'border border-brand-accent/25 p-5 shadow-glass space-y-4 animate-fade-in')}>
-          <p className="text-sm font-semibold text-white/90">{editId ? t('settings.kb.editEntry') : t('settings.kb.newEntry')}</p>
-          <div>
-            <label className="block text-xs font-medium text-white/70 mb-2">Categoria</label>
-            <div className="grid grid-cols-5 gap-1.5">
-              {CATEGORIES.map(c => (
-                <button key={c.value} onClick={() => setCategory(c.value)}
-                  className={cn('flex flex-col items-center gap-1 p-2 rounded-xl border text-xs transition-all',
-                    category === c.value ? 'border-brand-accent/45 bg-brand-accent/20 text-emerald-300 shadow-float' : 'border-white/14 bg-white/8 text-white/72 hover:border-white/24')}>
-                  <span className="text-lg">{c.icon}</span>
-                  <span className="font-medium truncate w-full text-center">{c.label}</span>
-                </button>
-              ))}
+        <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm animate-fade-in">
+          <div className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">
+                {editId ? 'Editar entrada' : 'Nova entrada'}
+              </p>
+              <p className="mt-1 text-sm text-zinc-500">
+                Afegeix informació verificable perquè LITO pugui respondre amb precisió.
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={resetForm} className="border-black/10 bg-white text-zinc-700 hover:bg-zinc-100">
+              Cancel·lar
+            </Button>
+          </div>
+
+          <div className="divide-y divide-black/10">
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,220px)_1fr] md:items-center">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">Categoria</p>
+                <p className="text-sm text-zinc-500">Classifica l&apos;entrada per mantenir el context ordenat.</p>
+              </div>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                className="w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm text-zinc-900 transition focus:border-emerald-500/45 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                {CATEGORIES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,220px)_1fr]">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">Contingut</p>
+                <p className="text-sm text-zinc-500">Text que la IA pot reutilitzar literalment quan sigui rellevant.</p>
+              </div>
+              <textarea
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                placeholder="Ex.: Parking gratuït per a clients. Entrada per Av. Catalunya amb barrera automàtica."
+                className="min-h-[96px] w-full resize-y rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-500/45 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,220px)_1fr] md:items-center">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">Paraules activadores</p>
+                <p className="text-sm text-zinc-500">Separa-les amb comes per activar aquesta entrada en context.</p>
+              </div>
+              <input
+                value={triggers}
+                onChange={(event) => setTriggers(event.target.value)}
+                placeholder="parking, aparcar, cotxe, aparcament"
+                className="w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-500/45 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+
+            <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,220px)_1fr]">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">Context per negatives (opcional)</p>
+                <p className="text-sm text-zinc-500">Orientació breu per a ressenyes amb sentiment negatiu.</p>
+              </div>
+              <textarea
+                value={sentimentCtx}
+                onChange={(event) => setSentimentCtx(event.target.value)}
+                placeholder="Ex.: Disculpar-se i oferir alternatives de parking proper."
+                className="min-h-[72px] w-full resize-y rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-500/45 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-white/70 mb-1">Contingut (el que la IA podrà dir)</label>
-            <textarea value={content} onChange={e => setContent(e.target.value)}
-              placeholder="Ex: Parking gratuït per a clients. Entrada per Av. Catalunya, barrera automàtica."
-              className={cn('w-full min-h-[80px] rounded-xl border border-white/14 bg-white/8 px-4 py-3 text-sm text-white/90 resize-y transition-all', ringAccent)} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-white/70 mb-1">
-              Paraules activadores <span className="text-white/55 font-normal">(separades per coma)</span>
-            </label>
-            <input value={triggers} onChange={e => setTriggers(e.target.value)}
-              placeholder="parking, aparcar, cotxe, aparcament"
-              className={cn('w-full rounded-xl border border-white/14 bg-white/8 px-4 py-2.5 text-sm text-white/90 transition-all', ringAccent)} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-white/70 mb-1">
-              Context per ressenyes negatives <span className="text-white/55 font-normal">(opcional)</span>
-            </label>
-            <input value={sentimentCtx} onChange={e => setSentimentCtx(e.target.value)}
-              placeholder="Ex: Disculpar-se i oferir alternatives de parking proper"
-              className={cn('w-full rounded-xl border border-white/14 bg-white/8 px-4 py-2.5 text-sm text-white/90 transition-all', ringAccent)} />
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button onClick={handleSave} loading={saving}>{editId ? t('settings.kb.updateEntry') : t('settings.kb.saveEntry')}</Button>
-            <Button variant="ghost" onClick={resetForm}>Cancel·lar</Button>
+
+          <div className="flex items-center justify-end gap-2 border-t border-black/10 bg-zinc-50/70 px-5 py-3">
+            <Button variant="secondary" onClick={resetForm} className="border-black/10 bg-white text-zinc-700 hover:bg-zinc-100">
+              Cancel·lar
+            </Button>
+            <Button onClick={handleSave} loading={saving}>
+              Desar entrada
+            </Button>
           </div>
         </div>
       )}
