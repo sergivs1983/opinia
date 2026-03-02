@@ -45,14 +45,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={locale} className="scroll-smooth" suppressHydrationWarning>
       <head>
-        <meta name="color-scheme" content="light dark" />
-        <meta name="theme-color" content="#111827" />
+        <meta name="color-scheme" content="light" />
+        <meta name="theme-color" content="#fafaf9" />
       </head>
       <body className="min-h-screen">
         <ThemeProvider>
           <I18nProvider locale={locale} messages={messages}>
             <ToastProvider>
-              <div className="opinia-bg min-h-screen text-white/90">{children}</div>
+              <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">{children}</div>
             </ToastProvider>
           </I18nProvider>
         </ThemeProvider>

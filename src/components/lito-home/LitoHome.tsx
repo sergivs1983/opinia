@@ -1,13 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/components/i18n/I18nContext';
 import { useToast } from '@/components/ui/Toast';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import ActionCard from '@/components/lito-home/ActionCard';
 import AdvancedDrawer, { type AdvancedDrawerLink } from '@/components/lito-home/AdvancedDrawer';
-import ThemeToggle from '@/components/lito-home/ThemeToggle';
+import LitoWeeklyWizard from '@/components/lito/LitoWeeklyWizard';
+import type { LitoRecommendationItem, LitoRecommendationTemplate, LitoViewerRole } from '@/components/lito/types';
 import '@/styles/lito-home.css';
 
 type LitoThreadPayload = {
@@ -22,10 +23,36 @@ type LitoMessagePayload = {
   message?: string;
 };
 
-type LitoTheme = 'day' | 'night';
+type WeeklyRecommendationsPayload = {
+  items?: Array<Partial<LitoRecommendationItem> & { recommendation_template?: LitoRecommendationTemplate }>;
+  viewer_role?: LitoViewerRole;
+  error?: string;
+  message?: string;
+};
+
 type QuickPillKey = 'prepareWeek' | 'today' | 'signals' | 'planner' | 'alerts';
 
-const THEME_STORAGE_KEY = 'opinia.lito.home.theme';
+function normalizeRecommendationItem(
+  item: Partial<LitoRecommendationItem> & { recommendation_template?: LitoRecommendationTemplate },
+): LitoRecommendationItem | null {
+  if (!item.id) return null;
+  const template = item.recommendation_template;
+  return {
+    id: item.id,
+    rule_id: item.rule_id || '',
+    status: item.status || 'shown',
+    source: item.source === 'signal' ? 'signal' : item.source === 'evergreen' ? 'evergreen' : undefined,
+    vertical: item.vertical || undefined,
+    format: item.format || template?.format || 'post',
+    hook: item.hook || template?.hook || '',
+    idea: item.idea || template?.idea || '',
+    cta: item.cta || template?.cta || '',
+    how_to: item.how_to || template?.how_to,
+    signal_meta: item.signal_meta || template?.signal,
+    language: item.language || template?.language,
+    recommendation_template: template,
+  };
+}
 
 function createClientRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -40,31 +67,14 @@ export default function LitoHome() {
   const { toast } = useToast();
   const { biz } = useWorkspace();
 
-  const [theme, setTheme] = useState<LitoTheme>('night');
+  const theme = 'day';
   const [prompt, setPrompt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [weeklyRecommendations, setWeeklyRecommendations] = useState<LitoRecommendationItem[]>([]);
+  const [weeklyViewerRole, setWeeklyViewerRole] = useState<LitoViewerRole>(null);
+  const homeRef = useRef<HTMLElement | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    try {
-      const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme === 'day' || savedTheme === 'night') {
-        setTheme(savedTheme);
-      }
-    } catch {
-      // Ignore localStorage read errors.
-    }
-  }, []);
-
-  const handleThemeChange = useCallback((nextTheme: LitoTheme) => {
-    setTheme(nextTheme);
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-    } catch {
-      // Ignore localStorage write errors.
-    }
-  }, []);
 
   const withBiz = useCallback((href: string): string => {
     if (!biz?.id) return href;
@@ -243,6 +253,49 @@ export default function LitoHome() {
     resizePrompt();
   }, [prompt, resizePrompt]);
 
+  useEffect(() => {
+    if (!biz?.id) {
+      setWeeklyRecommendations([]);
+      setWeeklyViewerRole(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadWeeklyRecommendations = async () => {
+      try {
+        const response = await fetch(`/api/recommendations/weekly?biz_id=${biz.id}`, {
+          cache: 'no-store',
+          headers: {
+            'x-request-id': createClientRequestId(),
+          },
+        });
+        const payload = (await response.json().catch(() => ({}))) as WeeklyRecommendationsPayload;
+        if (!response.ok || payload.error) {
+          throw new Error(payload.message || 'weekly_recommendations_failed');
+        }
+        if (cancelled) return;
+
+        setWeeklyViewerRole(payload.viewer_role || null);
+        setWeeklyRecommendations(
+          (payload.items || [])
+            .map((item) => normalizeRecommendationItem(item))
+            .filter((item): item is LitoRecommendationItem => Boolean(item)),
+        );
+      } catch {
+        if (cancelled) return;
+        setWeeklyRecommendations([]);
+        setWeeklyViewerRole(null);
+      }
+    };
+
+    void loadWeeklyRecommendations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [biz?.id]);
+
   const handleQuickPill = useCallback((key: QuickPillKey) => {
     if (key === 'alerts') {
       const nextPrompt = t('dashboard.litoPage.home.quickPrompts.alerts');
@@ -275,84 +328,114 @@ export default function LitoHome() {
     { key: 'planner', icon: '🧭', label: t('dashboard.litoPage.home.quickPills.planner') },
   ], [t]);
 
+  const handleHomeMouseMove = useCallback((event: MouseEvent<HTMLElement>) => {
+    const home = homeRef.current;
+    if (!home) return;
+    const rect = home.getBoundingClientRect();
+    home.style.setProperty('--home-mouse-x', `${event.clientX - rect.left}px`);
+    home.style.setProperty('--home-mouse-y', `${event.clientY - rect.top}px`);
+    home.style.setProperty('--home-spotlight-opacity', '1');
+  }, []);
+
+  const handleHomeMouseLeave = useCallback(() => {
+    const home = homeRef.current;
+    if (!home) return;
+    home.style.setProperty('--home-spotlight-opacity', '0');
+  }, []);
+
   return (
-    <section className="lito-home" data-theme={theme}>
+    <section
+      ref={homeRef}
+      className="lito-home"
+      data-theme={theme}
+      onMouseMove={handleHomeMouseMove}
+      onMouseLeave={handleHomeMouseLeave}
+    >
       <div className="lito-home-ambient-light" aria-hidden="true" />
       <div className="lito-home-noise" aria-hidden="true" />
 
-      <ThemeToggle
-        theme={theme}
-        dayLabel={t('dashboard.litoPage.home.theme.day')}
-        nightLabel={t('dashboard.litoPage.home.theme.night')}
-        onChange={handleThemeChange}
-      />
-
       <div className="lito-home-shell">
-        <header className="lito-home-header">
-          <p className="lito-home-eyebrow">LITO COPILOT</p>
-          <h1>{t('dashboard.litoPage.home.title')}</h1>
-          <p>{t('dashboard.litoPage.home.subtitle')}</p>
-        </header>
+        <div className="lito-home-stage">
+          <header className="lito-home-header">
+            <p className="lito-home-eyebrow">LITO COPILOT</p>
+            <h1>{t('dashboard.litoPage.home.title')}</h1>
+            <p>{t('dashboard.litoPage.home.subtitle')}</p>
+          </header>
 
-        <div className="lito-home-input-card">
-          <textarea
-            ref={promptRef}
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t('dashboard.litoPage.home.inputPlaceholder')}
-            className="lito-home-input"
-            rows={1}
-          />
-          <button
-            type="button"
-            className="lito-home-send"
-            onClick={() => void sendPromptToLito()}
-            disabled={isSubmitDisabled}
-            aria-label={t('dashboard.litoPage.home.send')}
-          >
-            {submitting ? '…' : '↗'}
+          <div className="lito-home-input-card">
+            <textarea
+              ref={promptRef}
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={t('dashboard.litoPage.home.inputPlaceholder')}
+              className="lito-home-input"
+              rows={1}
+            />
+            <button
+              type="button"
+              className="lito-home-send"
+              onClick={() => void sendPromptToLito()}
+              disabled={isSubmitDisabled}
+              aria-label={t('dashboard.litoPage.home.send')}
+            >
+              {submitting ? '…' : '↗'}
+            </button>
+          </div>
+
+          <div className="lito-home-quick-pills">
+            {quickPills.map((pill, index) => (
+              <button type="button" key={`${pill.key}-${index}`} className="lito-home-pill" onClick={() => handleQuickPill(pill.key)}>
+                <span className="lito-home-pill-icon" aria-hidden="true">{pill.icon}</span>
+                <span>{pill.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {biz ? (
+            <section className="lito-home-wizard">
+              <LitoWeeklyWizard
+                t={t}
+                bizId={biz.id}
+                orgId={biz.org_id || null}
+                businessName={biz.name}
+                businessVertical={biz.type || 'general'}
+                viewerRole={weeklyViewerRole}
+                recommendations={weeklyRecommendations}
+              />
+            </section>
+          ) : null}
+
+          {visibleActionCards.length > 0 ? (
+            <section className="lito-home-actions">
+              <div className="lito-home-actions-header">
+                <h2>{t('dashboard.litoPage.home.actions.title')}</h2>
+                {hiddenCardsCount > 0 ? (
+                  <button type="button" className="lito-home-view-all" onClick={() => setDrawerOpen(true)}>
+                    {t('dashboard.litoPage.home.actions.viewAll', { count: hiddenCardsCount })}
+                  </button>
+                ) : null}
+              </div>
+              <div className="lito-home-actions-grid">
+                {visibleActionCards.map((card) => (
+                  <ActionCard
+                    key={card.id}
+                    badge={card.badge}
+                    title={card.title}
+                    description={card.description}
+                    ctaLabel={card.cta}
+                    ctaVariant={card.ctaVariant}
+                    onCta={card.onClick}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <button type="button" className="lito-home-advanced-trigger" onClick={() => setDrawerOpen(true)}>
+            {t('dashboard.litoPage.home.advanced.open')}
           </button>
         </div>
-
-        <div className="lito-home-quick-pills">
-          {quickPills.map((pill, index) => (
-            <button type="button" key={`${pill.key}-${index}`} className="lito-home-pill" onClick={() => handleQuickPill(pill.key)}>
-              <span className="lito-home-pill-icon" aria-hidden="true">{pill.icon}</span>
-              <span>{pill.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {visibleActionCards.length > 0 ? (
-          <section className="lito-home-actions">
-            <div className="lito-home-actions-header">
-              <h2>{t('dashboard.litoPage.home.actions.title')}</h2>
-              {hiddenCardsCount > 0 ? (
-                <button type="button" className="lito-home-view-all" onClick={() => setDrawerOpen(true)}>
-                  {t('dashboard.litoPage.home.actions.viewAll', { count: hiddenCardsCount })}
-                </button>
-              ) : null}
-            </div>
-            <div className="lito-home-actions-grid">
-              {visibleActionCards.map((card) => (
-                <ActionCard
-                  key={card.id}
-                  badge={card.badge}
-                  title={card.title}
-                  description={card.description}
-                  ctaLabel={card.cta}
-                  ctaVariant={card.ctaVariant}
-                  onCta={card.onClick}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <button type="button" className="lito-home-advanced-trigger" onClick={() => setDrawerOpen(true)}>
-          {t('dashboard.litoPage.home.advanced.open')}
-        </button>
       </div>
 
       <AdvancedDrawer
