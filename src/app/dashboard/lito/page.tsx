@@ -13,9 +13,9 @@ type DashboardLitoPageProps = {
 };
 
 function readTab(value: string | string[] | undefined): string {
-  const raw = Array.isArray(value) ? value[0] || 'inbox' : value || 'inbox';
+  const raw = Array.isArray(value) ? value[0] || 'chat' : value || 'chat';
   if (raw === 'chat' || raw === 'inbox' || raw === 'planner' || raw === 'config' || raw === 'health') return raw;
-  return 'inbox';
+  return 'chat';
 }
 
 export default function DashboardLitoPage({ searchParams }: DashboardLitoPageProps) {

@@ -111,7 +111,7 @@ export function LITOLayout({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [localCommandValue, setLocalCommandValue] = useState('');
 
-  const tab = searchParams?.get('tab') ?? 'inbox';
+  const tab = searchParams?.get('tab') ?? 'chat';
   const resolvedNavItems = navItems && navItems.length > 0 ? navItems : LITO_NAV_ITEMS;
   const selectedNav = useMemo(() => {
     const hasItem = (value: string | null | undefined) =>
@@ -121,7 +121,7 @@ export function LITOLayout({
       const rawTab = searchParams?.get('tab');
       if (hasItem(rawTab)) return rawTab as string;
       if (hasItem(tab)) return tab;
-      return hasItem('inbox') ? 'inbox' : (resolvedNavItems[0]?.key || 'chat');
+      return hasItem('chat') ? 'chat' : (resolvedNavItems[0]?.key || 'chat');
     }
 
     if (pathname.startsWith('/dashboard/lito/')) {
