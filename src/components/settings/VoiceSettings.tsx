@@ -11,8 +11,6 @@ import { audit } from '@/lib/audit';
 import { hasSeoSchemaColumns, markSeoSchemaMissingAudit } from '@/lib/seo-schema';
 import type { BizSettingsProps } from './types';
 
-type BrandImageKind = 'logo' | 'cover';
-
 type LocalVoiceState = {
   seoMode?: boolean;
   seoMaxKw?: number;
@@ -109,17 +107,16 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
       ...normalizeKeywordSource(bizRecord.target_keywords),
     ])].join(', ')
   );
-  const [brandKind, setBrandKind] = useState<BrandImageKind>(biz.brand_image_kind === 'cover' ? 'cover' : 'logo');
   const [brandFile, setBrandFile] = useState<File | null>(null);
+  const [brandMarkedForRemoval, setBrandMarkedForRemoval] = useState(false);
   const [brandPreviewUrl, setBrandPreviewUrl] = useState<string | null>(null);
-  const [brandSaving, setBrandSaving] = useState(false);
-  const [brandSaved, setBrandSaved] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const [seoCapabilities, setSeoCapabilities] = useState<SeoCapabilitiesPayload | null>(null);
   const [seoCapabilitiesLoading, setSeoCapabilitiesLoading] = useState(true);
   const [copiedMigrationCommand, setCopiedMigrationCommand] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const brandFileInputRef = useRef<HTMLInputElement | null>(null);
   const objectPreviewRef = useRef<string | null>(null);
   const supabase = createClient();
   const localKey = `opinia.voice.settings.${biz.id}`;
@@ -178,15 +175,12 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
   }, [biz.id]);
 
   useEffect(() => {
-    setBrandKind(biz.brand_image_kind === 'cover' ? 'cover' : 'logo');
-  }, [biz.brand_image_kind]);
-
-  useEffect(() => {
     let cancelled = false;
     void (async () => {
       const signedUrl = await fetchBrandImageSignedUrlWithRetry(biz.id, 0);
       if (cancelled) return;
       setBrandPreviewUrl(signedUrl);
+      setBrandMarkedForRemoval(false);
     })();
 
     return () => {
@@ -227,7 +221,6 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
   }, [biz.id, biz.org_id, seoCapabilitiesLoading, seoSchemaMissing, supabase]);
 
   const handleBrandFileChange = (file: File | null) => {
-    setBrandSaved(false);
     setBrandError(null);
 
     if (!file) {
@@ -255,22 +248,15 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
     objectPreviewRef.current = objectUrl;
     setBrandPreviewUrl(objectUrl);
     setBrandFile(file);
+    setBrandMarkedForRemoval(false);
   };
 
-  const handleBrandSave = async () => {
-    if (!brandFile) {
-      setBrandError(t('settings.voice.brandImageSelectFirst'));
-      return;
-    }
-
-    setBrandSaving(true);
-    setBrandSaved(false);
+  const uploadBrandFile = async (file: File) => {
     setBrandError(null);
-
     try {
       const formData = new FormData();
-      formData.set('kind', brandKind);
-      formData.set('file', brandFile);
+      formData.set('kind', 'logo');
+      formData.set('file', file);
 
       const response = await fetch(`/api/businesses/${biz.id}/brand-image`, {
         method: 'POST',
@@ -281,8 +267,7 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
       const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
       if (!response.ok || payload.error) {
         setBrandError(payload.message || t('settings.voice.brandImageErrorSave'));
-        setBrandSaving(false);
-        return;
+        return false;
       }
 
       const refreshedSignedUrl = await fetchBrandImageSignedUrlWithRetry(biz.id, 0);
@@ -295,14 +280,31 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
       }
 
       setBrandFile(null);
-      await onSaved();
-      setBrandSaving(false);
-      setBrandSaved(true);
-      window.setTimeout(() => setBrandSaved(false), 2000);
+      setBrandMarkedForRemoval(false);
+      return true;
     } catch {
-      setBrandSaving(false);
       setBrandError(t('settings.voice.brandImageErrorSave'));
+      return false;
     }
+  };
+
+  const openBrandFilePicker = () => {
+    const input = brandFileInputRef.current;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  };
+
+  const clearBrandSelection = () => {
+    setBrandError(null);
+    const shouldRemovePersistedLogo = Boolean((biz.brand_image_path || '').trim());
+    setBrandFile(null);
+    if (objectPreviewRef.current) {
+      URL.revokeObjectURL(objectPreviewRef.current);
+      objectPreviewRef.current = null;
+    }
+    setBrandPreviewUrl(null);
+    setBrandMarkedForRemoval(shouldRemovePersistedLogo);
   };
 
   const copyMigrationCommand = async () => {
@@ -314,6 +316,7 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
   };
 
   const handleSave = async () => {
+    setBrandError(null);
     setSaving(true);
     const kwArr = seoKeywords.split(',').map(s => s.trim()).filter(Boolean);
     const updatePayload: Record<string, unknown> = {
@@ -345,9 +348,26 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
       };
     }
 
+    if (brandMarkedForRemoval && !brandFile) {
+      if (hasColumn('brand_image_path')) updatePayload.brand_image_path = null;
+      if (hasColumn('brand_image_bucket')) updatePayload.brand_image_bucket = null;
+      if (hasColumn('brand_image_kind')) updatePayload.brand_image_kind = 'logo';
+      if (hasColumn('brand_image_updated_at')) updatePayload.brand_image_updated_at = new Date().toISOString();
+    }
+
     const { error } = await supabase.from('businesses').update(updatePayload).eq('id', biz.id);
     if (error) {
       console.warn('[voice-settings] save failed', error.message);
+      setSaving(false);
+      return;
+    }
+
+    if (brandFile) {
+      const uploaded = await uploadBrandFile(brandFile);
+      if (!uploaded) {
+        setSaving(false);
+        return;
+      }
     }
 
     if (typeof window !== 'undefined') {
@@ -361,6 +381,10 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
     }
 
     await onSaved();
+    if (!brandFile && !brandMarkedForRemoval) {
+      const refreshedSignedUrl = await fetchBrandImageSignedUrlWithRetry(biz.id, 0);
+      setBrandPreviewUrl(refreshedSignedUrl);
+    }
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -372,6 +396,20 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
       return typeof raw === 'string' ? ['—', raw] : ['—', 'Suau', 'Mitjà', 'Alt'];
     } catch { return ['—', 'Suau', 'Mitjà', 'Alt']; }
   })();
+  const showSeoDevMigrationBanner = seoSchemaMissing && process.env.NODE_ENV !== 'production';
+  const showSeoUnavailableBanner = seoSchemaMissing && process.env.NODE_ENV === 'production';
+  const persistedBrandName = (() => {
+    if (typeof biz.brand_image_path !== 'string') return '';
+    const lastSegment = (biz.brand_image_path.split('/').pop() || '').trim();
+    if (!lastSegment) return '';
+    try {
+      return decodeURIComponent(lastSegment);
+    } catch {
+      return lastSegment;
+    }
+  })();
+  const displayedBrandFileName = (brandFile?.name || persistedBrandName || '').trim();
+  const hasBrandSelected = Boolean(brandFile || brandPreviewUrl);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm" data-testid="settings-voice-panel">
@@ -462,7 +500,7 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
           </div>
         </div>
 
-        {seoSchemaMissing && (
+        {showSeoDevMigrationBanner && (
           <div className="px-5 py-4">
             <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-xs text-amber-900" data-testid="settings-seo-migration-callout">
               <p data-testid="settings-seo-fallback-note">Falten columnes SEO a `businesses`. Cal aplicar la migració.</p>
@@ -477,6 +515,14 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
                 </button>
                 <code className="text-[11px] text-zinc-700">{seoCapabilities?.migration?.command || 'supabase db push'}</code>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showSeoUnavailableBanner && (
+          <div className="px-5 py-4">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-600">
+              SEO no disponible en aquest entorn.
             </div>
           </div>
         )}
@@ -553,66 +599,75 @@ export default function VoiceSettings({ biz, onSaved }: BizSettingsProps) {
           </>
         )}
 
-        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr]">
+        <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,260px)_1fr] md:items-start">
           <div>
-            <p className="text-sm font-medium text-zinc-900">{t('settings.voice.brandImageTitle')}</p>
-            <p className="text-sm text-zinc-500">{t('settings.voice.brandImageDesc')}</p>
+            <p className="text-sm font-medium text-zinc-900">Logo del negoci</p>
+            <p className="text-sm text-zinc-500">PNG/JPG/WEBP · fins a 4 MB</p>
           </div>
           <div className="space-y-3 rounded-xl border border-black/10 bg-zinc-50 p-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <select
-                value={brandKind}
-                onChange={(event) => setBrandKind(event.target.value === 'cover' ? 'cover' : 'logo')}
-                className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-zinc-900"
-                data-testid="business-brand-kind"
-              >
-                <option value="logo">{t('settings.voice.brandImageLogo')}</option>
-                <option value="cover">{t('settings.voice.brandImageCover')}</option>
-              </select>
+            <input
+              ref={brandFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => handleBrandFileChange(event.target.files?.[0] || null)}
+              data-testid="business-brand-upload"
+              className="hidden"
+            />
 
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => handleBrandFileChange(event.target.files?.[0] || null)}
-                data-testid="business-brand-upload"
-                className="block text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border file:border-black/10 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700"
-              />
-
-              <Button
-                onClick={handleBrandSave}
-                loading={brandSaving}
-                data-testid="business-brand-save"
-                disabled={!brandFile}
-              >
-                {t('common.save')}
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-3">
-              {brandPreviewUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={brandPreviewUrl}
-                  alt="Business brand image"
-                  className="h-14 w-14 rounded-xl border border-black/10 object-cover"
-                  data-testid="business-brand-preview"
-                />
-              ) : (
-                <div
-                  className="flex h-14 w-14 items-center justify-center rounded-xl border border-dashed border-black/20 bg-zinc-50 text-xs text-zinc-500"
-                  data-testid="business-brand-preview"
+            {!hasBrandSelected ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-zinc-500">Cap fitxer seleccionat</p>
+                <button
+                  type="button"
+                  onClick={openBrandFilePicker}
+                  className="inline-flex items-center rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
                 >
-                  {biz.name.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="text-xs text-zinc-600">
-                <p>{t('settings.voice.brandImageFormats')}</p>
-                <p>{t('settings.voice.brandImageMaxSize')}</p>
+                  Pujar fitxer
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  {brandPreviewUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={brandPreviewUrl}
+                      alt="Logo del negoci"
+                      className="h-12 w-12 rounded-lg border border-black/10 object-cover"
+                      data-testid="business-brand-preview"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed border-black/20 bg-zinc-50 text-xs text-zinc-500"
+                      data-testid="business-brand-preview"
+                    >
+                      {biz.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <p className="truncate text-sm text-zinc-700">
+                    {displayedBrandFileName || 'Logo del negoci'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openBrandFilePicker}
+                    className="inline-flex items-center rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                  >
+                    Canviar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearBrandSelection}
+                    className="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {brandError && <p className="text-xs text-rose-600">{brandError}</p>}
-            {brandSaved && <p className="text-xs text-emerald-700">✅ {t('settings.voice.brandImageSaved')}</p>}
           </div>
         </div>
       </div>
