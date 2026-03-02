@@ -171,6 +171,13 @@ function normalizeMemory(raw: unknown): BusinessMemoryPayload {
   const voice = asObject(root.brand_voice);
   const policies = asObject(root.policies);
   const facts = asObject(root.business_facts);
+  const businessType = facts.type === 'hotel'
+    || facts.type === 'restaurant'
+    || facts.type === 'bar_cafeteria'
+    || facts.type === 'retail'
+    || facts.type === 'other'
+    ? facts.type
+    : '';
 
   const formality = voice.formality === 'tu' || voice.formality === 'voste' || voice.formality === 'mixt'
     ? voice.formality
@@ -205,6 +212,7 @@ function normalizeMemory(raw: unknown): BusinessMemoryPayload {
       primary_focus: primaryFocus,
     },
     business_facts: {
+      type: businessType,
       services: cleanStringArray(facts.services, 20, 80),
       hours: cleanStringArray(facts.hours, 14, 120),
       location_notes: cleanText(facts.location_notes, 280),

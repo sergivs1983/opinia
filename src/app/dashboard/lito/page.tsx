@@ -18,7 +18,7 @@ import ActionCardStack, {
 import CardQueueDrawer from '@/components/lito/home/CardQueueDrawer';
 import LitoHeader from '@/components/lito/home/LitoHeader';
 import BrandBrainPanel from '@/components/lito/panels/BrandBrainPanel';
-import BrandBrainOnboardingWizard from '@/components/lito/panels/BrandBrainOnboardingWizard';
+import LitoOnboardingWizard from '@/components/lito/onboarding/LitoOnboardingWizard';
 import { useActionCards } from '@/components/lito/home/useActionCards';
 import { useLocale } from '@/components/i18n/I18nContext';
 import { useToast } from '@/components/ui/Toast';
@@ -770,12 +770,7 @@ export default function DashboardLitoPage() {
     if (!activeBizId) return;
     await refreshActionCards({ forceRebuild: true });
 
-    const fallbackPrompt = lang === 'ca'
-      ? 'Què toca avui?'
-      : lang === 'es'
-        ? '¿Qué toca hoy?'
-        : 'What should I do today?';
-    const prompt = input.prompt?.trim() || fallbackPrompt;
+    const prompt = input.prompt?.trim() || 'Què toca avui?';
 
     setCommand(prompt);
     setExternalCommandRequest({
@@ -783,7 +778,7 @@ export default function DashboardLitoPage() {
       message: prompt,
       mode: 'orchestrator_safe',
     });
-  }, [activeBizId, refreshActionCards, lang]);
+  }, [activeBizId, refreshActionCards]);
 
   return (
     <section className="lito-action-stream">
@@ -800,8 +795,9 @@ export default function DashboardLitoPage() {
         />
 
         <BrandBrainPanel bizId={activeBizId} />
-        <BrandBrainOnboardingWizard
+        <LitoOnboardingWizard
           bizId={activeBizId}
+          orgId={biz?.org_id || null}
           onCompleted={handleBrandBrainOnboardingCompleted}
         />
 

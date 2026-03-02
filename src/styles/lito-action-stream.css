@@ -346,6 +346,26 @@
   font-weight: 600;
 }
 
+.lito-onboarding-staff-actions {
+  margin-top: 10px;
+  display: flex;
+}
+
+.lito-onboarding-staff-button {
+  border: 1px solid rgba(16, 20, 23, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  color: #1d2730;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.lito-onboarding-staff-button:hover {
+  border-color: rgba(16, 20, 23, 0.28);
+}
+
 .lito-onboarding-questions {
   margin-top: 14px;
 }

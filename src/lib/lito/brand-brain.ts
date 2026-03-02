@@ -1,5 +1,6 @@
 export type BrandVoiceFormality = 'tu' | 'voste' | 'mixt';
 export type BrandPriorityFocus = 'reviews' | 'social' | 'both';
+export type BusinessMemoryType = 'hotel' | 'restaurant' | 'bar_cafeteria' | 'retail' | 'other' | '';
 
 export type BusinessMemoryBrandVoice = {
   tone: string[];
@@ -18,6 +19,7 @@ export type BusinessMemoryPolicies = {
 };
 
 export type BusinessMemoryFacts = {
+  type: BusinessMemoryType;
   services: string[];
   hours: string[];
   location_notes: string;
@@ -48,6 +50,7 @@ export const DEFAULT_BUSINESS_MEMORY: BusinessMemoryPayload = {
     primary_focus: 'both',
   },
   business_facts: {
+    type: '',
     services: [],
     hours: [],
     location_notes: '',
@@ -120,6 +123,19 @@ function normalizeFormality(value: unknown, fallback: BrandVoiceFormality): Bran
   return fallback;
 }
 
+function normalizeBusinessType(value: unknown, fallback: BusinessMemoryType): BusinessMemoryType {
+  if (
+    value === 'hotel'
+    || value === 'restaurant'
+    || value === 'bar_cafeteria'
+    || value === 'retail'
+    || value === 'other'
+  ) {
+    return value;
+  }
+  return fallback;
+}
+
 export function sanitizeBusinessMemoryInput(input: unknown): BusinessMemoryPayload {
   const root = asObject(input);
   const brandVoice = asObject(root.brand_voice);
@@ -150,6 +166,10 @@ export function sanitizeBusinessMemoryInput(input: unknown): BusinessMemoryPaylo
       ),
     },
     business_facts: {
+      type: normalizeBusinessType(
+        businessFacts.type,
+        DEFAULT_BUSINESS_MEMORY.business_facts.type,
+      ),
       services: cleanStringArray(businessFacts.services, 20, 80),
       hours: cleanStringArray(businessFacts.hours, 14, 120),
       location_notes: cleanText(businessFacts.location_notes, 280),
