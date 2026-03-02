@@ -95,7 +95,8 @@
     "switchOrg": "Canviar organització",
     "switchBiz": "Canviar negoci",
     "plans": "Plans",
-    "health": "Health"
+    "health": "Health",
+    "lito": "LITO"
   },
   "landing": {
     "hero": "Respostes professionals amb IA per al teu negoci",
@@ -1145,6 +1146,66 @@
         "noveltyPrefix": "Novetat de la setmana: {value}.",
         "assetOne": "Foto real de {business}",
         "assetTwo": "Clip curt vertical o captura de detall"
+      },
+      "home": {
+        "title": "Què vols preparar avui?",
+        "subtitle": "Escriu una idea i LITO t'ho deixa llest per publicar.",
+        "inputPlaceholder": "Explica què vols publicar i LITO obrirà el xat amb context...",
+        "send": "Enviar a LITO",
+        "sending": "Enviant...",
+        "quickPills": {
+          "prepareWeek": "Prepara la setmana",
+          "today": "Què toca avui",
+          "signals": "Veure signals",
+          "planner": "Planner (avançat)"
+        },
+        "quickPrompts": {
+          "prepareWeek": "Prepara 3 posts per aquesta setmana i deixa'ls llestos.",
+          "today": "Què em recomanes publicar avui? Dona'm una opció clara.",
+          "signals": "Ensenya'm els signals prioritaris de la setmana i què faig primer."
+        },
+        "actions": {
+          "title": "Accions d'ara",
+          "viewAll": "Veure tot ({count})",
+          "card1Badge": "Planner",
+          "card1Title": "Toca publicar",
+          "card1Description": "Tens una franja oberta avui. Copia, obre xarxa i marca-ho com fet.",
+          "card1Cta": "Copiar i obrir",
+          "card2Badge": "LITO",
+          "card2Title": "LITO t'ha preparat un post",
+          "card2Description": "Obre el xat amb un primer esborrany i ajusta'l en un parell de tocs.",
+          "card2Cta": "Me'l quedo",
+          "card3Badge": "Review",
+          "card3Title": "Pendents de revisió",
+          "card3Description": "Revisa drafts en pending i aprova'ls des de la safata de LITO.",
+          "card3Cta": "Revisar ara"
+        },
+        "advanced": {
+          "open": "··· Opcions avançades",
+          "title": "Pantalles avançades",
+          "subtitle": "Accés directe a les vistes de gestió i supervisió.",
+          "chatLabel": "Xat net de LITO",
+          "chatDescription": "Conversa completa tipus ChatGPT amb el mateix fil.",
+          "plannerLabel": "Planner",
+          "plannerDescription": "Execució setmanal i recordatoris socials.",
+          "reviewLabel": "Inbox de revisió",
+          "reviewDescription": "Aprova o rebutja drafts pendents.",
+          "settingsLabel": "Configuració Admin",
+          "settingsDescription": "Provider IA, toggle staff i controls globals.",
+          "healthLabel": "Health",
+          "healthDescription": "Telemetria de producció i errors recents.",
+          "classicLabel": "Dashboard clàssic",
+          "classicDescription": "Vista completa anterior (D0) per operació manual."
+        },
+        "errors": {
+          "selectBusiness": "Selecciona un negoci per continuar.",
+          "openThread": "No s'ha pogut obrir un fil de LITO.",
+          "sendMessage": "No s'ha pogut enviar el missatge. Torna-ho a provar."
+        },
+        "theme": {
+          "day": "Dia",
+          "night": "Nit"
+        }
       }
     },
     "layout": {
@@ -1181,7 +1242,8 @@
       "commandGoGrowth": "Anar a: Impacte",
       "commandGoSettings": "Anar a: Configuració",
       "adminPanel": "Gestió",
-      "commandGoAdmin": "Anar a Gestió"
+      "commandGoAdmin": "Anar a Gestió",
+      "advancedSection": "Avançat"
     },
     "engagement": {
       "title": "Impuls setmanal",

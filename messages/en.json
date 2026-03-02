@@ -95,7 +95,8 @@
     "switchOrg": "Switch organization",
     "switchBiz": "Switch business",
     "plans": "Plans",
-    "health": "Health"
+    "health": "Health",
+    "lito": "LITO"
   },
   "landing": {
     "hero": "Professional AI-powered review responses for your business",
@@ -1143,6 +1144,66 @@
         "noveltyPrefix": "Weekly update: {value}.",
         "assetOne": "Real photo of {business}",
         "assetTwo": "Short vertical clip or detail capture"
+      },
+      "home": {
+        "title": "What do you want to prepare today?",
+        "subtitle": "Write one idea and LITO will turn it into a publish-ready action.",
+        "inputPlaceholder": "Describe what you want to publish and LITO will open chat with context...",
+        "send": "Send to LITO",
+        "sending": "Sending...",
+        "quickPills": {
+          "prepareWeek": "Prepare the week",
+          "today": "What is due today",
+          "signals": "View signals",
+          "planner": "Planner (advanced)"
+        },
+        "quickPrompts": {
+          "prepareWeek": "Prepare 3 posts for this week and leave them ready.",
+          "today": "What should I publish today? Give me one clear option.",
+          "signals": "Show me this week's top signals and what to do first."
+        },
+        "actions": {
+          "title": "Action cards",
+          "viewAll": "View all ({count})",
+          "card1Badge": "Planner",
+          "card1Title": "Time to publish",
+          "card1Description": "You have an open slot today. Copy, open network and mark done.",
+          "card1Cta": "Copy and open",
+          "card2Badge": "LITO",
+          "card2Title": "LITO prepared a post",
+          "card2Description": "Open chat with a first draft and refine it in two taps.",
+          "card2Cta": "Keep this one",
+          "card3Badge": "Review",
+          "card3Title": "Pending review",
+          "card3Description": "Review pending drafts and approve them from LITO inbox.",
+          "card3Cta": "Review now"
+        },
+        "advanced": {
+          "open": "··· Advanced options",
+          "title": "Advanced screens",
+          "subtitle": "Direct access to management and supervision views.",
+          "chatLabel": "Clean LITO chat",
+          "chatDescription": "Full ChatGPT-like conversation on the same thread.",
+          "plannerLabel": "Planner",
+          "plannerDescription": "Weekly execution and social reminders.",
+          "reviewLabel": "Review inbox",
+          "reviewDescription": "Approve or reject pending drafts.",
+          "settingsLabel": "Admin settings",
+          "settingsDescription": "AI provider, staff toggle and global controls.",
+          "healthLabel": "Health",
+          "healthDescription": "Production telemetry and recent errors.",
+          "classicLabel": "Classic dashboard",
+          "classicDescription": "Previous full view (D0) for manual operations."
+        },
+        "errors": {
+          "selectBusiness": "Select a business to continue.",
+          "openThread": "Unable to open a LITO thread.",
+          "sendMessage": "Unable to send message. Please retry."
+        },
+        "theme": {
+          "day": "Day",
+          "night": "Night"
+        }
       }
     },
     "layout": {
@@ -1179,7 +1240,8 @@
       "commandGoGrowth": "Go to: Growth",
       "commandGoSettings": "Go to: Settings",
       "adminPanel": "Management",
-      "commandGoAdmin": "Go to Management"
+      "commandGoAdmin": "Go to Management",
+      "advancedSection": "Advanced"
     },
     "engagement": {
       "title": "Weekly engagement",

@@ -1,0 +1,471 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.lito-home {
+  --mouse-x: 0px;
+  --mouse-y: 0px;
+  --font-ui: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  position: relative;
+  min-height: calc(100vh - 118px);
+  overflow: hidden;
+  padding: 24px 18px 30px;
+  font-family: var(--font-ui);
+}
+
+.lito-home[data-theme='day'] {
+  --bg-color: #f8f9fa;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #ffffff, #eff1f5);
+  --accent: #007aff;
+  --accent-gradient: linear-gradient(135deg, #00c6ff, #0072ff);
+  --text-main: #1d1d1f;
+  --text-muted: #6f7075;
+  --glass-bg: rgba(255, 255, 255, 0.66);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-shadow: 0 20px 45px -30px rgba(0, 0, 0, 0.25);
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --pill-bg: #ffffff;
+  --pill-border: rgba(0, 0, 0, 0.08);
+  --pill-text: #1d1d1f;
+  --pill-hover-border: rgba(0, 122, 255, 0.28);
+  --spotlight: rgba(0, 122, 255, 0.09);
+  --spotlight-size: 560px;
+}
+
+.lito-home[data-theme='night'] {
+  --bg-color: #050507;
+  --bg-gradient: radial-gradient(circle at 24% 22%, rgba(17, 39, 23, 0.45), transparent 44%), radial-gradient(circle at 80% 16%, rgba(18, 28, 47, 0.5), transparent 48%), #050507;
+  --accent: #32d74b;
+  --accent-gradient: linear-gradient(135deg, #32d74b, #2fc943);
+  --text-main: #f2f2f7;
+  --text-muted: #9ea0a8;
+  --glass-bg: rgba(255, 255, 255, 0.035);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-shadow: 0 28px 60px -36px rgba(0, 0, 0, 0.75);
+  --input-bg: rgba(255, 255, 255, 0.03);
+  --pill-bg: rgba(255, 255, 255, 0.04);
+  --pill-border: rgba(255, 255, 255, 0.12);
+  --pill-text: #f2f2f7;
+  --pill-hover-border: rgba(50, 215, 75, 0.35);
+  --spotlight: rgba(255, 255, 255, 0.07);
+  --spotlight-size: 760px;
+}
+
+.lito-home {
+  color: var(--text-main);
+  background: var(--bg-gradient);
+  background-color: var(--bg-color);
+}
+
+.lito-home-ambient-light,
+.lito-home-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lito-home-ambient-light {
+  z-index: 0;
+  background: radial-gradient(circle at 10% 20%, rgba(0, 198, 255, 0.06), transparent 42%), radial-gradient(circle at 90% 80%, rgba(0, 114, 255, 0.06), transparent 42%);
+}
+
+.lito-home[data-theme='night'] .lito-home-ambient-light {
+  background: radial-gradient(circle at 22% 50%, rgba(20, 30, 25, 0.65), transparent 52%), radial-gradient(circle at 80% 18%, rgba(20, 25, 35, 0.52), transparent 44%);
+}
+
+.lito-home-noise {
+  z-index: 1;
+  opacity: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.045'/%3E%3C/svg%3E");
+}
+
+.lito-home[data-theme='night'] .lito-home-noise {
+  opacity: 1;
+}
+
+.lito-home-shell {
+  position: relative;
+  z-index: 2;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 48px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.lito-home-header {
+  text-align: center;
+}
+
+.lito-home-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.lito-home-header h1 {
+  margin: 8px 0 6px;
+  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+}
+
+.lito-home-header p {
+  margin: 0;
+  font-size: 0.96rem;
+  color: var(--text-muted);
+}
+
+.lito-home-input-card {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(32px) saturate(120%);
+  -webkit-backdrop-filter: blur(32px) saturate(120%);
+  box-shadow: var(--glass-shadow);
+  padding: 18px;
+}
+
+.lito-home-input {
+  width: 100%;
+  min-height: 126px;
+  resize: vertical;
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  padding: 14px 14px 54px;
+  font-size: 1.02rem;
+  line-height: 1.45;
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lito-home-input::placeholder {
+  color: var(--text-muted);
+}
+
+.lito-home-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.lito-home-send {
+  position: absolute;
+  right: 32px;
+  bottom: 30px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  box-shadow: 0 10px 24px -16px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+.lito-home[data-theme='night'] .lito-home-send {
+  color: #001303;
+}
+
+.lito-home-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lito-home-quick-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.lito-home-pill {
+  border: 1px solid var(--pill-border);
+  background: var(--pill-bg);
+  color: var(--pill-text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 550;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.lito-home-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--pill-hover-border);
+}
+
+.lito-home-actions {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
+  padding: 16px;
+}
+
+.lito-home-actions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.lito-home-actions-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.lito-home-view-all {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.lito-home-view-all:hover {
+  color: var(--text-main);
+}
+
+.lito-home-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lito-home-action-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--glass-border);
+  background: var(--input-bg);
+  min-height: 164px;
+  --mouse-x: 0px;
+  --mouse-y: 0px;
+}
+
+.lito-home-action-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(var(--spotlight-size) circle at var(--mouse-x) var(--mouse-y), var(--spotlight), transparent 42%);
+}
+
+.lito-home-action-card:hover::before {
+  opacity: 1;
+}
+
+.lito-home-action-card-content {
+  position: relative;
+  z-index: 1;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.lito-home-action-badge {
+  align-self: flex-start;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--pill-bg);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+}
+
+.lito-home-action-title {
+  margin: 11px 0 6px;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.lito-home-action-description {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.lito-home-action-cta {
+  margin-top: auto;
+  align-self: flex-start;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 11px;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-size: 0.77rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lito-home[data-theme='night'] .lito-home-action-cta {
+  color: #041106;
+}
+
+.lito-home-advanced-trigger {
+  align-self: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.lito-home-advanced-trigger:hover {
+  color: var(--text-main);
+}
+
+.lito-home-theme-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  padding: 6px;
+  backdrop-filter: blur(18px);
+}
+
+.lito-home-theme-toggle button {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.74rem;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.lito-home-theme-toggle button.active {
+  background: var(--accent-gradient);
+  color: #fff;
+}
+
+.lito-home[data-theme='night'] .lito-home-theme-toggle button.active {
+  color: #061708;
+}
+
+.lito-home-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.34);
+  transition: opacity 0.24s ease;
+}
+
+.lito-home-drawer-overlay[data-open='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lito-home-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(520px, 90vw);
+  z-index: 71;
+  transform: translateX(-102%);
+  transition: transform 0.28s ease;
+  border-right: 1px solid var(--glass-border);
+  background: var(--bg-color);
+  box-shadow: 18px 0 36px rgba(0, 0, 0, 0.24);
+  padding: 22px;
+}
+
+.lito-home-drawer[data-open='true'] {
+  transform: translateX(0);
+}
+
+.lito-home-drawer-header {
+  margin-bottom: 14px;
+}
+
+.lito-home-drawer-eyebrow {
+  margin: 0;
+  font-size: 0.73rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lito-home-drawer-title {
+  margin: 8px 0 6px;
+  font-size: 1.36rem;
+}
+
+.lito-home-drawer-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.lito-home-drawer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lito-home-drawer-link {
+  display: block;
+  text-decoration: none;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--input-bg);
+  color: var(--text-main);
+  padding: 12px;
+}
+
+.lito-home-drawer-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.lito-home-drawer-link-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.lito-home-drawer-link-description {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 920px) {
+  .lito-home {
+    min-height: calc(100vh - 132px);
+    padding: 18px 12px 22px;
+  }
+
+  .lito-home-shell {
+    padding: 48px 8px 10px;
+  }
+
+  .lito-home-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}

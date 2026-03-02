@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import LitoCommandCenter from '@/components/lito/LitoCommandCenter';
+import LitoHome from '@/components/lito-home/LitoHome';
 
 export default function DashboardLitoPage() {
-  return <LitoCommandCenter />;
+  return <LitoHome />;
 }

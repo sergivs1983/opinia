@@ -95,7 +95,8 @@
     "switchOrg": "Cambiar organización",
     "switchBiz": "Cambiar negocio",
     "plans": "Planes",
-    "health": "Health"
+    "health": "Health",
+    "lito": "LITO"
   },
   "landing": {
     "hero": "Respuestas profesionales con IA para tu negocio",
@@ -1145,6 +1146,66 @@
         "noveltyPrefix": "Novedad de la semana: {value}.",
         "assetOne": "Foto real de {business}",
         "assetTwo": "Clip vertical corto o captura de detalle"
+      },
+      "home": {
+        "title": "¿Qué quieres preparar hoy?",
+        "subtitle": "Escribe una idea y LITO te lo deja listo para publicar.",
+        "inputPlaceholder": "Cuenta qué quieres publicar y LITO abrirá el chat con contexto...",
+        "send": "Enviar a LITO",
+        "sending": "Enviando...",
+        "quickPills": {
+          "prepareWeek": "Prepara la semana",
+          "today": "Qué toca hoy",
+          "signals": "Ver señales",
+          "planner": "Planner (avanzado)"
+        },
+        "quickPrompts": {
+          "prepareWeek": "Prepara 3 posts para esta semana y déjalos listos.",
+          "today": "¿Qué me recomiendas publicar hoy? Dame una opción clara.",
+          "signals": "Enséñame las señales prioritarias de la semana y qué hago primero."
+        },
+        "actions": {
+          "title": "Acciones ahora",
+          "viewAll": "Ver todo ({count})",
+          "card1Badge": "Planner",
+          "card1Title": "Toca publicar",
+          "card1Description": "Tienes una franja abierta hoy. Copia, abre red y márcalo como hecho.",
+          "card1Cta": "Copiar y abrir",
+          "card2Badge": "LITO",
+          "card2Title": "LITO te ha preparado un post",
+          "card2Description": "Abre el chat con un borrador inicial y ajústalo en dos toques.",
+          "card2Cta": "Me lo quedo",
+          "card3Badge": "Review",
+          "card3Title": "Pendientes de revisión",
+          "card3Description": "Revisa drafts en pending y apruébalos desde la bandeja de LITO.",
+          "card3Cta": "Revisar ahora"
+        },
+        "advanced": {
+          "open": "··· Opciones avanzadas",
+          "title": "Pantallas avanzadas",
+          "subtitle": "Acceso directo a vistas de gestión y supervisión.",
+          "chatLabel": "Chat limpio de LITO",
+          "chatDescription": "Conversación completa tipo ChatGPT con el mismo hilo.",
+          "plannerLabel": "Planner",
+          "plannerDescription": "Ejecución semanal y recordatorios sociales.",
+          "reviewLabel": "Inbox de revisión",
+          "reviewDescription": "Aprueba o rechaza drafts pendientes.",
+          "settingsLabel": "Configuración Admin",
+          "settingsDescription": "Provider IA, toggle staff y controles globales.",
+          "healthLabel": "Health",
+          "healthDescription": "Telemetría de producción y errores recientes.",
+          "classicLabel": "Dashboard clásico",
+          "classicDescription": "Vista completa anterior (D0) para operación manual."
+        },
+        "errors": {
+          "selectBusiness": "Selecciona un negocio para continuar.",
+          "openThread": "No se ha podido abrir un hilo de LITO.",
+          "sendMessage": "No se pudo enviar el mensaje. Reintenta."
+        },
+        "theme": {
+          "day": "Día",
+          "night": "Noche"
+        }
       }
     },
     "layout": {
@@ -1181,7 +1242,8 @@
       "commandGoGrowth": "Ir a: Impacto",
       "commandGoSettings": "Ir a: Configuración",
       "adminPanel": "Gestión",
-      "commandGoAdmin": "Ir a Gestión"
+      "commandGoAdmin": "Ir a Gestión",
+      "advancedSection": "Avanzado"
     },
     "engagement": {
       "title": "Impulso semanal",
