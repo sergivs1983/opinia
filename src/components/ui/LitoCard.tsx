@@ -13,7 +13,7 @@ type LitoCardProps = HTMLAttributes<HTMLDivElement> & {
 const baseClasses =
   'lito-card rounded-[28px] border border-[#ebeae4] bg-white p-0 shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)]';
 
-export default function LitoCard({ children, className, spotlight = true, ...props }: LitoCardProps) {
+export default function LitoCard({ children, className, spotlight = false, ...props }: LitoCardProps) {
   if (spotlight) {
     return (
       <SpotlightCard className={cn(baseClasses, className)} {...props}>

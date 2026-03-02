@@ -212,7 +212,7 @@ export default function DashboardPlansPage() {
                 'relative overflow-hidden p-5',
                 active ? tokens.border.strong : tokens.border.default,
               )}
-              spotlight={false}
+              spotlight={plan.recommended || active}
             >
               {plan.recommended ? (
                 <span className={cx('absolute right-3 top-3 rounded-full px-2 py-0.5 text-[11px] font-semibold', tokens.bg.soft, tokens.text.secondary)}>
@@ -253,7 +253,7 @@ export default function DashboardPlansPage() {
         })}
       </Section>
 
-      <LitoCard spotlight={false} className="space-y-3 p-4 md:p-5">
+      <LitoCard spotlight className="space-y-3 p-4 md:p-5">
         <p className={cx('text-sm', tokens.text.secondary)}>
           Billing gestionat amb Stripe.
           {stripePortalUrl ? (

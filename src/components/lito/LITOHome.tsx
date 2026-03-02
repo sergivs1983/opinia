@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import SpotlightCard from '@/components/ui/SpotlightCard';
 import { tokens, cx } from '@/lib/design/tokens';
 import styles from '@/components/lito/LITOHome.module.css';
 
@@ -65,18 +66,20 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
   }, []);
 
   return (
-    <div
+    <SpotlightCard
+      data-lito="review-card"
       className={styles.floatCard}
       style={{
-        background: 'white',
         borderRadius: 32,
-        border: '1.5px solid rgba(255,255,255,0.9)',
         boxShadow: '0 20px 60px rgba(0,0,0,0.07),0 4px 16px rgba(0,0,0,0.04)',
-        padding: '36px 36px 32px',
         width: '100%',
         maxWidth: 540,
+      }}
+    >
+    <div
+      style={{
+        padding: '36px 36px 32px',
         position: 'relative',
-        overflow: 'hidden',
       }}
     >
       <div
@@ -228,6 +231,7 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
         </button>
       </div>
     </div>
+    </SpotlightCard>
   );
 }
 
@@ -241,6 +245,7 @@ function QueuePills({ count }: { count: number }) {
         <button
           key={label}
           type="button"
+          data-lito="queue-pill"
           style={{
             padding: '5px 12px',
             borderRadius: 20,
@@ -271,6 +276,7 @@ function CommandBar() {
   return (
     <div
       className={styles.commandWrap}
+      data-lito="command-bar"
     >
       <div
         style={{
@@ -406,20 +412,23 @@ export default function LITOHome() {
               <QueuePills count={2} />
             </div>
           ) : (
-            <div
+            <SpotlightCard
+              data-lito="success-card"
               className={cx(styles.heroBody, styles.successPop)}
+              style={{
+                borderRadius: 32,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.05)',
+                width: '100%',
+                maxWidth: 540,
+              }}
+            >
+            <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '60px 40px',
-                background: 'white',
-                borderRadius: 32,
-                border: '1.5px solid rgba(255,255,255,0.9)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.05)',
-                width: '100%',
-                maxWidth: 540,
                 gap: 20,
               }}
             >
@@ -467,6 +476,7 @@ export default function LITOHome() {
                 <IconChevron />
               </button>
             </div>
+            </SpotlightCard>
           )}
         </div>
       </main>

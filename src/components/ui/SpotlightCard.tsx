@@ -21,6 +21,10 @@ function supportsSpotlightMotion(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const finePointer = window.matchMedia('(pointer: fine)').matches;
+  const canHover = window.matchMedia('(hover: hover)').matches;
+  const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+  if (coarsePointer) return false;
+  if (!canHover) return false;
   return !prefersReducedMotion && finePointer;
 }
 
@@ -36,7 +40,27 @@ const SpotlightCard = forwardRef<HTMLDivElement, SpotlightCardProps>(function Sp
   const borderGlow = useMotionTemplate`radial-gradient(220px circle at ${pointerX}px ${pointerY}px, rgba(16, 185, 129, 0.18) 0%, transparent 62%)`;
 
   useEffect(() => {
-    setSpotlightEnabled(supportsSpotlightMotion());
+    const update = () => setSpotlightEnabled(supportsSpotlightMotion());
+    update();
+
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+
+    const queries = [
+      window.matchMedia('(prefers-reduced-motion: reduce)'),
+      window.matchMedia('(pointer: fine)'),
+      window.matchMedia('(pointer: coarse)'),
+      window.matchMedia('(hover: hover)'),
+    ];
+
+    for (const mediaQuery of queries) {
+      mediaQuery.addEventListener('change', update);
+    }
+
+    return () => {
+      for (const mediaQuery of queries) {
+        mediaQuery.removeEventListener('change', update);
+      }
+    };
   }, []);
 
   const motionEnabled = spotlightEnabled && !disabled;
@@ -79,7 +103,7 @@ const SpotlightCard = forwardRef<HTMLDivElement, SpotlightCardProps>(function Sp
         animate={{ opacity: motionEnabled && isHovered ? 1 : 0 }}
         transition={{ duration: 0.26, ease: 'easeOut' }}
       />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-[1px] z-[1] rounded-[27px] bg-white" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-[1px] z-[1] rounded-[27px] bg-white dark:bg-zinc-900" />
       <motion.div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[2] rounded-[28px]"
