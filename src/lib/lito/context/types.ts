@@ -13,6 +13,7 @@ export type LITOPoliciesContext = {
   response_time_h: number;
   never_mention: string[];
   max_length_words: number;
+  primary_focus: 'reviews' | 'social' | 'both';
 };
 
 export type LITOBusinessFactsContext = {

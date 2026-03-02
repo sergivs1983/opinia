@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ActionCard, ActionCardMode } from '@/types/lito-cards';
 
@@ -33,6 +33,11 @@ type CommandBarProps = {
   onMic: () => void;
   onPanelStateChange: (next: CommandPanelState) => void;
   onOrchestratorJson?: (payload: OrchestratorSafeJsonEvent) => void;
+  externalRequest?: {
+    id: string;
+    message: string;
+    mode?: 'chat' | 'orchestrator_safe';
+  } | null;
 };
 
 function createClientRequestId(): string {
@@ -110,8 +115,10 @@ export default function CommandBar({
   onMic,
   onPanelStateChange,
   onOrchestratorJson,
+  externalRequest,
 }: CommandBarProps) {
   const [submitting, setSubmitting] = useState(false);
+  const externalRequestRef = useRef<string | null>(null);
 
   const readEventStream = useCallback(async (response: Response): Promise<string> => {
     const stream = response.body;
@@ -207,8 +214,12 @@ export default function CommandBar({
     return fullText;
   }, [fallbackErrorLabel, onOrchestratorJson, onPanelStateChange]);
 
-  const submitToChat = useCallback(async () => {
-    const message = value.trim();
+  const submitToChat = useCallback(async (input?: {
+    message?: string;
+    mode?: 'chat' | 'orchestrator_safe';
+    clearInput?: boolean;
+  }) => {
+    const message = (input?.message ?? value).trim();
     if (!message || submitting) return;
 
     if (!bizId) {
@@ -228,7 +239,7 @@ export default function CommandBar({
     });
 
     try {
-      const resolvedMode = looksLikeOrchestratorIntent(message) ? 'orchestrator_safe' : mode;
+      const resolvedMode = input?.mode || (looksLikeOrchestratorIntent(message) ? 'orchestrator_safe' : mode);
       const response = await fetch('/api/lito/chat', {
         method: 'POST',
         cache: 'no-store',
@@ -251,7 +262,9 @@ export default function CommandBar({
       }
 
       await readEventStream(response);
-      onChange('');
+      if (input?.clearInput !== false) {
+        onChange('');
+      }
     } catch (error) {
       const message = error instanceof Error && error.message ? error.message : fallbackErrorLabel;
       onPanelStateChange({
@@ -263,6 +276,17 @@ export default function CommandBar({
       setSubmitting(false);
     }
   }, [value, submitting, bizId, onPanelStateChange, missingBizLabel, mode, fallbackErrorLabel, readEventStream, onChange]);
+
+  useEffect(() => {
+    if (!externalRequest?.id) return;
+    if (externalRequestRef.current === externalRequest.id) return;
+    externalRequestRef.current = externalRequest.id;
+    void submitToChat({
+      message: externalRequest.message,
+      mode: externalRequest.mode,
+      clearInput: false,
+    });
+  }, [externalRequest, submitToChat]);
 
   const canSubmit = value.trim().length > 0 && !submitting;
 

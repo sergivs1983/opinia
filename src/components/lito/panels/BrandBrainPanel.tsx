@@ -181,6 +181,11 @@ function normalizeMemory(raw: unknown): BusinessMemoryPayload {
   const maxWords = typeof policies.max_length_words === 'number' && Number.isFinite(policies.max_length_words)
     ? Math.max(20, Math.min(300, Math.floor(policies.max_length_words)))
     : DEFAULT_BUSINESS_MEMORY.policies.max_length_words;
+  const primaryFocus = policies.primary_focus === 'reviews'
+    || policies.primary_focus === 'social'
+    || policies.primary_focus === 'both'
+    ? policies.primary_focus
+    : DEFAULT_BUSINESS_MEMORY.policies.primary_focus;
 
   return {
     brand_voice: {
@@ -197,6 +202,7 @@ function normalizeMemory(raw: unknown): BusinessMemoryPayload {
       response_time_h: responseTime,
       never_mention: cleanStringArray(policies.never_mention, 16, 80),
       max_length_words: maxWords,
+      primary_focus: primaryFocus,
     },
     business_facts: {
       services: cleanStringArray(facts.services, 20, 80),

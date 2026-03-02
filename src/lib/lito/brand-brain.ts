@@ -1,4 +1,5 @@
 export type BrandVoiceFormality = 'tu' | 'voste' | 'mixt';
+export type BrandPriorityFocus = 'reviews' | 'social' | 'both';
 
 export type BusinessMemoryBrandVoice = {
   tone: string[];
@@ -13,6 +14,7 @@ export type BusinessMemoryPolicies = {
   response_time_h: number;
   never_mention: string[];
   max_length_words: number;
+  primary_focus: BrandPriorityFocus;
 };
 
 export type BusinessMemoryFacts = {
@@ -43,6 +45,7 @@ export const DEFAULT_BUSINESS_MEMORY: BusinessMemoryPayload = {
     response_time_h: 4,
     never_mention: [],
     max_length_words: 120,
+    primary_focus: 'both',
   },
   business_facts: {
     services: [],
@@ -106,6 +109,11 @@ function asIntInRange(value: unknown, fallback: number, min: number, max: number
   return floored;
 }
 
+function normalizePrimaryFocus(value: unknown, fallback: BrandPriorityFocus): BrandPriorityFocus {
+  if (value === 'reviews' || value === 'social' || value === 'both') return value;
+  return fallback;
+}
+
 function normalizeFormality(value: unknown, fallback: BrandVoiceFormality): BrandVoiceFormality {
   if (value === 'tu' || value === 'voste' || value === 'mixt') return value;
   if (value === 'voste') return 'voste';
@@ -136,6 +144,10 @@ export function sanitizeBusinessMemoryInput(input: unknown): BusinessMemoryPaylo
         20,
         300,
       ),
+      primary_focus: normalizePrimaryFocus(
+        policies.primary_focus,
+        DEFAULT_BUSINESS_MEMORY.policies.primary_focus,
+      ),
     },
     business_facts: {
       services: cleanStringArray(businessFacts.services, 20, 80),
@@ -151,4 +163,3 @@ export function sanitizeBusinessMemoryInput(input: unknown): BusinessMemoryPaylo
 export function splitCommaSeparatedInput(value: string, maxItems: number, maxLen: number): string[] {
   return cleanCommaSeparated(value, maxItems, maxLen);
 }
-

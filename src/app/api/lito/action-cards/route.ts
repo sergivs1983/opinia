@@ -22,6 +22,7 @@ import type { ActionCardMode, ActionCardRole } from '@/types/lito-cards';
 
 const QuerySchema = z.object({
   biz_id: z.string().uuid(),
+  refresh: z.string().optional(),
 });
 
 function withNoStore(response: NextResponse, requestId: string): NextResponse {
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const parsed = QuerySchema.safeParse({
     biz_id: request.nextUrl.searchParams.get('biz_id'),
+    refresh: request.nextUrl.searchParams.get('refresh') || undefined,
   });
   if (!parsed.success) {
     return withNoStore(
@@ -92,6 +94,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const payload = parsed.data;
+  const forceRefresh = payload.refresh === '1' || payload.refresh === 'true';
   const supabase = createServerSupabaseClient();
 
   const {
@@ -122,6 +125,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const admin = createAdminClient();
+    if (forceRefresh) {
+      enqueueInBackground({ supabase, bizId: payload.biz_id, log });
+    }
     const cached = await getLitoCardsCacheByBiz({ admin, bizId: payload.biz_id });
 
     if (!cached) {

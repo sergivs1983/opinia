@@ -61,6 +61,25 @@ function keywordInstruction(input: {
   return `Prioritza aquestes paraules clau quan encaixi: ${list}.`;
 }
 
+function primaryFocusInstruction(input: {
+  language: 'ca' | 'es' | 'en';
+  focus: 'reviews' | 'social' | 'both';
+}): string {
+  if (input.language === 'es') {
+    if (input.focus === 'reviews') return 'Prioriza acciones y respuestas de reseñas.';
+    if (input.focus === 'social') return 'Prioriza acciones y copy de redes sociales.';
+    return 'Equilibra entre reseñas y redes sociales.';
+  }
+  if (input.language === 'en') {
+    if (input.focus === 'reviews') return 'Prioritize review response actions.';
+    if (input.focus === 'social') return 'Prioritize social media actions and copy.';
+    return 'Keep a balanced focus between reviews and social media.';
+  }
+  if (input.focus === 'reviews') return 'Prioritza accions i respostes de ressenyes.';
+  if (input.focus === 'social') return 'Prioritza accions i copy de xarxes socials.';
+  return 'Mantén equilibri entre ressenyes i xarxes socials.';
+}
+
 export function buildLitoSystemPrompt(input: {
   payload: LITOPayload;
   mode?: LITOChatMode;
@@ -98,6 +117,7 @@ export function buildLitoSystemPrompt(input: {
     maxLengthInstruction({ language, maxWords }),
     avoidInstruction({ language, values: avoidList }),
     keywordInstruction({ language, values: keywordList }),
+    primaryFocusInstruction({ language, focus: memory.policies.primary_focus || 'both' }),
     modeRule,
     'No incloguis dades personals ni cites literals de ressenyes.',
   ].filter(Boolean).join('\n');

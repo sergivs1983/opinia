@@ -31,6 +31,25 @@ function modeLimit(mode: ActionCardMode): number {
   return mode === 'advanced' ? 6 : 2;
 }
 
+function primaryFocusInstruction(input: {
+  language: 'ca' | 'es' | 'en';
+  focus: 'reviews' | 'social' | 'both';
+}): string {
+  if (input.language === 'es') {
+    if (input.focus === 'reviews') return 'Foco principal: reseñas. Prioriza cards relacionadas con reseñas.';
+    if (input.focus === 'social') return 'Foco principal: redes sociales. Prioriza cards de publicación.';
+    return 'Foco principal: mixto entre reseñas y redes sociales.';
+  }
+  if (input.language === 'en') {
+    if (input.focus === 'reviews') return 'Primary focus: reviews. Prioritize review-related cards.';
+    if (input.focus === 'social') return 'Primary focus: social media. Prioritize posting cards.';
+    return 'Primary focus: mixed between reviews and social media.';
+  }
+  if (input.focus === 'reviews') return 'Focus principal: ressenyes. Prioritza cards de ressenyes.';
+  if (input.focus === 'social') return 'Focus principal: xarxes socials. Prioritza cards de publicació.';
+  return 'Focus principal: mixt entre ressenyes i xarxes socials.';
+}
+
 function resolveLanguage(value: unknown): 'ca' | 'es' | 'en' {
   if (value === 'es' || value === 'en') return value;
   return 'ca';
@@ -102,6 +121,7 @@ export function buildOrchestratorSafePrompt(input: {
     langRule,
     `Idioma obligatori de sortida: ${language}.`,
     formalityInstruction({ language, formality: memory.brand_voice.formality || 'mixt' }),
+    primaryFocusInstruction({ language, focus: memory.policies.primary_focus || 'both' }),
     `Límit de longitud: màxim ${maxWords} paraules per camp textual (greeting, priority_message, next_question, labels).`,
     avoidLine,
     'No inventis cards noves. Només pots triar IDs de la llista rebuda.',

@@ -18,6 +18,7 @@ import ActionCardStack, {
 import CardQueueDrawer from '@/components/lito/home/CardQueueDrawer';
 import LitoHeader from '@/components/lito/home/LitoHeader';
 import BrandBrainPanel from '@/components/lito/panels/BrandBrainPanel';
+import BrandBrainOnboardingWizard from '@/components/lito/panels/BrandBrainOnboardingWizard';
 import { useActionCards } from '@/components/lito/home/useActionCards';
 import { useLocale } from '@/components/i18n/I18nContext';
 import { useToast } from '@/components/ui/Toast';
@@ -86,6 +87,12 @@ type OrchestratorViewState = {
   queueCount: number;
   mode: 'basic' | 'advanced';
 };
+
+type ExternalCommandRequest = {
+  id: string;
+  message: string;
+  mode?: 'chat' | 'orchestrator_safe';
+} | null;
 
 const LAST_BIZ_STORAGE_KEY = 'opinia.lito.last_biz_id';
 
@@ -238,6 +245,7 @@ export default function DashboardLitoPage() {
   const [orchestratorView, setOrchestratorView] = useState<OrchestratorViewState | null>(null);
   const [actionBusy, setActionBusy] = useState<Record<string, boolean>>({});
   const [queueSnapshot, setQueueSnapshot] = useState<{ cards: ActionCard[]; queueCount: number } | null>(null);
+  const [externalCommandRequest, setExternalCommandRequest] = useState<ExternalCommandRequest>(null);
 
   const lang = useMemo(() => resolveLocale(locale), [locale]);
   const copy = COPY[lang];
@@ -247,6 +255,7 @@ export default function DashboardLitoPage() {
 
   useEffect(() => {
     setOrchestratorView(null);
+    setExternalCommandRequest(null);
   }, [activeBizId]);
 
   useEffect(() => {
@@ -363,11 +372,17 @@ export default function DashboardLitoPage() {
     return response;
   }, []);
 
-  const refreshActionCards = useCallback(async (): Promise<RefreshedActionCards | null> => {
+  const refreshActionCards = useCallback(async (options?: { forceRebuild?: boolean }): Promise<RefreshedActionCards | null> => {
     if (!activeBizId) return null;
 
     try {
-      const response = await fetch(`/api/lito/action-cards?biz_id=${encodeURIComponent(activeBizId)}`, {
+      const searchParams = new URLSearchParams();
+      searchParams.set('biz_id', activeBizId);
+      if (options?.forceRebuild) {
+        searchParams.set('refresh', '1');
+      }
+
+      const response = await fetch(`/api/lito/action-cards?${searchParams.toString()}`, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-store',
@@ -751,6 +766,25 @@ export default function DashboardLitoPage() {
     toast(copy.ready, 'info');
   }, [toast, copy.ready]);
 
+  const handleBrandBrainOnboardingCompleted = useCallback(async (input: { prompt: string }) => {
+    if (!activeBizId) return;
+    await refreshActionCards({ forceRebuild: true });
+
+    const fallbackPrompt = lang === 'ca'
+      ? 'Què toca avui?'
+      : lang === 'es'
+        ? '¿Qué toca hoy?'
+        : 'What should I do today?';
+    const prompt = input.prompt?.trim() || fallbackPrompt;
+
+    setCommand(prompt);
+    setExternalCommandRequest({
+      id: createClientRequestId(),
+      message: prompt,
+      mode: 'orchestrator_safe',
+    });
+  }, [activeBizId, refreshActionCards, lang]);
+
   return (
     <section className="lito-action-stream">
       <div className="lito-action-shell">
@@ -766,6 +800,10 @@ export default function DashboardLitoPage() {
         />
 
         <BrandBrainPanel bizId={activeBizId} />
+        <BrandBrainOnboardingWizard
+          bizId={activeBizId}
+          onCompleted={handleBrandBrainOnboardingCompleted}
+        />
 
         {commandPanel ? (
           <article className={`lito-assistant-panel${commandPanel.error ? ' is-error' : ''}`} role="status" aria-live="polite">
@@ -841,6 +879,7 @@ export default function DashboardLitoPage() {
         onMic={handleMic}
         onPanelStateChange={handleCommandPanelState}
         onOrchestratorJson={handleOrchestratorJson}
+        externalRequest={externalCommandRequest}
       />
     </section>
   );
