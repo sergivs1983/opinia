@@ -4,14 +4,13 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedOrgMembership } from '@/lib/authz';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getServerActiveOrgCookieValue } from '@/lib/workspace/server-active-org';
 
 const QuerySchema = z.object({
-  org_id: z.string().uuid(),
   biz_id: z.string().uuid().optional(),
   range: z
     .preprocess((value) => {
@@ -31,6 +30,15 @@ type BusinessRow = {
   type: string | null;
   default_language: string | null;
   is_active: boolean;
+};
+
+type MembershipRow = {
+  id: string;
+  org_id: string;
+  role: 'owner' | 'manager' | 'staff' | string;
+  accepted_at: string | null;
+  created_at: string;
+  is_default: boolean | null;
 };
 
 type InsightRow = {
@@ -188,7 +196,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const log = createLogger({ request_id: requestId, route: 'GET /api/enterprise/overview' });
 
   const parsed = QuerySchema.safeParse({
-    org_id: request.nextUrl.searchParams.get('org_id'),
     biz_id: request.nextUrl.searchParams.get('biz_id') || undefined,
     range: request.nextUrl.searchParams.get('range') || undefined,
     channel: request.nextUrl.searchParams.get('channel') || undefined,
@@ -220,15 +227,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const membership = await getAcceptedOrgMembership({
-    supabase,
-    userId: user.id,
-    orgId: payload.org_id,
-  });
+  const { data: membershipRows, error: membershipError } = await supabase
+    .from('memberships')
+    .select('id, org_id, role, accepted_at, created_at, is_default')
+    .eq('user_id', user.id)
+    .not('accepted_at', 'is', null)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
 
-  const role = String(membership?.role || '').toLowerCase();
-  const roleAllowed = role === 'owner' || role === 'manager' || role === 'staff';
-  if (!membership || !roleAllowed) {
+  if (membershipError) {
+    log.error('enterprise_memberships_query_failed', {
+      user_id: user.id,
+      error_code: membershipError.code || null,
+      error: membershipError.message || null,
+    });
+    return jsonNoStore(
+      { error: 'internal', message: 'Error intern del servidor', request_id: requestId },
+      requestId,
+      500,
+    );
+  }
+
+  const memberships = ((membershipRows || []) as MembershipRow[])
+    .filter((row) => row.accepted_at !== null)
+    .filter((row) => {
+      const role = row.role;
+      return role === 'owner' || role === 'manager' || role === 'staff';
+    });
+
+  if (memberships.length === 0) {
     return jsonNoStore(
       { error: 'not_found', message: 'No disponible', request_id: requestId },
       requestId,
@@ -236,6 +263,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const activeOrgId = getServerActiveOrgCookieValue();
+  let resolvedMembership: MembershipRow | null = null;
+
+  if (memberships.length === 1) {
+    resolvedMembership = memberships[0];
+  } else if (activeOrgId) {
+    resolvedMembership = memberships.find((row) => row.org_id === activeOrgId) || null;
+  }
+
+  if (!resolvedMembership) {
+    return jsonNoStore(
+      {
+        error: 'bad_request',
+        code: 'org_required',
+        message: 'Selecciona una organització activa',
+        request_id: requestId,
+      },
+      requestId,
+      400,
+    );
+  }
+
+  const resolvedOrgId = resolvedMembership.org_id;
+  const role = resolvedMembership.role;
   const admin = createAdminClient();
   const isManagerScope = role === 'owner' || role === 'manager';
 
@@ -246,7 +297,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const { data, error } = await admin
         .from('businesses')
         .select('id, org_id, name, type, default_language, is_active')
-        .eq('org_id', payload.org_id)
+        .eq('org_id', resolvedOrgId)
         .eq('is_active', true)
         .order('name', { ascending: true });
 
@@ -256,7 +307,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const { data: assignments, error: assignmentError } = await admin
         .from('business_memberships')
         .select('business_id')
-        .eq('org_id', payload.org_id)
+        .eq('org_id', resolvedOrgId)
         .eq('user_id', user.id)
         .eq('is_active', true);
 
@@ -271,7 +322,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           .from('businesses')
           .select('id, org_id, name, type, default_language, is_active')
           .in('id', businessIds)
-          .eq('org_id', payload.org_id)
+          .eq('org_id', resolvedOrgId)
           .eq('is_active', true)
           .order('name', { ascending: true });
 
@@ -281,7 +332,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   } catch (error) {
     log.error('enterprise_business_access_failed', {
-      org_id: payload.org_id,
+      org_id: resolvedOrgId,
       user_id: user.id,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -308,7 +359,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return jsonNoStore(
       {
         ok: true,
-        org_id: payload.org_id,
+        org_id: resolvedOrgId,
         biz_id: payload.biz_id || null,
         range_days: payload.range,
         channel: payload.channel,
@@ -348,7 +399,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       admin
         .from('biz_insights_daily')
         .select('biz_id, day, metrics')
-        .eq('org_id', payload.org_id)
+        .eq('org_id', resolvedOrgId)
         .eq('provider', 'google_business')
         .in('biz_id', bizIds)
         .gte('day', fromDay)
@@ -356,7 +407,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       admin
         .from('biz_signals')
         .select('biz_id, kind, severity, severity_score')
-        .eq('org_id', payload.org_id)
+        .eq('org_id', resolvedOrgId)
         .eq('provider', 'google_business')
         .eq('is_active', true)
         .in('biz_id', bizIds)
@@ -366,7 +417,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         let query = admin
           .from('social_schedules')
           .select('biz_id, status, platform, scheduled_at, published_at')
-          .eq('org_id', payload.org_id)
+          .eq('org_id', resolvedOrgId)
           .in('biz_id', bizIds)
           .gte('scheduled_at', fromIso)
           .lte('scheduled_at', nowIso);
@@ -393,7 +444,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     schedules = ((schedulesResult.error ? [] : schedulesResult.data) || []) as ScheduleRow[];
   } catch (error) {
     log.error('enterprise_overview_query_failed', {
-      org_id: payload.org_id,
+      org_id: resolvedOrgId,
       error: error instanceof Error ? error.message : String(error),
     });
     return jsonNoStore(
@@ -533,7 +584,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   return jsonNoStore(
     {
       ok: true,
-      org_id: payload.org_id,
+      org_id: resolvedOrgId,
       biz_id: payload.biz_id || null,
       range_days: payload.range,
       channel: payload.channel,
