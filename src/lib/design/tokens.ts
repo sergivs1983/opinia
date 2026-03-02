@@ -1,7 +1,7 @@
 export const tokens = {
   bg: {
-    global: 'bg-[#f7f7f5]',
-    page: 'bg-[#f7f7f5]',
+    global: 'bg-[#fafaf9]',
+    page: 'bg-[#fafaf9]',
     surface: 'bg-white',
     soft: 'bg-[#f0efec]',
     subtle: 'bg-[#f7f7f5]',
@@ -45,7 +45,7 @@ export const tokens = {
     itemIdle: 'text-[#6b6a65] hover:bg-[#f7f7f5] hover:text-[#1a1917]',
   },
   radius: {
-    card: 'rounded-2xl',
+    card: 'rounded-[28px]',
     button: 'rounded-xl',
     pill: 'rounded-full',
     bubble: 'rounded-2xl',
@@ -54,7 +54,7 @@ export const tokens = {
   shadow: {
     topbar: 'shadow-[0_1px_0_#e5e4df]',
     command: 'shadow-[0_-1px_0_#e5e4df]',
-    card: 'shadow-[0_1px_3px_rgba(0,0,0,0.06)]',
+    card: 'shadow-[0_2px_8px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.03)]',
     hover: 'hover:shadow-[0_8px_16px_rgba(0,0,0,0.08)] transition-shadow duration-150',
   },
   anim: {
@@ -81,7 +81,7 @@ export const tokens = {
   layout: {
     topbarHeight: 'h-12',
     sidebarWidth: 'w-60',
-    stageMax: 'max-w-3xl',
+    stageMax: 'max-w-[1200px]',
     stagePad: 'px-4 md:px-6',
     stageInset: 'pt-6 pb-28',
   },

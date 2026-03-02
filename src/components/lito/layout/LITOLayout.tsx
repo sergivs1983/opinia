@@ -357,7 +357,7 @@ export function LITOLayout({
 
         <main
           className={cx(
-            'flex-1 overflow-y-auto',
+            'lito-light-scope flex-1 overflow-y-auto',
             tokens.layout.stagePad,
             showCommandBar ? 'pt-6 pb-28' : 'pt-6 pb-8',
           )}

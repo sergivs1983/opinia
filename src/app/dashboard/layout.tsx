@@ -115,7 +115,9 @@ function DashboardShell({ children }: { children: ReactNode }) {
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <WorkspaceProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <div className="bg-[#fafaf9] text-[#1a1917]">
+        <DashboardShell>{children}</DashboardShell>
+      </div>
     </WorkspaceProvider>
   );
 }
