@@ -1,9 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import SettingsModal, {
+  type SettingsModalPanel,
+  normalizeSettingsModalPanel,
+} from '@/components/settings/SettingsModal';
 import {
   AppShellGlobalStyles,
   ShellCommandBar,
@@ -28,13 +32,14 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'lito', label: 'LITO', href: '/dashboard/lito', Icon: ShellIcons.Home },
   { key: 'planner', label: 'Planner', href: '/dashboard/planner', Icon: ShellIcons.Calendar },
   { key: 'arxiu', label: 'Arxiu', href: '/dashboard/arxiu', Icon: ShellIcons.Archive },
-  { key: 'settings', label: 'Config', href: '/dashboard/settings', Icon: ShellIcons.Settings },
+  { key: 'settings', label: 'Config', href: '/dashboard/lito?modal=settings&panel=general', Icon: ShellIcons.Settings },
 ];
 
-function navIsActive(pathname: string, key: NavItem['key']): boolean {
-  if (key === 'lito') return pathname === '/dashboard' || pathname.startsWith('/dashboard/lito');
+function navIsActive(pathname: string, key: NavItem['key'], settingsModalOpen: boolean): boolean {
+  if (key === 'lito') return (pathname === '/dashboard' || pathname.startsWith('/dashboard/lito')) && !settingsModalOpen;
   if (key === 'planner') return pathname.startsWith('/dashboard/planner');
   if (key === 'arxiu') return pathname.startsWith('/dashboard/arxiu') || pathname.startsWith('/dashboard/inbox');
+  if (settingsModalOpen) return true;
   return (
     pathname.startsWith('/dashboard/settings')
     || pathname.startsWith('/dashboard/config')
@@ -50,6 +55,8 @@ function userInitial(value: string | null | undefined): string {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { biz, org } = useWorkspace();
   const [userName, setUserName] = useState<string | null>(null);
 
@@ -89,16 +96,32 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const isLitoRoute = pathname.startsWith('/dashboard/lito');
   const contentMaxWidth = isLitoRoute ? '100%' : 1040;
   const contentPadding = isLitoRoute ? '0' : '48px 24px 120px';
+  const settingsModalOpen = isLitoRoute && searchParams.get('modal') === 'settings';
+  const settingsPanel = normalizeSettingsModalPanel(searchParams.get('panel'));
+
+  const openSettingsModal = (panel: SettingsModalPanel = 'general') => {
+    router.push(`/dashboard/lito?modal=settings&panel=${panel}`);
+  };
+
+  const closeSettingsModal = () => {
+    router.replace('/dashboard/lito');
+  };
+
+  const changeSettingsPanel = (panel: SettingsModalPanel) => {
+    router.replace(`/dashboard/lito?modal=settings&panel=${panel}`);
+  };
 
   return (
-    <div style={{ minHeight: '100dvh', background: shellTokens.bg, color: shellTokens.textPrimary }}>
+    <div style={{ height: '100dvh', overflow: 'hidden', background: shellTokens.bg, color: shellTokens.textPrimary }}>
       <AppShellGlobalStyles />
 
-      <div style={{ display: 'flex', minHeight: '100dvh', background: shellTokens.bg }}>
+      <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', background: shellTokens.bg }}>
+        {/* ── Sidebar (never scrolls) ── */}
         <aside
+          data-shell="sidebar"
           style={{
             width: 64,
-            minHeight: '100dvh',
+            height: '100dvh',
             flexShrink: 0,
             background: shellTokens.white,
             borderRight: `1px solid ${shellTokens.borderSolid}`,
@@ -131,7 +154,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', padding: '0 8px' }}>
             {NAV_ITEMS.map((item) => {
-              const active = navIsActive(pathname, item.key);
+              const active = navIsActive(pathname, item.key, settingsModalOpen);
               return (
                 <Link
                   key={item.key}
@@ -194,8 +217,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
         </aside>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* ── Right column ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden', height: '100dvh' }}>
           <header
+            data-shell="topbar"
             style={{
               height: 56,
               flexShrink: 0,
@@ -220,7 +245,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ position: 'relative' }}>
                 <div
                   style={{
@@ -251,6 +276,25 @@ export default function MainLayout({ children }: MainLayoutProps) {
                   <ShellIcons.Bell />
                 </div>
               </div>
+              <button
+                type="button"
+                title="Configuració"
+                onClick={() => openSettingsModal('general')}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: '#f4f4f5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: shellTokens.textSecondary,
+                  border: `1px solid ${shellTokens.borderSolid}`,
+                  cursor: 'pointer',
+                }}
+              >
+                <ShellIcons.Settings />
+              </button>
               <Link href="/logout" title="Tancar sessio" style={{ textDecoration: 'none' }}>
                 <div
                   style={{
@@ -300,6 +344,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
             if (typeof window === 'undefined') return;
             window.dispatchEvent(new CustomEvent('lito:command-submit', { detail: { message } }));
           }}
+        />
+      ) : null}
+
+      {settingsModalOpen ? (
+        <SettingsModal
+          panel={settingsPanel}
+          onClose={closeSettingsModal}
+          onSelectPanel={changeSettingsPanel}
         />
       ) : null}
     </div>
