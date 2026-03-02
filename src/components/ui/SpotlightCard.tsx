@@ -79,7 +79,7 @@ const SpotlightCard = forwardRef<HTMLDivElement, SpotlightCardProps>(function Sp
         animate={{ opacity: motionEnabled && isHovered ? 1 : 0 }}
         transition={{ duration: 0.26, ease: 'easeOut' }}
       />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-[1px] z-[1] rounded-[27px] bg-white" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-[1px] z-[1] rounded-[27px] bg-white dark:bg-zinc-900" />
       <motion.div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[2] rounded-[28px]"

@@ -6,6 +6,7 @@ import DashboardPlansPage from '@/app/dashboard/plans/page';
 import LITOConfigTab from '@/components/lito/tabs/LITOConfigTab';
 import LITOHealthTab from '@/components/lito/tabs/LITOHealthTab';
 import { ShellCardLight, ShellPageHeader, shellTokens } from '@/components/ui/AppShell';
+import SpotlightCard from '@/components/ui/SpotlightCard';
 
 type SettingsPanel = 'config' | 'health' | 'plans';
 
@@ -33,8 +34,8 @@ export default function SettingsDashboardPage({ panel }: SettingsDashboardPagePr
         subtitle="Integracions, salut de guardrails i entitlements del compte en un sol espai."
       />
 
-      <ShellCardLight style={{ marginBottom: 16, padding: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <SpotlightCard style={{ marginBottom: 16 }}>
+        <div style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {PANELS.map((item) => {
             const active = item.key === panel;
             return (
@@ -57,7 +58,7 @@ export default function SettingsDashboardPage({ panel }: SettingsDashboardPagePr
             );
           })}
         </div>
-      </ShellCardLight>
+      </SpotlightCard>
 
       {renderPanel(panel)}
     </section>
