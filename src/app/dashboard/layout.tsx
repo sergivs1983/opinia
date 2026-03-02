@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import Logo from '@/components/ui/Logo';
@@ -41,6 +41,7 @@ const icons = {
   bell: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
   user: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 10-16 0"/><circle cx="12" cy="7" r="4"/></svg>,
   search: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  lito: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12h5"/><path d="M9 12l2 2 4-4"/><path d="M13 6h7"/><path d="M13 12h7"/><path d="M13 18h7"/><rect x="3" y="4" width="8" height="16" rx="2"/></svg>,
 };
 
 function getInitials(value: string | null | undefined): string {
@@ -160,16 +161,25 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const testEventTrackedRef = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
+  const isClassicDashboard = searchParams?.get('classic') === '1';
 
   type NavItem = { key: string; href: string; label: string; icon: React.ReactNode; active: boolean };
   const NAV: NavItem[] = [
     {
+      key: 'lito',
+      href: '/dashboard/lito',
+      label: t('nav.lito'),
+      icon: icons.lito,
+      active: pathname.startsWith('/dashboard/lito'),
+    },
+    {
       key: 'dashboard',
-      href: '/dashboard',
+      href: '/dashboard?classic=1',
       label: t('dashboard.home.navHome'),
       icon: icons.dashboard,
-      active: pathname === '/dashboard',
+      active: pathname === '/dashboard' && isClassicDashboard,
     },
     {
       key: 'content',
@@ -224,25 +234,18 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const MOBILE_TABS: NavItem[] = [
     {
-      key: 'dashboard',
-      href: '/dashboard',
-      label: t('dashboard.home.navHome'),
-      icon: icons.dashboard,
-      active: pathname === '/dashboard',
+      key: 'lito',
+      href: '/dashboard/lito',
+      label: t('nav.lito'),
+      icon: icons.lito,
+      active: pathname.startsWith('/dashboard/lito'),
     },
     {
-      key: 'content',
-      href: '/dashboard/content',
-      label: t('nav.content'),
-      icon: icons.content,
-      active: pathname.startsWith('/dashboard/content'),
-    },
-    {
-      key: 'growth',
-      href: '/dashboard/growth-hub',
-      label: t('nav.growth'),
-      icon: icons.growth,
-      active: pathname === '/dashboard/growth-hub' || pathname === '/dashboard/growth',
+      key: 'planner',
+      href: '/dashboard/planner',
+      label: t('nav.planner'),
+      icon: icons.planner,
+      active: pathname.startsWith('/dashboard/planner'),
     },
     {
       key: 'settings',
@@ -296,6 +299,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const routeCommands = useMemo(
     (): CommandPaletteItem[] => {
       const base: CommandPaletteItem[] = [
+        {
+          id: 'route-lito',
+          type: 'route',
+          label: t('nav.lito'),
+          hint: '/dashboard/lito',
+          route: '/dashboard/lito',
+        },
         {
           id: 'route-inbox',
           type: 'route',
@@ -873,6 +883,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, [biz?.id, membership?.role]);
 
+  useEffect(() => {
+    if (pathname !== '/dashboard') return;
+    if (isClassicDashboard) return;
+    router.replace('/dashboard/lito');
+  }, [isClassicDashboard, pathname, router]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
@@ -898,31 +914,44 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }: {
     compact?: boolean;
     onNavigate?: () => void;
-  }) => (
-    <nav className="flex flex-col gap-1">
-      {NAV.map((item) => (
-        <button
-          key={item.key}
-          onClick={() => {
-            router.push(item.href);
-            onNavigate?.();
-          }}
-          title={compact ? item.label : undefined}
-          className={cn(
-            'nav-item w-full transition-all duration-[220ms] ease-premium',
-            compact ? 'justify-center px-2' : 'justify-start',
-            item.active &&
-              'bg-white/8 border-brand-accent/35 text-white shadow-[0_0_0_1px_rgba(0,168,107,0.2),0_16px_34px_rgba(0,0,0,0.4)] ring-1 ring-brand-accent/20',
-          )}
-        >
-          <span className="shrink-0">{item.icon}</span>
-          <span className={cn('truncate transition-all duration-[220ms] ease-premium', compact && 'sr-only')}>
-            {item.label}
-          </span>
-        </button>
-      ))}
-    </nav>
-  );
+  }) => {
+    const primary = NAV.find((item) => item.key === 'lito') || null;
+    const advanced = NAV.filter((item) => item.key !== 'lito');
+
+    const renderNavButton = (item: NavItem) => (
+      <button
+        key={item.key}
+        onClick={() => {
+          router.push(item.href);
+          onNavigate?.();
+        }}
+        title={compact ? item.label : undefined}
+        className={cn(
+          'nav-item w-full transition-all duration-[220ms] ease-premium',
+          compact ? 'justify-center px-2' : 'justify-start',
+          item.active &&
+            'bg-white/8 border-brand-accent/35 text-white shadow-[0_0_0_1px_rgba(0,168,107,0.2),0_16px_34px_rgba(0,0,0,0.4)] ring-1 ring-brand-accent/20',
+        )}
+      >
+        <span className="shrink-0">{item.icon}</span>
+        <span className={cn('truncate transition-all duration-[220ms] ease-premium', compact && 'sr-only')}>
+          {item.label}
+        </span>
+      </button>
+    );
+
+    return (
+      <nav className="flex flex-col gap-1">
+        {primary ? renderNavButton(primary) : null}
+        {!compact ? (
+          <p className="px-2 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500/90">
+            {t('dashboard.layout.advancedSection')}
+          </p>
+        ) : null}
+        {advanced.map((item) => renderNavButton(item))}
+      </nav>
+    );
+  };
 
   const userDisplayName = userName || (userEmail ? userEmail.split('@')[0] : t('dashboard.layout.accountFallback'));
   const userDisplayRole = membershipRoleLabel || (userRole ? userRole.replace(/[_-]/g, ' ') : null);
