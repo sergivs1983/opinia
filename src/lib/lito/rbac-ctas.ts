@@ -32,6 +32,11 @@ const CARD_ROLE_CTA_MATRIX: CardRoleCtaMatrix = {
     manager: ['open_pending', 'copy_open', 'mark_done', 'snooze'],
     staff: ['open_pending', 'copy_open', 'mark_done'],
   },
+  review_unanswered: {
+    owner: ['view_response', 'dismiss'],
+    manager: ['view_response', 'dismiss'],
+    staff: ['view_only'],
+  },
 };
 
 export function getAllowedCardActions(type: ActionCardType, role: ActionCardRole): ActionCardCtaAction[] {

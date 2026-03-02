@@ -42,6 +42,16 @@ type TelemetryRow = {
   props: Record<string, unknown> | null;
 };
 
+type GbpReviewRow = {
+  id: string;
+  gbp_review_id: string;
+  star_rating: number;
+  comment_preview: string;
+  create_time: string;
+  has_reply: boolean;
+  reply_time: string | null;
+};
+
 export type BuildActionCardsInput = {
   admin: SupabaseClient;
   bizId: string;
@@ -106,6 +116,13 @@ function formatCatalanWeekday(value: string): string {
   return raw.replace('.', '');
 }
 
+function formatCatalanHoursAgo(value: string, now: Date): string {
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) return '0h';
+  const hours = Math.max(0, Math.floor((now.getTime() - createdAt.getTime()) / (60 * 60 * 1000)));
+  return `${hours}h`;
+}
+
 function severityFromSignal(signal: SignalCard): ActionCardSeverity {
   if (signal.severity === 'high') return 'high';
   if (signal.severity === 'med') return 'medium';
@@ -147,6 +164,11 @@ export function actionCardCtaLabel(type: ActionCardType, action: ActionCardCtaAc
     if (action === 'mark_done') return 'Ja està';
     if (action === 'snooze') return 'Demà va millor';
   }
+  if (type === 'review_unanswered') {
+    if (action === 'view_response') return 'Veure resposta';
+    if (action === 'dismiss') return 'Ara no';
+    if (action === 'view_only') return 'Veure';
+  }
   if (action === 'view_only') return 'Veure';
   return 'Obrir';
 }
@@ -186,6 +208,7 @@ function withPriority(input: {
   const base = (() => {
     if (input.type === 'due_post') return 100;
     if (input.type === 'draft_approval') return 80;
+    if (input.type === 'review_unanswered') return 75;
     if (input.type === 'week_unplanned') return 50;
     if (input.type === 'signal') return 30;
     return 10;
@@ -294,6 +317,32 @@ async function queryPendingDraft(input: {
 
   const row = Array.isArray(data) ? data[0] : null;
   return (row as SocialDraftRow | null) || null;
+}
+
+async function queryUnansweredReviews(input: {
+  admin: SupabaseClient;
+  bizId: string;
+  mode: ActionCardMode;
+  now: Date;
+}): Promise<GbpReviewRow[]> {
+  const olderThan = new Date(input.now.getTime() - (4 * 60 * 60 * 1000)).toISOString();
+  const limit = input.mode === 'advanced' ? 2 : 1;
+
+  const { data, error } = await input.admin
+    .from('gbp_reviews')
+    .select('id, gbp_review_id, star_rating, comment_preview, create_time, has_reply, reply_time')
+    .eq('biz_id', input.bizId)
+    .eq('has_reply', false)
+    .lt('create_time', olderThan)
+    .order('star_rating', { ascending: true })
+    .order('create_time', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message || 'unanswered_reviews_query_failed');
+  }
+
+  return (data || []) as GbpReviewRow[];
 }
 
 async function queryWeekHasSchedules(input: {
@@ -543,6 +592,47 @@ function buildSignalCard(input: {
   };
 }
 
+function buildReviewUnansweredCard(input: {
+  row: GbpReviewRow;
+  role: ActionCardRole;
+  now: Date;
+}): ActionCard {
+  const severity: ActionCardSeverity = input.row.star_rating <= 2
+    ? 'high'
+    : input.row.star_rating === 3
+      ? 'medium'
+      : 'low';
+  const payload = {
+    review_id: input.row.id,
+    gbp_review_id: input.row.gbp_review_id,
+    star_rating: input.row.star_rating,
+    comment_preview: input.row.comment_preview,
+    create_time: input.row.create_time,
+  };
+  const ctas = pickPrimaryAndSecondaryCtas({
+    type: 'review_unanswered',
+    role: input.role,
+    payload,
+  });
+  const refs: ActionCardRef[] = [
+    { kind: 'review_id', id: input.row.id },
+    { kind: 'gbp_review_id', id: input.row.gbp_review_id },
+  ];
+
+  return {
+    id: cardId('review_unanswered', input.row.id),
+    type: 'review_unanswered',
+    priority: withPriority({ type: 'review_unanswered', severity }),
+    severity,
+    title: 'Ressenya nova sense resposta',
+    subtitle: `⭐${input.row.star_rating} · fa ${formatCatalanHoursAgo(input.row.create_time, input.now)}`,
+    primary_cta: ctas.primary,
+    secondary_cta: ctas.secondary,
+    expandable: true,
+    refs,
+  };
+}
+
 function buildFollowUpCard(input: {
   bizId: string;
   pendingCount: number;
@@ -580,7 +670,7 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
   const generatedAt = now.toISOString();
   const mode = await resolveActionCardsMode(input.admin, input.orgId);
 
-  const [dueSchedule, pendingDraft, weekHasSchedules, signals, followUpData] = await Promise.all([
+  const [dueSchedule, pendingDraft, unansweredReviews, weekHasSchedules, signals, followUpData] = await Promise.all([
     queryDueSchedule({
       admin: input.admin,
       bizId: input.bizId,
@@ -593,6 +683,12 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
       bizId: input.bizId,
       role: input.role,
       userId: input.userId,
+    }),
+    queryUnansweredReviews({
+      admin: input.admin,
+      bizId: input.bizId,
+      mode,
+      now,
     }),
     queryWeekHasSchedules({
       admin: input.admin,
@@ -621,6 +717,10 @@ export async function buildActionCards(input: BuildActionCardsInput): Promise<Bu
 
   if (pendingDraft) {
     cards.push(buildDraftApprovalCard({ row: pendingDraft, role: input.role }));
+  }
+
+  for (const review of unansweredReviews) {
+    cards.push(buildReviewUnansweredCard({ row: review, role: input.role, now }));
   }
 
   const isMonday = now.getDay() === 1;

@@ -7,7 +7,8 @@ export type ActionCardType =
   | 'draft_approval'
   | 'week_unplanned'
   | 'signal'
-  | 'follow_up';
+  | 'follow_up'
+  | 'review_unanswered';
 
 export type ActionCardSeverity = 'high' | 'medium' | 'low';
 
@@ -22,7 +23,9 @@ export type ActionCardCtaAction =
   | 'open_weekly_wizard'
   | 'view_recommendation'
   | 'ack'
-  | 'open_pending';
+  | 'open_pending'
+  | 'view_response'
+  | 'dismiss';
 
 export type ActionCardCta = {
   label: string;

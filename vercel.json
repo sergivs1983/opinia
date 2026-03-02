@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/lito-rebuild-cards",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/gbp-reviews-sync",
+      "schedule": "0 * * * *"
     }
   ]
 }
