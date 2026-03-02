@@ -1,0 +1,130 @@
+.shell {
+  min-height: calc(100dvh - 48px);
+  overflow: hidden;
+  position: relative;
+}
+
+.main {
+  min-height: 100%;
+  overflow-y: auto;
+  padding: 48px 48px 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.commandWrap {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(560px, calc(100vw - 48px));
+}
+
+.floatCard {
+  animation: lito-home-float-card 4s ease-in-out infinite;
+}
+
+.pulseDot {
+  animation: lito-home-pulse 2s ease-in-out infinite;
+}
+
+.sendVisible {
+  animation: lito-home-fade-in 0.15s ease;
+}
+
+.slideUp {
+  animation: lito-home-slide-up 0.6s ease both;
+}
+
+.slideUpDelayed {
+  animation: lito-home-slide-up 0.7s 0.1s ease both;
+}
+
+.resolveCard {
+  animation: lito-home-resolve-card 0.3s ease forwards;
+}
+
+.successPop {
+  animation: lito-home-success-pop 0.4s ease both;
+}
+
+@keyframes lito-home-float-card {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes lito-home-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.88);
+  }
+}
+
+@keyframes lito-home-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes lito-home-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lito-home-resolve-card {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-32px) scale(0.96);
+  }
+}
+
+@keyframes lito-home-success-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 1024px) {
+  .main {
+    padding: 32px 20px 132px;
+  }
+
+  .commandWrap {
+    width: min(560px, calc(100vw - 28px));
+  }
+}

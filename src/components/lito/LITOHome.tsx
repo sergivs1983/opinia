@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
+
+import { tokens, cx } from '@/lib/design/tokens';
+import styles from '@/components/lito/LITOHome.module.css';
 
 const IconMic = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -63,6 +66,7 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
 
   return (
     <div
+      className={styles.floatCard}
       style={{
         background: 'white',
         borderRadius: 32,
@@ -71,7 +75,6 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
         padding: '36px 36px 32px',
         width: '100%',
         maxWidth: 580,
-        animation: 'lito-home-float-card 4s ease-in-out infinite',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -129,7 +132,7 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
       <div style={{ height: 1, background: 'linear-gradient(90deg,#f4f4f5 0%,transparent 100%)', marginBottom: 20 }} />
       <blockquote style={{ margin: '0 0 24px', padding: '0 0 0 16px', borderLeft: '3px solid #f4f4f5' }}>
         <p style={{ fontSize: 15, color: '#3f3f46', lineHeight: 1.65, margin: 0, fontStyle: 'italic' }}>
-          "El menjar era bo pero el cambrer ha trigat molt. Vam esperar mes de 30 minuts entre plats. No tornarem."
+          El menjar era bo pero el cambrer ha trigat molt. Vam esperar mes de 30 minuts entre plats. No tornarem.
         </p>
       </blockquote>
       <div
@@ -164,7 +167,7 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
           </span>
         </div>
         <p style={{ fontSize: 14, color: '#065f46', lineHeight: 1.65, margin: 0 }}>
-          "Hola Marta, sentim molt la teva experiencia. El temps d'espera entre plats no reflecteix el nostre estandard de servei."
+          Hola Marta, sentim molt la teva experiencia. El temps de espera entre plats no reflecteix el nostre estandard de servei.
         </p>
       </div>
       <div style={{ display: 'flex', gap: 10 }}>
@@ -267,14 +270,7 @@ function CommandBar() {
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        bottom: 28,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 60,
-        width: 'min(560px,calc(100vw - 48px))',
-      }}
+      className={styles.commandWrap}
     >
       <div
         style={{
@@ -301,8 +297,8 @@ function CommandBar() {
             background: '#10b981',
             flexShrink: 0,
             boxShadow: '0 0 0 3px rgba(16,185,129,0.15)',
-            animation: 'lito-home-pulse 2s ease-in-out infinite',
           }}
+          className={styles.pulseDot}
         />
         <input
           value={value}
@@ -316,7 +312,7 @@ function CommandBar() {
             border: 'none',
             outline: 'none',
             fontSize: 14,
-            color: '#18181b',
+            color: 'inherit',
             fontWeight: 400,
             fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif",
           }}
@@ -357,8 +353,8 @@ function CommandBar() {
               color: 'white',
               flexShrink: 0,
               boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              animation: 'lito-home-fade-in 0.15s ease',
             }}
+            className={styles.sendVisible}
             aria-label="Enviar"
           >
             <IconSend />
@@ -368,22 +364,6 @@ function CommandBar() {
     </div>
   );
 }
-
-const shellStyle: CSSProperties = {
-  minHeight: 'calc(100dvh - 48px)',
-  background: '#fafaf9',
-  overflow: 'hidden',
-  position: 'relative',
-};
-
-const mainStyle: CSSProperties = {
-  minHeight: '100%',
-  overflowY: 'auto',
-  padding: '48px 48px 140px',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'flex-start',
-};
 
 export default function LITOHome() {
   const [resolved, setResolved] = useState(false);
@@ -398,24 +378,15 @@ export default function LITOHome() {
   };
 
   return (
-    <section style={shellStyle}>
-      <style>{`
-        @keyframes lito-home-float-card { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
-        @keyframes lito-home-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.88); } }
-        @keyframes lito-home-fade-in { from { opacity:0; transform:scale(0.8); } to { opacity:1; transform:scale(1); } }
-        @keyframes lito-home-slide-up { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes lito-home-resolve-card { from { opacity:1; transform:translateY(0) scale(1); } to { opacity:0; transform:translateY(-32px) scale(0.96); } }
-        @keyframes lito-home-success-pop { 0% { opacity:0; transform:scale(0.7); } 60% { transform:scale(1.06); } 100% { opacity:1; transform:scale(1); } }
-      `}</style>
-
-      <main style={mainStyle}>
-        <div style={{ marginBottom: 40, animation: 'lito-home-slide-up 0.6s ease both' }}>
+    <section className={cx(styles.shell, tokens.bg.global, tokens.text.primary)}>
+      <main className={styles.main}>
+        <div className={styles.slideUp} style={{ marginBottom: 40 }}>
           <h1
+            className={tokens.text.primary}
             style={{
               fontSize: 34,
               fontWeight: 600,
               fontFamily: "Georgia,'Times New Roman',serif",
-              color: '#18181b',
               lineHeight: 1.2,
               letterSpacing: '-0.5px',
               marginBottom: 8,
@@ -423,18 +394,19 @@ export default function LITOHome() {
           >
             Bon dia.
           </h1>
-          <p style={{ fontSize: 16, color: '#71717a', fontWeight: 400, lineHeight: 1.5 }}>
+          <p className={tokens.text.secondary} style={{ fontSize: 16, fontWeight: 400, lineHeight: 1.5 }}>
             {resolved ? 'Perfecte. Tot al dia per ara.' : 'Avui tenim 3 temes pendents.'}
           </p>
         </div>
 
         {!resolved ? (
-          <div style={{ width: '100%', animation: resolveAnim ? 'lito-home-resolve-card 0.3s ease forwards' : 'lito-home-slide-up 0.7s 0.1s ease both' }}>
+          <div className={resolveAnim ? styles.resolveCard : styles.slideUpDelayed} style={{ width: '100%' }}>
             <ReviewCard onResolve={handleResolve} />
             <QueuePills count={2} />
           </div>
         ) : (
           <div
+            className={styles.successPop}
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -448,7 +420,6 @@ export default function LITOHome() {
               width: '100%',
               maxWidth: 580,
               gap: 20,
-              animation: 'lito-home-success-pop 0.4s ease both',
             }}
           >
             <div
@@ -468,9 +439,9 @@ export default function LITOHome() {
               </svg>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 20, fontWeight: 600, fontFamily: 'Georgia,serif', color: '#18181b', marginBottom: 6 }}>Tot a punt.</p>
-              <p style={{ fontSize: 14, color: '#71717a', lineHeight: 1.6, maxWidth: 300 }}>
-                La resposta s'ha enviat. La Marta rebra la teva resposta a Google.
+              <p className={tokens.text.primary} style={{ fontSize: 20, fontWeight: 600, fontFamily: 'Georgia,serif', marginBottom: 6 }}>Tot a punt.</p>
+              <p className={tokens.text.secondary} style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300 }}>
+                La resposta sha enviat. La Marta rebra la teva resposta a Google.
               </p>
             </div>
             <button
