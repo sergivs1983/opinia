@@ -9,6 +9,7 @@ import GlassCard from '@/components/ui/GlassCard';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { tokens, cx } from '@/lib/design/tokens';
 
 type SummaryEvent = {
   event_name: string;
@@ -226,10 +227,10 @@ export default function DashboardHealthPage() {
     return (
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-900 md:text-base">DEV Tools (Guardrails)</h2>
-          <span className="text-xs text-zinc-600">Només DEV</span>
+          <h2 className={cx('text-sm font-semibold md:text-base', tokens.text.primary)}>DEV Tools (Guardrails)</h2>
+          <span className={cx('text-xs', tokens.text.secondary)}>Només DEV</span>
         </div>
-        <p className="text-sm text-zinc-600">
+        <p className={cx('text-sm', tokens.text.secondary)}>
           {biz?.id ? 'Simula bloquejos de guardrails i refresca KPI al moment.' : 'Selecciona un negoci'}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -256,14 +257,14 @@ export default function DashboardHealthPage() {
 
   if (!canManage) {
     return (
-      <div className="space-y-6 bg-transparent pb-16 text-zinc-900" data-testid="dashboard-health-page">
+      <div className={cx('space-y-6 pb-16', tokens.bg.global, tokens.text.primary)} data-testid="dashboard-health-page">
         <header className="space-y-1">
-          <h1 className="text-2xl font-semibold text-zinc-900 md:text-3xl">Health</h1>
-          <p className="text-sm text-zinc-600 md:text-base">Telemetria de plataforma (24h).</p>
+          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Health</h1>
+          <p className={cx('text-sm md:text-base', tokens.text.secondary)}>Telemetria de plataforma (24h).</p>
         </header>
         <GlassCard variant="glass" className="space-y-2 p-4 md:p-5">
-          <p className="text-sm font-medium text-zinc-900">Accés restringit</p>
-          <p className="text-sm text-zinc-600">Només owner/manager pot veure la telemetria.</p>
+          <p className={cx('text-sm font-medium', tokens.text.primary)}>Accés restringit</p>
+          <p className={cx('text-sm', tokens.text.secondary)}>Només owner/manager pot veure la telemetria.</p>
           <Link href="/dashboard">
             <Button size="sm">Tornar al dashboard</Button>
           </Link>
@@ -273,11 +274,11 @@ export default function DashboardHealthPage() {
   }
 
   return (
-    <div className="space-y-6 bg-transparent pb-16 text-zinc-900" data-testid="dashboard-health-page">
+    <div className={cx('space-y-6 pb-16', tokens.bg.global, tokens.text.primary)} data-testid="dashboard-health-page">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-zinc-900 md:text-3xl">Health</h1>
-          <p className="text-sm text-zinc-600 md:text-base">
+          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Health</h1>
+          <p className={cx('text-sm md:text-base', tokens.text.secondary)}>
             KPI de telemetria de les últimes 24 hores + últims errors.
           </p>
         </div>
@@ -289,9 +290,9 @@ export default function DashboardHealthPage() {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {KPI_ORDER.map((eventName) => (
           <GlassCard key={eventName} variant="glass" className="space-y-1 p-4">
-            <p className="text-xs uppercase tracking-wide text-zinc-600">{KPI_LABELS[eventName]}</p>
-            <p className="text-2xl font-semibold text-zinc-900">{countByEvent.get(eventName) ?? 0}</p>
-            <p className="text-xs text-zinc-600">Últimes 24h</p>
+            <p className={cx('text-xs uppercase tracking-wide', tokens.text.secondary)}>{KPI_LABELS[eventName]}</p>
+            <p className={cx('text-2xl font-semibold', tokens.text.primary)}>{countByEvent.get(eventName) ?? 0}</p>
+            <p className={cx('text-xs', tokens.text.secondary)}>Últimes 24h</p>
           </GlassCard>
         ))}
       </section>
@@ -300,16 +301,16 @@ export default function DashboardHealthPage() {
 
       <section className="grid gap-3 sm:grid-cols-2">
         <GlassCard variant="glass" className="space-y-1 p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-600">Rate limits (última hora)</p>
-          <p className="text-2xl font-semibold text-zinc-900">{rateLimitedLast60m}</p>
-          <p className="text-xs text-zinc-600">
+          <p className={cx('text-xs uppercase tracking-wide', tokens.text.secondary)}>Rate limits (última hora)</p>
+          <p className={cx('text-2xl font-semibold', tokens.text.primary)}>{rateLimitedLast60m}</p>
+          <p className={cx('text-xs', tokens.text.secondary)}>
             {trendLabel(guardrails?.rate_limits_last_60m?.trend, rateLimitedPrev60m)}
           </p>
         </GlassCard>
         <GlassCard variant="glass" className="space-y-1 p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-600">Orchestrator cap (avui)</p>
-          <p className="text-2xl font-semibold text-zinc-900">{orchestratorCapToday}</p>
-          <p className="text-xs text-zinc-600">
+          <p className={cx('text-xs uppercase tracking-wide', tokens.text.secondary)}>Orchestrator cap (avui)</p>
+          <p className={cx('text-2xl font-semibold', tokens.text.primary)}>{orchestratorCapToday}</p>
+          <p className={cx('text-xs', tokens.text.secondary)}>
             {trendLabel(guardrails?.orchestrator_cap_today?.trend, orchestratorCapPrevDay)}
           </p>
         </GlassCard>
@@ -317,14 +318,14 @@ export default function DashboardHealthPage() {
 
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-900 md:text-base">Recent issues</h2>
-          {loading ? <span className="text-xs text-zinc-600">Carregant…</span> : null}
+          <h2 className={cx('text-sm font-semibold md:text-base', tokens.text.primary)}>Recent issues</h2>
+          {loading ? <span className={cx('text-xs', tokens.text.secondary)}>Carregant…</span> : null}
         </div>
 
         {error ? <p className="text-sm text-amber-700">{error}</p> : null}
 
         {!loading && !error && recentIssues.length === 0 ? (
-          <p className="text-sm text-zinc-600">No hi ha errors recents a les últimes 24h.</p>
+          <p className={cx('text-sm', tokens.text.secondary)}>No hi ha errors recents a les últimes 24h.</p>
         ) : null}
 
         {recentIssues.length > 0 ? (
@@ -357,12 +358,12 @@ export default function DashboardHealthPage() {
 
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-900 md:text-base">Guardrails recents</h2>
-          {loading ? <span className="text-xs text-zinc-600">Carregant…</span> : null}
+          <h2 className={cx('text-sm font-semibold md:text-base', tokens.text.primary)}>Guardrails recents</h2>
+          {loading ? <span className={cx('text-xs', tokens.text.secondary)}>Carregant…</span> : null}
         </div>
 
         {!loading && !error && guardrailRecent.length === 0 ? (
-          <p className="text-sm text-zinc-600">No hi ha bloquejos recents en les últimes 24h.</p>
+          <p className={cx('text-sm', tokens.text.secondary)}>No hi ha bloquejos recents en les últimes 24h.</p>
         ) : null}
 
         {guardrailRecent.length > 0 ? (

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { usePathname } from 'next/navigation';
 
 import { LITOLayout } from '@/components/lito/layout/LITOLayout';
+import { LITO_NAV_ITEMS } from '@/components/lito/layout/nav';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -29,7 +30,7 @@ function resolveActiveNav(pathname: string): string {
 
 function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { biz } = useWorkspace();
+  const { biz, membership } = useWorkspace();
   const supabase = useMemo(() => createClient(), []);
 
   const [userName, setUserName] = useState<string | null>(null);
@@ -37,6 +38,11 @@ function DashboardShell({ children }: { children: ReactNode }) {
   const [commandDisabled, setCommandDisabled] = useState(false);
 
   const showCommandBar = pathname === '/dashboard/lito';
+  const canSeeHealthNav = membership?.role === 'owner' || membership?.role === 'manager';
+  const navItems = useMemo(
+    () => (canSeeHealthNav ? LITO_NAV_ITEMS : LITO_NAV_ITEMS.filter((item) => item.key !== 'health')),
+    [canSeeHealthNav],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -105,6 +111,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
       userName={userName}
       bizName={biz?.name || null}
       bizId={biz?.id || null}
+      navItems={navItems}
       showCommandBar={showCommandBar}
       commandValue={commandValue}
       commandDisabled={commandDisabled}

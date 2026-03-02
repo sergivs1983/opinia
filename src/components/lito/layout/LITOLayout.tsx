@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { tokens, cx } from '@/lib/design/tokens';
-import { LITO_NAV_ITEMS } from '@/components/lito/layout/nav';
+import { LITO_NAV_ITEMS, type LitoNavItem } from '@/components/lito/layout/nav';
 
 function LogoIcon() {
   return (
@@ -21,6 +21,14 @@ function MenuIcon() {
   return (
     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true">
       <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" aria-hidden="true">
+      <path d="M6.5 8.5 10 12l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -64,10 +72,11 @@ function bizLabelFromProps(input: { bizName?: string | null; bizId?: string | nu
   return 'Sense negoci actiu';
 }
 
-function resolveActiveNav(input: string | undefined): string {
-  if (!input) return 'lito';
-  if (LITO_NAV_ITEMS.some((item) => item.key === input)) return input;
-  return 'lito';
+function resolveActiveNav(input: string | undefined, items: LitoNavItem[]): string {
+  const fallback = items.find((item) => item.key === 'lito')?.key || items[0]?.key || 'lito';
+  if (!input) return fallback;
+  if (items.some((item) => item.key === input)) return input;
+  return fallback;
 }
 
 export type LITOLayoutProps = {
@@ -76,6 +85,7 @@ export type LITOLayoutProps = {
   userName?: string | null;
   bizName?: string | null;
   bizId?: string | null;
+  navItems?: LitoNavItem[];
   showCommandBar?: boolean;
   commandValue?: string;
   commandDisabled?: boolean;
@@ -90,6 +100,7 @@ export function LITOLayout({
   userName,
   bizName,
   bizId,
+  navItems,
   showCommandBar = false,
   commandValue,
   commandDisabled = false,
@@ -98,9 +109,11 @@ export function LITOLayout({
   onCommandSubmit,
 }: LITOLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [localCommandValue, setLocalCommandValue] = useState('');
 
-  const selectedNav = resolveActiveNav(activeNav);
+  const resolvedNavItems = navItems && navItems.length > 0 ? navItems : LITO_NAV_ITEMS;
+  const selectedNav = resolveActiveNav(activeNav, resolvedNavItems);
   const businessLabel = bizLabelFromProps({ bizName, bizId });
   const avatarText = useMemo(() => initialFromName(userName), [userName]);
 
@@ -120,9 +133,17 @@ export function LITOLayout({
 
   return (
     <div className={cx('lito-layout relative overflow-hidden', tokens.bg.page)}>
+      {userMenuOpen ? (
+        <div
+          className="fixed inset-0 z-[90] pointer-events-auto"
+          onClick={() => setUserMenuOpen(false)}
+          aria-hidden="true"
+        />
+      ) : null}
+
       <header
         className={cx(
-          'fixed inset-x-0 top-0 z-40 flex items-center justify-between px-4',
+          'fixed inset-x-0 top-0 z-[95] flex items-center justify-between px-4',
           tokens.layout.topbarHeight,
           tokens.bg.surface,
           tokens.shadow.topbar,
@@ -156,31 +177,58 @@ export function LITOLayout({
           <span className="truncate">{businessLabel}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link
-            href="/logout"
-            className={cx('hidden sm:inline-flex', tokens.button.ghost, tokens.text.tiny)}
+        <div className="relative">
+          <button
+            type="button"
+            className={cx('inline-flex items-center gap-1 rounded-xl px-1 py-1', tokens.text.secondary, 'hover:bg-[#f0efec]')}
+            aria-haspopup="menu"
+            aria-expanded={userMenuOpen}
+            aria-label="Obrir menú d'usuari"
+            onClick={() => setUserMenuOpen((prev) => !prev)}
           >
-            Tancar sessio
-          </Link>
-          <Link
-            href="/logout"
-            className={cx(
-              'inline-flex h-8 w-8 items-center justify-center',
-              tokens.radius.pill,
-              tokens.bg.soft,
-              tokens.text.secondary,
-              tokens.text.tiny,
-            )}
-            aria-label="Tancar sessio"
-            title="Tancar sessio"
-          >
-            {avatarText}
-          </Link>
+            <span
+              className={cx(
+                'inline-flex h-8 w-8 items-center justify-center',
+                tokens.radius.pill,
+                tokens.bg.soft,
+                tokens.text.secondary,
+                tokens.text.tiny,
+              )}
+              aria-hidden="true"
+            >
+              {avatarText}
+            </span>
+            <span className="hidden sm:inline-flex" aria-hidden="true">
+              <ChevronIcon />
+            </span>
+          </button>
+
+          {userMenuOpen ? (
+            <div
+              className={cx(
+                'absolute right-0 top-full z-[100] mt-2 w-44 p-1',
+                tokens.bg.surface,
+                tokens.border.default,
+                tokens.radius.button,
+                tokens.shadow.card,
+                'pointer-events-auto',
+              )}
+              role="menu"
+            >
+              <Link
+                href="/logout"
+                className={cx('flex w-full items-center rounded-lg px-3 py-2 text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
+                role="menuitem"
+                onClick={() => setUserMenuOpen(false)}
+              >
+                Tancar sessio
+              </Link>
+            </div>
+          ) : null}
         </div>
       </header>
 
-      <div className={cx('flex h-full pt-12', showCommandBar ? 'pb-0' : 'pb-0')}>
+      <div className="flex h-full pt-12">
         {sidebarOpen ? (
           <div
             className={cx(
@@ -206,7 +254,7 @@ export function LITOLayout({
           )}
         >
           <nav className="flex-1 overflow-y-auto px-2 py-3">
-            {LITO_NAV_ITEMS.map((item) => {
+            {resolvedNavItems.map((item) => {
               const isActive = item.key === selectedNav;
               return (
                 <Link

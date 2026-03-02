@@ -1,5 +1,6 @@
 export const tokens = {
   bg: {
+    global: 'bg-[#f7f7f5]',
     page: 'bg-[#f7f7f5]',
     surface: 'bg-white',
     soft: 'bg-[#f0efec]',
