@@ -14,6 +14,7 @@ import { buildFallbackRecommendation } from '@/components/lito/recommendation-fa
 import { cn } from '@/lib/utils';
 import { textMain, textSub } from '@/components/ui/glass';
 import type {
+  LitoMemoryContext,
   LitoQuotaState,
   LitoRecommendationItem,
   LitoRecommendationTemplate,
@@ -115,6 +116,16 @@ type SignalsBackfillPayload = {
   message?: string;
 };
 
+type MemoryContextPayload = {
+  ok?: boolean;
+  profile?: LitoMemoryContext['profile'];
+  voice?: LitoMemoryContext['voice'];
+  policies_top?: LitoMemoryContext['policies_top'];
+  events_recent?: LitoMemoryContext['events_recent'];
+  error?: string;
+  message?: string;
+};
+
 function normalizeRecommendationItem(
   item: Partial<LitoRecommendationItem> & { recommendation_template?: LitoRecommendationTemplate },
 ): LitoRecommendationItem | null {
@@ -198,6 +209,8 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
   const [selectedFormat, setSelectedFormat] = useState<'post' | 'story' | 'reel'>('post');
   const [voicePendingCount, setVoicePendingCount] = useState(0);
   const [recalculateSignalsLoading, setRecalculateSignalsLoading] = useState(false);
+  const [memoryContext, setMemoryContext] = useState<LitoMemoryContext | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
 
   const bootstrapRef = useRef<string | null>(null);
 
@@ -439,6 +452,31 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     }
   }, [biz?.org_id]);
 
+  const loadMemoryContext = useCallback(async () => {
+    if (!biz?.id) return;
+    setMemoryLoading(true);
+    try {
+      const response = await fetch(`/api/memory/context?biz_id=${biz.id}`, {
+        cache: 'no-store',
+      });
+      const payload = (await response.json().catch(() => ({}))) as MemoryContextPayload;
+      if (!response.ok || payload.error) {
+        setMemoryContext(null);
+        return;
+      }
+      setMemoryContext({
+        profile: payload.profile || null,
+        voice: payload.voice || null,
+        policies_top: payload.policies_top || [],
+        events_recent: payload.events_recent || [],
+      });
+    } catch {
+      setMemoryContext(null);
+    } finally {
+      setMemoryLoading(false);
+    }
+  }, [biz?.id]);
+
   const loadThreads = useCallback(async () => {
     if (!biz?.id) return;
     setThreadsLoading(true);
@@ -573,13 +611,15 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
     setTrialDaysLeft(0);
     setSignals([]);
     setVoicePendingCount(0);
+    setMemoryContext(null);
     void loadWeeklyRecommendations();
     void loadThreads();
     void loadGoogleStatus();
     void loadSignals();
     void loadVoicePendingCount();
     void loadTrialStatus();
-  }, [biz?.id, loadGoogleStatus, loadSignals, loadThreads, loadTrialStatus, loadVoicePendingCount, loadWeeklyRecommendations]);
+    void loadMemoryContext();
+  }, [biz?.id, loadGoogleStatus, loadMemoryContext, loadSignals, loadThreads, loadTrialStatus, loadVoicePendingCount, loadWeeklyRecommendations]);
 
   useEffect(() => {
     if (!biz?.id || !queryBizId) return;
@@ -790,6 +830,7 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
       <div className="grid gap-4 2xl:grid-cols-[300px_minmax(0,1fr)_420px]">
         <LitoContextPanel
           t={t}
+          bizId={biz.id}
           businessName={biz.name}
           businessVertical={biz.type || 'general'}
           businessLanguage={biz.default_language || 'ca'}
@@ -803,9 +844,12 @@ export default function LitoCommandCenter({ embedded = false, className }: LitoC
           voicePendingCount={voicePendingCount}
           selectedRecommendationId={selectedRecommendationId}
           recalculateLoading={recalculateSignalsLoading}
+          memory={memoryContext}
+          memoryLoading={memoryLoading}
           onOpenGeneral={() => void openGeneralThread()}
           onRecalculateSignals={() => void recalculateSignals()}
           onSelectRecommendation={(item) => void openThreadForRecommendation(item)}
+          onMemoryUpdated={setMemoryContext}
         />
 
         <section className="flex min-h-[70vh] flex-col rounded-2xl border border-white/10 bg-zinc-900/45 backdrop-blur-md">

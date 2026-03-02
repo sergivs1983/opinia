@@ -116,3 +116,48 @@ export type LitoVoiceActionDraft = {
   created_at: string;
   updated_at: string;
 };
+
+export type LitoMemoryProfile = {
+  biz_id: string;
+  org_id: string;
+  profile_json: Record<string, unknown>;
+  updated_at: string;
+};
+
+export type LitoMemoryVoice = {
+  biz_id: string;
+  org_id: string;
+  voice_json: Record<string, unknown>;
+  updated_at: string;
+};
+
+export type LitoMemoryPolicy = {
+  id: string;
+  biz_id: string;
+  org_id: string;
+  kind: string;
+  rules_json: Record<string, unknown>;
+  enabled: boolean;
+  priority: number;
+  updated_at: string;
+};
+
+export type LitoMemoryEvent = {
+  id: string;
+  biz_id: string;
+  org_id: string;
+  type: string;
+  source: string;
+  summary: string;
+  evidence_ref: Record<string, unknown>;
+  occurred_at: string;
+  confidence: number | null;
+  created_at: string;
+};
+
+export type LitoMemoryContext = {
+  profile: LitoMemoryProfile | null;
+  voice: LitoMemoryVoice | null;
+  policies_top: LitoMemoryPolicy[];
+  events_recent: LitoMemoryEvent[];
+};
