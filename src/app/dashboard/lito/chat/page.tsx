@@ -1,9 +1,29 @@
-'use client';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-import LitoChatView from '@/components/lito/LitoChatView';
+type DashboardLitoChatLegacyPageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-export default function DashboardLitoChatPage() {
-  return <LitoChatView />;
+function firstQueryValue(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] || null;
+  if (typeof value === 'string') return value;
+  return null;
+}
+
+export default function DashboardLitoChatLegacyPage({ searchParams }: DashboardLitoChatLegacyPageProps) {
+  const params = new URLSearchParams();
+  params.set('tab', 'chat');
+
+  if (searchParams) {
+    for (const [key, rawValue] of Object.entries(searchParams)) {
+      if (key === 'tab') continue;
+      const value = firstQueryValue(rawValue);
+      if (!value) continue;
+      params.set(key, value);
+    }
+  }
+
+  redirect(`/dashboard/lito?${params.toString()}`);
 }

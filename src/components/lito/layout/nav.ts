@@ -6,9 +6,9 @@ export type LitoNavItem = {
 
 export const LITO_NAV_ITEMS: LitoNavItem[] = [
   {
-    key: 'lito',
+    key: 'chat',
     label: 'LITO',
-    href: '/dashboard/lito',
+    href: '/dashboard/lito?tab=chat',
   },
   {
     key: 'inbox',

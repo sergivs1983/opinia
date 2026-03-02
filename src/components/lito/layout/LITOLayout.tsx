@@ -114,25 +114,29 @@ export function LITOLayout({
   const tab = searchParams?.get('tab') ?? 'inbox';
   const resolvedNavItems = navItems && navItems.length > 0 ? navItems : LITO_NAV_ITEMS;
   const selectedNav = useMemo(() => {
+    const hasItem = (value: string | null | undefined) =>
+      Boolean(value && resolvedNavItems.some((item) => item.key === value));
+
     if (pathname === '/dashboard/lito') {
       const rawTab = searchParams?.get('tab');
-      if (!rawTab) return 'lito';
-      return resolvedNavItems.some((item) => item.key === tab) ? tab : 'inbox';
+      if (hasItem(rawTab)) return rawTab as string;
+      if (hasItem(tab)) return tab;
+      return hasItem('inbox') ? 'inbox' : (resolvedNavItems[0]?.key || 'chat');
     }
 
     if (pathname.startsWith('/dashboard/lito/')) {
-      return 'lito';
+      return hasItem('chat') ? 'chat' : (resolvedNavItems[0]?.key || 'chat');
     }
 
     if (pathname.startsWith('/dashboard/health')) {
-      return 'health';
+      return hasItem('health') ? 'health' : (resolvedNavItems[0]?.key || 'chat');
     }
 
-    if (activeNav && resolvedNavItems.some((item) => item.key === activeNav)) {
+    if (activeNav && hasItem(activeNav)) {
       return activeNav;
     }
 
-    return 'lito';
+    return hasItem('chat') ? 'chat' : (resolvedNavItems[0]?.key || 'chat');
   }, [activeNav, pathname, resolvedNavItems, searchParams, tab]);
   const businessLabel = bizLabelFromProps({ bizName, bizId });
   const avatarText = useMemo(() => initialFromName(userName), [userName]);
@@ -271,7 +275,7 @@ export function LITOLayout({
                 type="button"
                 className={cx('flex w-full items-center rounded-lg px-3 py-2 text-left text-sm', tokens.text.secondary, 'hover:bg-[#f7f7f5] hover:text-[#1a1917]')}
                 role="menuitem"
-                onClick={() => handleUserMenuNavigate('/dashboard/lito?tab=help')}
+                onClick={() => handleUserMenuNavigate('/dashboard/help')}
               >
                 Ajuda
               </button>
