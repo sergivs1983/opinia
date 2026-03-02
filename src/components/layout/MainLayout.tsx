@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import {
   AppShellGlobalStyles,
@@ -10,6 +10,8 @@ import {
   ShellIcons,
   shellTokens,
 } from '@/components/ui/AppShell';
+import SettingsModal, { type SettingsPanelKey } from '@/components/layout/SettingsModal';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -48,8 +50,18 @@ function userInitial(value: string | null | undefined): string {
   return value.trim().charAt(0).toUpperCase() || 'U';
 }
 
+function normalizeSettingsPanel(value: string | null | undefined): SettingsPanelKey {
+  if (
+    value === 'general' || value === 'integrations' || value === 'brand-brain' ||
+    value === 'billing' || value === 'language' || value === 'health'
+  ) return value;
+  return 'general';
+}
+
 export default function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { biz, org } = useWorkspace();
   const [userName, setUserName] = useState<string | null>(null);
 
@@ -90,15 +102,31 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const contentMaxWidth = isLitoRoute ? '100%' : 1040;
   const contentPadding = isLitoRoute ? '0' : '48px 24px 120px';
 
+  // Settings modal state (driven by ?modal=settings&panel=)
+  const modalParam = searchParams?.get('modal');
+  const panelParam = searchParams?.get('panel');
+  const settingsOpen = modalParam === 'settings';
+  const initialPanel = normalizeSettingsPanel(panelParam);
+
+  const closeSettings = useCallback(() => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.delete('modal');
+    params.delete('panel');
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
   return (
-    <div style={{ minHeight: '100dvh', background: shellTokens.bg, color: shellTokens.textPrimary }}>
+    <div style={{ height: '100dvh', overflow: 'hidden', background: shellTokens.bg, color: shellTokens.textPrimary }}>
       <AppShellGlobalStyles />
 
-      <div style={{ display: 'flex', minHeight: '100dvh', background: shellTokens.bg }}>
+      <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', background: shellTokens.bg }}>
+        {/* ── Left sidebar (never scrolls) ── */}
         <aside
+          data-shell="sidebar"
           style={{
             width: 64,
-            minHeight: '100dvh',
+            height: '100%',
             flexShrink: 0,
             background: shellTokens.white,
             borderRight: `1px solid ${shellTokens.borderSolid}`,
@@ -108,8 +136,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
             paddingTop: 24,
             paddingBottom: 24,
             gap: 4,
-            position: 'sticky',
-            top: 0,
             zIndex: 20,
           }}
         >
@@ -194,8 +220,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
         </aside>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* ── Right column (header + scrollable main) ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           <header
+            data-shell="topbar"
             style={{
               height: 56,
               flexShrink: 0,
@@ -207,8 +235,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
               borderBottom: `1px solid ${shellTokens.border}`,
-              position: 'sticky',
-              top: 0,
               zIndex: 15,
             }}
           >
@@ -220,7 +246,11 @@ export default function MainLayout({ children }: MainLayoutProps) {
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Theme toggle */}
+              <ThemeToggle />
+
+              {/* Bell */}
               <div style={{ position: 'relative' }}>
                 <div
                   style={{
@@ -251,6 +281,35 @@ export default function MainLayout({ children }: MainLayoutProps) {
                   <ShellIcons.Bell />
                 </div>
               </div>
+
+              {/* Settings gear (opens modal) */}
+              <button
+                type="button"
+                title="Configuració"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams?.toString() ?? '');
+                  params.set('modal', 'settings');
+                  if (!params.get('panel')) params.set('panel', 'general');
+                  router.push(`${pathname}?${params.toString()}`, { scroll: false });
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: settingsOpen ? '#f4f4f5' : 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: settingsOpen ? shellTokens.textPrimary : shellTokens.textSecondary,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <ShellIcons.Settings />
+              </button>
+
+              {/* User avatar */}
               <Link href="/logout" title="Tancar sessio" style={{ textDecoration: 'none' }}>
                 <div
                   style={{
@@ -272,6 +331,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
             </div>
           </header>
 
+          {/* Only main scrolls */}
           <main
             style={{
               flex: 1,
@@ -293,6 +353,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </main>
         </div>
       </div>
+
+      {/* Settings modal (overlay, z-300) */}
+      {settingsOpen ? (
+        <SettingsModal
+          onClose={closeSettings}
+          initialPanel={initialPanel}
+        />
+      ) : null}
 
       {showCommandBar ? (
         <ShellCommandBar
