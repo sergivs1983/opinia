@@ -5,6 +5,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { resolveProvider } from '@/lib/ai/provider';
+import { getOrgEntitlements } from '@/lib/billing/entitlements';
+import { isGuardrailError } from '@/lib/guards/errors';
+import { enforceOrchestratorDailyCap } from '@/lib/guards/orchestrator-cap';
+import { resolveRateLimitsForPlan } from '@/lib/guards/rate-limit-config';
+import { enforceOrgUserRateLimit } from '@/lib/guards/rate-limit';
 import { callLLM } from '@/lib/llm/provider';
 import { createLogger } from '@/lib/logger';
 import { getLitoBizAccess } from '@/lib/lito/action-drafts';
@@ -103,6 +108,22 @@ function parseRole(role: string | null | undefined): ActionCardRole | null {
 
 function parseActionCardsMode(mode: string | null | undefined): ActionCardMode {
   return mode === 'advanced' ? 'advanced' : 'basic';
+}
+
+function buildRateLimitedMessage(retryAfter: number): string {
+  return `Vas massa ràpid. Torna-ho a provar en ${retryAfter} segons.`;
+}
+
+function nextUtcDayStartIso(base: Date = new Date()): string {
+  return new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate() + 1,
+    0,
+    0,
+    0,
+    0,
+  )).toISOString();
 }
 
 function buildUserPrompt(input: {
@@ -468,13 +489,86 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  const admin = createAdminClient();
+  let entitlements: Awaited<ReturnType<typeof getOrgEntitlements>>;
+  try {
+    entitlements = await getOrgEntitlements({
+      supabase: admin,
+      orgId: access.orgId,
+    });
+  } catch (error) {
+    log.error('lito_chat_entitlements_failed', {
+      biz_id: parsedBody.biz_id,
+      org_id: access.orgId,
+      user_id: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return jsonNoStore(
+      {
+        ok: false,
+        code: 'internal',
+        message: 'Error intern del servidor',
+        request_id: requestId,
+      },
+      requestId,
+      500,
+    );
+  }
+
+  const chatRateLimits = resolveRateLimitsForPlan({
+    key: 'lito_chat',
+    planCode: entitlements.plan_code,
+  });
+  try {
+    await enforceOrgUserRateLimit({
+      supabase,
+      orgId: access.orgId,
+      userId: user.id,
+      key: 'lito_chat',
+      orgLimitPerMin: chatRateLimits.orgLimitPerMin,
+      userLimitPerMin: chatRateLimits.userLimitPerMin,
+      requestId,
+    });
+  } catch (error) {
+    if (isGuardrailError(error) && error.code === 'rate_limited') {
+      const retryAfter = Math.max(1, Math.min(60, Number(error.meta.retryAfter || 60)));
+      return jsonNoStore(
+        {
+          ok: false,
+          code: 'rate_limited',
+          message: buildRateLimitedMessage(retryAfter),
+          request_id: requestId,
+          retry_after: retryAfter,
+        },
+        requestId,
+        429,
+      );
+    }
+
+    log.error('lito_chat_rate_limit_failed', {
+      biz_id: parsedBody.biz_id,
+      org_id: access.orgId,
+      user_id: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return jsonNoStore(
+      {
+        ok: false,
+        code: 'internal',
+        message: 'Error intern del servidor',
+        request_id: requestId,
+      },
+      requestId,
+      500,
+    );
+  }
+
   const mode: LITOChatMode = parsedBody.mode || 'chat';
 
   let payload: LITOPayload;
   let actionCardsMode: ActionCardMode = 'basic';
   let allCards: ActionCard[] = [];
   try {
-    const admin = createAdminClient();
     payload = await buildLITOPayload({
       admin,
       bizId: parsedBody.biz_id,
@@ -561,6 +655,48 @@ export async function POST(request: NextRequest): Promise<Response> {
           push({ event: 'done', data: { ok: true } });
         },
       });
+    }
+
+    try {
+      await enforceOrchestratorDailyCap({
+        supabase,
+        orgId: access.orgId,
+        userId: user.id,
+        planCode: entitlements.plan_code,
+        requestId,
+      });
+    } catch (error) {
+      if (isGuardrailError(error) && error.code === 'orchestrator_cap_reached') {
+        const resetsAt = error.meta.resetsAt || nextUtcDayStartIso();
+        const responseBody: Record<string, unknown> = {
+          ok: false,
+          code: 'orchestrator_cap_reached',
+          message: 'Avui ja he fet moltes decisions. Torna-ho a provar demà.',
+          request_id: requestId,
+          resets_at: resetsAt,
+        };
+        if (entitlements.plan_code !== 'scale') {
+          responseBody.upgrade_url = '/dashboard/billing?plan=business';
+        }
+        return jsonNoStore(responseBody, requestId, 429);
+      }
+
+      log.error('lito_orchestrator_cap_failed', {
+        biz_id: parsedBody.biz_id,
+        org_id: access.orgId,
+        user_id: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return jsonNoStore(
+        {
+          ok: false,
+          code: 'internal',
+          message: 'Error intern del servidor',
+          request_id: requestId,
+        },
+        requestId,
+        500,
+      );
     }
 
     const systemPrompt = buildLitoSystemPrompt({

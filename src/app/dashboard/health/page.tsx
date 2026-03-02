@@ -25,12 +25,36 @@ type SummaryRecent = {
   props?: Record<string, unknown> | null;
 };
 
+type Trend = 'up' | 'down' | 'flat';
+
+type GuardrailsSummary = {
+  rate_limits_last_60m?: {
+    count?: number;
+    previous_60m?: number;
+    trend?: Trend;
+  };
+  orchestrator_cap_today?: {
+    count?: number;
+    previous_day?: number;
+    trend?: Trend;
+    day_start_utc?: string;
+  };
+  recent?: Array<{
+    event_name: string;
+    created_at: string;
+    org_id?: string | null;
+    biz_id?: string | null;
+    props?: Record<string, unknown> | null;
+  }>;
+};
+
 type SummaryPayload = {
   ok?: boolean;
   org_id?: string;
   window_hours?: number;
   events?: SummaryEvent[];
   recent?: SummaryRecent[];
+  guardrails?: GuardrailsSummary;
   request_id?: string;
   error?: string;
   message?: string;
@@ -70,6 +94,13 @@ function compactJson(value: Record<string, unknown> | null | undefined): string 
   } catch {
     return '—';
   }
+}
+
+function trendLabel(trend: Trend | undefined, baseline: number | undefined): string {
+  const previous = typeof baseline === 'number' && Number.isFinite(baseline) ? baseline : 0;
+  if (trend === 'up') return `↑ vs baseline (${previous})`;
+  if (trend === 'down') return `↓ vs baseline (${previous})`;
+  return `→ vs baseline (${previous})`;
 }
 
 export default function DashboardHealthPage() {
@@ -121,6 +152,12 @@ export default function DashboardHealthPage() {
   }, [summary?.events]);
 
   const recentIssues = summary?.recent || [];
+  const guardrails = summary?.guardrails;
+  const guardrailRecent = guardrails?.recent || [];
+  const rateLimitedLast60m = Number(guardrails?.rate_limits_last_60m?.count || 0);
+  const rateLimitedPrev60m = Number(guardrails?.rate_limits_last_60m?.previous_60m || 0);
+  const orchestratorCapToday = Number(guardrails?.orchestrator_cap_today?.count || 0);
+  const orchestratorCapPrevDay = Number(guardrails?.orchestrator_cap_today?.previous_day || 0);
 
   const handleCopyDebug = async () => {
     if (!summary) return;
@@ -174,6 +211,23 @@ export default function DashboardHealthPage() {
         ))}
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-2">
+        <GlassCard variant="glass" className="space-y-1 p-4">
+          <p className={cn('text-xs uppercase tracking-wide', textSub)}>Rate limits (última hora)</p>
+          <p className={cn('text-2xl font-semibold', textMain)}>{rateLimitedLast60m}</p>
+          <p className={cn('text-xs', textSub)}>
+            {trendLabel(guardrails?.rate_limits_last_60m?.trend, rateLimitedPrev60m)}
+          </p>
+        </GlassCard>
+        <GlassCard variant="glass" className="space-y-1 p-4">
+          <p className={cn('text-xs uppercase tracking-wide', textSub)}>Orchestrator cap (avui)</p>
+          <p className={cn('text-2xl font-semibold', textMain)}>{orchestratorCapToday}</p>
+          <p className={cn('text-xs', textSub)}>
+            {trendLabel(guardrails?.orchestrator_cap_today?.trend, orchestratorCapPrevDay)}
+          </p>
+        </GlassCard>
+      </section>
+
       <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
         <div className="flex items-center justify-between">
           <h2 className={cn('text-sm font-semibold md:text-base', textMain)}>Recent issues</h2>
@@ -205,6 +259,44 @@ export default function DashboardHealthPage() {
                     <td className="py-2 pr-3 align-top font-mono text-xs text-white/65">
                       {item.request_id || '—'}
                     </td>
+                    <td className="py-2 align-top text-xs text-white/70">{compactJson(item.props)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </GlassCard>
+
+      <GlassCard variant="glass" className="space-y-3 p-4 md:p-5">
+        <div className="flex items-center justify-between">
+          <h2 className={cn('text-sm font-semibold md:text-base', textMain)}>Guardrails recents</h2>
+          {loading ? <span className={cn('text-xs', textSub)}>Carregant…</span> : null}
+        </div>
+
+        {!loading && !error && guardrailRecent.length === 0 ? (
+          <p className={cn('text-sm', textSub)}>No hi ha bloquejos recents en les últimes 24h.</p>
+        ) : null}
+
+        {guardrailRecent.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-left">
+                  <th className="py-2 pr-3 font-medium text-white/85">Event</th>
+                  <th className="py-2 pr-3 font-medium text-white/85">Quan</th>
+                  <th className="py-2 pr-3 font-medium text-white/85">Org</th>
+                  <th className="py-2 pr-3 font-medium text-white/85">Biz</th>
+                  <th className="py-2 font-medium text-white/85">Detall</th>
+                </tr>
+              </thead>
+              <tbody>
+                {guardrailRecent.map((item) => (
+                  <tr key={`${item.event_name}-${item.created_at}-${item.biz_id || 'none'}`} className="border-b border-white/5">
+                    <td className="py-2 pr-3 align-top text-white/90">{item.event_name}</td>
+                    <td className="py-2 pr-3 align-top text-white/75">{formatWhen(item.created_at)}</td>
+                    <td className="py-2 pr-3 align-top font-mono text-xs text-white/65">{item.org_id || '—'}</td>
+                    <td className="py-2 pr-3 align-top font-mono text-xs text-white/65">{item.biz_id || '—'}</td>
                     <td className="py-2 align-top text-xs text-white/70">{compactJson(item.props)}</td>
                   </tr>
                 ))}

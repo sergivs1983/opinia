@@ -28,6 +28,9 @@ import { litoCopyUnavailableMessage, resolveLitoCopyStatus } from '@/lib/ai/copy
 import { resolveProvider } from '@/lib/ai/provider';
 import { canUseLitoCopy, getOrgEntitlements } from '@/lib/billing/entitlements';
 import { enforceTrialQuota, getTrialState, isSoftLocked } from '@/lib/billing/trial';
+import { isGuardrailError } from '@/lib/guards/errors';
+import { resolveRateLimitsForPlan } from '@/lib/guards/rate-limit-config';
+import { enforceOrgUserRateLimit } from '@/lib/guards/rate-limit';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
 import { buildMemorySummary, getMemoryContext } from '@/lib/memory/context';
@@ -101,6 +104,10 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
 }
 
 const UPGRADE_URL = '/dashboard/plans';
+
+function buildRateLimitedMessage(retryAfter: number): string {
+  return `Vas massa ràpid. Torna-ho a provar en ${retryAfter} segons.`;
+}
 
 function nextUtcDayStartIso(base: Date = new Date()): string {
   const date = new Date(Date.UTC(
@@ -340,6 +347,50 @@ export async function POST(request: Request) {
       supabase: admin,
       orgId: recommendation.org_id,
     });
+    const copyGenerateRateLimits = resolveRateLimitsForPlan({
+      key: 'copy_generate',
+      planCode: entitlements.plan_code,
+    });
+    try {
+      await enforceOrgUserRateLimit({
+        supabase,
+        orgId: recommendation.org_id,
+        userId: user.id,
+        key: 'copy_generate',
+        orgLimitPerMin: copyGenerateRateLimits.orgLimitPerMin,
+        userLimitPerMin: copyGenerateRateLimits.userLimitPerMin,
+        requestId,
+      });
+    } catch (error) {
+      if (isGuardrailError(error) && error.code === 'rate_limited') {
+        const retryAfter = Math.max(1, Math.min(60, Number(error.meta.retryAfter || 60)));
+        return withStandardHeaders(
+          NextResponse.json(
+            {
+              ok: false,
+              code: 'rate_limited',
+              message: buildRateLimitedMessage(retryAfter),
+              request_id: requestId,
+              retry_after: retryAfter,
+            },
+            { status: 429 },
+          ),
+          requestId,
+        );
+      }
+
+      log.error('lito_copy_generate_rate_limit_failed', {
+        org_id: recommendation.org_id,
+        biz_id: recommendation.biz_id,
+        user_id: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return withStandardHeaders(
+        NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
+        requestId,
+      );
+    }
+
     const trackGenerateEvent = async (name: string, props: Record<string, unknown> = {}) => {
       await trackEvent({
         supabase: admin,
