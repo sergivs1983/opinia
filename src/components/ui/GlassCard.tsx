@@ -2,6 +2,7 @@
 
 import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import LitoCard from '@/components/ui/LitoCard';
 import { glass, glassStrong, glassActive, glassNoise, glassSweep } from '@/components/ui/glass';
 
 type GlassCardVariant = 'glass' | 'glassStrong' | 'glassActive' | 'default' | 'strong' | 'active';
@@ -20,7 +21,8 @@ export default function GlassCard({ variant = 'default', className, children, ..
         : glassActive;
 
   return (
-    <div
+    <LitoCard
+      spotlight={variant === 'active' || variant === 'glassActive'}
       className={cn(
         'transition-all duration-[220ms] ease-premium',
         resolvedVariant,
@@ -31,6 +33,6 @@ export default function GlassCard({ variant = 'default', className, children, ..
       {...props}
     >
       {children}
-    </div>
+    </LitoCard>
   );
 }
