@@ -30,6 +30,7 @@ import { canUseLitoCopy, getOrgEntitlements } from '@/lib/billing/entitlements';
 import { enforceTrialQuota, getTrialState, isSoftLocked } from '@/lib/billing/trial';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
+import { buildMemorySummary, getMemoryContext } from '@/lib/memory/context';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -850,6 +851,14 @@ export async function POST(request: Request) {
     const threadContextRaw = await loadThreadContext(admin, payload.biz_id, payload.recommendation_id);
     // Sanitize thread messages before injecting into LLM prompt (RGPD — data minimisation)
     const threadContext = sanitizeThreadContext(threadContextRaw, 10);
+    const memoryContext = await getMemoryContext({
+      admin,
+      bizId: recommendation.biz_id,
+      orgId: recommendation.org_id,
+      policiesLimit: 4,
+      eventsLimit: 4,
+    });
+    const memorySummary = buildMemorySummary(memoryContext);
     const contextInstruction = threadContext.length > 0
       ? `${instruction}\n\nContext recent:\n${threadContext.map((line) => `- ${line}`).join('\n')}`
       : instruction;
@@ -858,6 +867,7 @@ export async function POST(request: Request) {
       language: targetLanguage,
       instruction: contextInstruction,
       current,
+      memorySummary,
     });
 
     const llmResult = await callLLM({
@@ -922,6 +932,7 @@ export async function POST(request: Request) {
               provider: providerState.provider,
               model: providerState.model,
               refined_at: new Date().toISOString(),
+              memory_summary: memorySummary || null,
             },
           },
           updated_at: new Date().toISOString(),

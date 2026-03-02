@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import { createLogger } from '@/lib/logger';
+import { buildMemorySummary, extractVoiceToneHint, getMemoryContext } from '@/lib/memory/context';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -302,6 +303,8 @@ function buildAssistantReplyFromTemplate(params: {
   template: RecommendationTemplate;
   userMessage: string;
   hasCopy: boolean;
+  voiceToneHint?: string | null;
+  memorySummary?: string | null;
 }): { content: string; meta: Record<string, unknown> } {
   const format = normalizeFormat(params.template.format);
   const channel = detectChannelFromText(params.userMessage);
@@ -321,10 +324,16 @@ function buildAssistantReplyFromTemplate(params: {
     `1) ${immediateSteps[0]}`,
     `2) ${immediateSteps[1]}`,
     '',
-    'Pregunta ràpida:',
-    quickQuestion,
-    '',
   ];
+
+  if (params.voiceToneHint) {
+    lines.push(`Nota de to: ${params.voiceToneHint}.`);
+    lines.push('');
+  }
+
+  lines.push('Pregunta ràpida:');
+  lines.push(quickQuestion);
+  lines.push('');
 
   if (fullIkea) {
     const fullSteps = (params.template.how_to.steps || params.template.how_to.checklist || []).slice(0, 8);
@@ -355,21 +364,34 @@ function buildAssistantReplyFromTemplate(params: {
       channel,
       full_ikea: fullIkea,
       has_copy: params.hasCopy,
+      memory_summary: params.memorySummary || null,
+      voice_tone_hint: params.voiceToneHint || null,
     },
   };
 }
 
-function buildGenericAssistantReply(userMessage: string): { content: string; meta: Record<string, unknown> } {
+function buildGenericAssistantReply(params: {
+  userMessage: string;
+  voiceToneHint?: string | null;
+  memorySummary?: string | null;
+}): { content: string; meta: Record<string, unknown> } {
+  const { userMessage } = params;
   const fullIkea = wantsFullIkea(userMessage) || seemsLost(userMessage);
   const lines: string[] = [
     'Ara mateix:',
     '1) Tria canal: Instagram o TikTok.',
     '2) Digue’m objectiu en 3 paraules (reserves, visites o confiança).',
     '',
-    'Pregunta ràpida:',
-    'Vols que ho enfoquem a reserves aquesta setmana? (sí/no)',
-    '',
   ];
+
+  if (params.voiceToneHint) {
+    lines.push(`Nota de to: ${params.voiceToneHint}.`);
+    lines.push('');
+  }
+
+  lines.push('Pregunta ràpida:');
+  lines.push('Vols que ho enfoquem a reserves aquesta setmana? (sí/no)');
+  lines.push('');
 
   if (fullIkea) {
     lines.push('Mode IKEA complet:');
@@ -393,6 +415,8 @@ function buildGenericAssistantReply(userMessage: string): { content: string; met
     meta: {
       mode: 'deterministic_generic',
       full_ikea: fullIkea,
+      memory_summary: params.memorySummary || null,
+      voice_tone_hint: params.voiceToneHint || null,
     },
   };
 }
@@ -401,7 +425,7 @@ async function loadThreadForUser(params: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
   userId: string;
   threadId: string;
-}): Promise<{ thread: ThreadRow | null; allowed: boolean }> {
+}): Promise<{ thread: ThreadRow | null; allowed: boolean; orgId: string | null }> {
   // Read thread with admin client to avoid false 404 from RLS drift on lito_threads.
   // Authorization is still enforced immediately after via business membership check.
   const admin = createAdminClient();
@@ -411,7 +435,7 @@ async function loadThreadForUser(params: {
     .eq('id', params.threadId)
     .maybeSingle();
 
-  if (error || !data) return { thread: null, allowed: false };
+  if (error || !data) return { thread: null, allowed: false, orgId: null };
   const thread = data as ThreadRow;
   const access = await hasAcceptedBusinessMembership({
     supabase: params.supabase,
@@ -423,6 +447,7 @@ async function loadThreadForUser(params: {
   return {
     thread,
     allowed: access.allowed,
+    orgId: access.orgId,
   };
 }
 
@@ -452,7 +477,7 @@ export async function GET(
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const limit = (query as z.infer<typeof ThreadMessagesQuerySchema>).limit ?? 200;
 
-    const { thread, allowed } = await loadThreadForUser({
+    const { thread, allowed, orgId } = await loadThreadForUser({
       supabase,
       userId: user.id,
       threadId: routeParams.threadId,
@@ -546,7 +571,7 @@ export async function POST(
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof ThreadMessagesBodySchema>;
 
-    const { thread, allowed } = await loadThreadForUser({
+    const { thread, allowed, orgId } = await loadThreadForUser({
       supabase,
       userId: user.id,
       threadId: routeParams.threadId,
@@ -585,7 +610,27 @@ export async function POST(
 
     // D1.7: hoisted so parsedTemplate is available later for auto-title
     let parsedTemplate: RecommendationTemplate | null = null;
-    let assistantReply = buildGenericAssistantReply(payload.content);
+    let memorySummary = '';
+    let voiceToneHint: string | null = null;
+    let assistantReply = buildGenericAssistantReply({
+      userMessage: payload.content,
+    });
+    if (orgId) {
+      const memoryContext = await getMemoryContext({
+        admin,
+        bizId: thread.biz_id,
+        orgId,
+        policiesLimit: 4,
+        eventsLimit: 4,
+      });
+      memorySummary = buildMemorySummary(memoryContext);
+      voiceToneHint = extractVoiceToneHint(memoryContext);
+      assistantReply = buildGenericAssistantReply({
+        userMessage: payload.content,
+        voiceToneHint,
+        memorySummary,
+      });
+    }
     if (thread.recommendation_id) {
       const { data: recommendationData } = await supabase
         .from('recommendation_log')
@@ -613,6 +658,8 @@ export async function POST(
           template: parsedTemplate,
           userMessage: payload.content,
           hasCopy,
+          voiceToneHint,
+          memorySummary,
         });
       }
     }

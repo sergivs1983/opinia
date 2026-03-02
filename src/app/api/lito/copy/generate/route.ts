@@ -30,6 +30,7 @@ import { canUseLitoCopy, getOrgEntitlements } from '@/lib/billing/entitlements';
 import { enforceTrialQuota, getTrialState, isSoftLocked } from '@/lib/billing/trial';
 import { createLogger } from '@/lib/logger';
 import { callLLM } from '@/lib/llm/provider';
+import { buildMemorySummary, getMemoryContext } from '@/lib/memory/context';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -833,6 +834,14 @@ export async function POST(request: Request) {
     });
 
     const threadContext = await loadThreadContext(admin, payload.biz_id, payload.recommendation_id);
+    const memoryContext = await getMemoryContext({
+      admin,
+      bizId: recommendation.biz_id,
+      orgId: recommendation.org_id,
+      policiesLimit: 4,
+      eventsLimit: 4,
+    });
+    const memorySummary = buildMemorySummary(memoryContext);
     const llmPrompt = buildGeneratePrompt({
       businessName: business.name,
       vertical,
@@ -848,6 +857,7 @@ export async function POST(request: Request) {
       },
       aiInstructions: business.ai_instructions || null,
       threadContext,
+      memorySummary,
     });
 
     const llmResult = await callLLM({
@@ -979,6 +989,7 @@ export async function POST(request: Request) {
               provider: providerState.provider,
               model: providerState.model,
               generated_at: new Date().toISOString(),
+              memory_summary: memorySummary || null,
             },
           },
           updated_at: new Date().toISOString(),

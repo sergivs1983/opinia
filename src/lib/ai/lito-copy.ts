@@ -306,12 +306,16 @@ export function buildGeneratePrompt(params: {
   template: { hook: string; idea: string; cta: string };
   aiInstructions?: string | null;
   threadContext?: string[];
+  memorySummary?: string | null;
 }): string {
   // Sanitize free-text fields before sending to LLM (RGPD — data minimisation)
   const sanitizedInstructions = params.aiInstructions
     ? sanitizeForLLM(params.aiInstructions)
     : '-';
   const sanitizedContext = sanitizeThreadContext(params.threadContext || [], 10);
+  const sanitizedMemorySummary = params.memorySummary
+    ? sanitizeForLLM(params.memorySummary)
+    : '-';
 
   return [
     `Negoci: ${params.businessName}`,
@@ -328,6 +332,7 @@ export function buildGeneratePrompt(params: {
     `- CTA: ${params.template.cta}`,
     '',
     `Instruccions de negoci: ${sanitizedInstructions}`,
+    `Business Memory (resum): ${sanitizedMemorySummary}`,
     '',
     `Context recent (si n'hi ha):`,
     ...(sanitizedContext.length > 0
@@ -344,10 +349,16 @@ export function buildRefinePrompt(params: {
   language: string;
   instruction: string;
   current: LitoGeneratedCopy;
+  memorySummary?: string | null;
 }): string {
+  const sanitizedMemorySummary = params.memorySummary
+    ? sanitizeForLLM(params.memorySummary)
+    : '-';
+
   return [
     `Idioma objectiu: ${params.language}`,
     `Instrucció de refinament: ${params.instruction}`,
+    `Business Memory (resum): ${sanitizedMemorySummary}`,
     '',
     'Copy actual (JSON):',
     JSON.stringify(
