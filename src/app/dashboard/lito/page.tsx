@@ -38,6 +38,9 @@ type LocalCopy = {
   commandPlaceholder: string;
   send: string;
   mic: string;
+  assistantPanelTitle: string;
+  assistantThinking: string;
+  assistantFallbackError: string;
   copied: string;
   ready: string;
   actionFailed: string;
@@ -52,16 +55,10 @@ type SocialDraftListPayload = {
   }>;
 };
 
-type LitoThreadPayload = {
-  thread?: { id?: string };
-  error?: string;
-  message?: string;
-};
-
-type LitoMessagePayload = {
-  ok?: boolean;
-  error?: string;
-  message?: string;
+type CommandPanelState = {
+  loading: boolean;
+  text: string;
+  error: string | null;
 };
 
 const LAST_BIZ_STORAGE_KEY = 'opinia.lito.last_biz_id';
@@ -87,6 +84,9 @@ const COPY: Record<LocaleKey, LocalCopy> = {
     commandPlaceholder: 'Digues-me…',
     send: 'Enviar',
     mic: 'Micròfon',
+    assistantPanelTitle: 'Resposta de LITO',
+    assistantThinking: 'Pensant…',
+    assistantFallbackError: 'No he pogut respondre ara mateix.',
     copied: 'Copiat',
     ready: 'A punt',
     actionFailed: 'No s’ha pogut completar l’acció.',
@@ -113,6 +113,9 @@ const COPY: Record<LocaleKey, LocalCopy> = {
     commandPlaceholder: 'Dime…',
     send: 'Enviar',
     mic: 'Micrófono',
+    assistantPanelTitle: 'Respuesta de LITO',
+    assistantThinking: 'Pensando…',
+    assistantFallbackError: 'No pude responder ahora mismo.',
     copied: 'Copiado',
     ready: 'Listo',
     actionFailed: 'No se pudo completar la acción.',
@@ -139,6 +142,9 @@ const COPY: Record<LocaleKey, LocalCopy> = {
     commandPlaceholder: 'Tell me…',
     send: 'Send',
     mic: 'Microphone',
+    assistantPanelTitle: 'LITO response',
+    assistantThinking: 'Thinking…',
+    assistantFallbackError: 'I could not respond right now.',
     copied: 'Copied',
     ready: 'Ready',
     actionFailed: 'Could not complete action.',
@@ -202,7 +208,7 @@ export default function DashboardLitoPage() {
 
   const [queueOpen, setQueueOpen] = useState(false);
   const [command, setCommand] = useState('');
-  const [commandSubmitting, setCommandSubmitting] = useState(false);
+  const [commandPanel, setCommandPanel] = useState<CommandPanelState | null>(null);
   const [actionBusy, setActionBusy] = useState<Record<string, boolean>>({});
 
   const lang = useMemo(() => resolveLocale(locale), [locale]);
@@ -400,78 +406,9 @@ export default function DashboardLitoPage() {
     });
   }, [withActionBusy, toast, copy, postJson, refresh, approveSocialDraft, lang, router, activeBizId]);
 
-  const sendCommand = useCallback(async () => {
-    const content = command.trim();
-    if (!content || commandSubmitting) return;
-
-    if (!activeBizId) {
-      toast(copy.selectBusiness, 'warning');
-      return;
-    }
-
-    setCommandSubmitting(true);
-    const requestId = createClientRequestId();
-
-    try {
-      const threadResponse = await fetch('/api/lito/threads', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          'x-request-id': requestId,
-        },
-        body: JSON.stringify({
-          biz_id: activeBizId,
-          recommendation_id: null,
-          title: null,
-        }),
-      });
-
-      if (threadResponse.status === 401) {
-        router.push('/login');
-        return;
-      }
-
-      const threadPayload = (await threadResponse.json().catch(() => ({}))) as LitoThreadPayload;
-      const threadId = threadPayload.thread?.id;
-      if (!threadResponse.ok || !threadId) {
-        throw new Error(threadPayload.message || threadPayload.error || 'lito_thread_open_failed');
-      }
-
-      const messageResponse = await fetch(`/api/lito/threads/${threadId}/messages`, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          'x-request-id': requestId,
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      if (messageResponse.status === 401) {
-        router.push('/login');
-        return;
-      }
-
-      const messagePayload = (await messageResponse.json().catch(() => ({}))) as LitoMessagePayload;
-      if (!messageResponse.ok || messagePayload.error) {
-        throw new Error(messagePayload.message || messagePayload.error || 'lito_message_send_failed');
-      }
-
-      setCommand('');
-      const params = new URLSearchParams({
-        biz_id: activeBizId,
-        thread_id: threadId,
-      });
-      router.push(`/dashboard/lito/chat?${params.toString()}`);
-    } catch {
-      toast(copy.actionFailed, 'error');
-    } finally {
-      setCommandSubmitting(false);
-    }
-  }, [command, commandSubmitting, activeBizId, toast, copy.actionFailed, copy.selectBusiness, router]);
+  const handleCommandPanelState = useCallback((next: CommandPanelState) => {
+    setCommandPanel(next);
+  }, []);
 
   const openAdvanced = useCallback(() => {
     router.push('/dashboard?classic=1');
@@ -502,6 +439,21 @@ export default function DashboardLitoPage() {
           onBizChange={handleBizChange}
           onOpenAdvanced={openAdvanced}
         />
+
+        {commandPanel ? (
+          <article className={`lito-assistant-panel${commandPanel.error ? ' is-error' : ''}`} role="status" aria-live="polite">
+            <div className="lito-assistant-panel-head">
+              <h3>{copy.assistantPanelTitle}</h3>
+              {commandPanel.loading ? (
+                <span className="lito-assistant-panel-loading">
+                  <span className="lito-source-spinner" aria-hidden="true" />
+                  {copy.assistantThinking}
+                </span>
+              ) : null}
+            </div>
+            <p>{commandPanel.error || commandPanel.text || copy.assistantThinking}</p>
+          </article>
+        ) : null}
 
         <ActionCardStack
           cards={cards}
@@ -543,14 +495,17 @@ export default function DashboardLitoPage() {
       />
 
       <CommandBar
+        bizId={activeBizId}
         placeholder={copy.commandPlaceholder}
         sendLabel={copy.send}
         micLabel={copy.mic}
         value={command}
-        submitting={commandSubmitting}
+        mode="chat"
+        missingBizLabel={copy.selectBusiness}
+        fallbackErrorLabel={copy.assistantFallbackError}
         onChange={setCommand}
-        onSubmit={() => void sendCommand()}
         onMic={handleMic}
+        onPanelStateChange={handleCommandPanelState}
       />
     </section>
   );
