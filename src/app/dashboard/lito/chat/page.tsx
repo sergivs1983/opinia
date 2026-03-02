@@ -14,7 +14,6 @@ function firstQueryValue(value: string | string[] | undefined): string | null {
 
 export default function DashboardLitoChatLegacyPage({ searchParams }: DashboardLitoChatLegacyPageProps) {
   const params = new URLSearchParams();
-  params.set('tab', 'chat');
 
   if (searchParams) {
     for (const [key, rawValue] of Object.entries(searchParams)) {
@@ -25,5 +24,6 @@ export default function DashboardLitoChatLegacyPage({ searchParams }: DashboardL
     }
   }
 
-  redirect(`/dashboard/lito?${params.toString()}`);
+  const query = params.toString();
+  redirect(query ? `/dashboard/lito?${query}` : '/dashboard/lito');
 }

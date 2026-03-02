@@ -14,7 +14,6 @@ function queryValue(value: string | string[] | undefined): string | null {
 
 export default function DashboardLitoReviewLegacyPage({ searchParams }: DashboardLitoReviewLegacyPageProps) {
   const params = new URLSearchParams();
-  params.set('tab', 'inbox');
 
   if (searchParams) {
     for (const [key, rawValue] of Object.entries(searchParams)) {
@@ -25,5 +24,6 @@ export default function DashboardLitoReviewLegacyPage({ searchParams }: Dashboar
     }
   }
 
-  redirect(`/dashboard/lito?${params.toString()}`);
+  const query = params.toString();
+  redirect(query ? `/dashboard/arxiu?${query}` : '/dashboard/arxiu');
 }
