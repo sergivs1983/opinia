@@ -1150,19 +1150,21 @@
       "home": {
         "title": "¿Qué quieres preparar hoy?",
         "subtitle": "Escribe una idea y LITO te lo deja listo para publicar.",
-        "inputPlaceholder": "Cuenta qué quieres publicar y LITO abrirá el chat con contexto...",
+        "inputPlaceholder": "Escribe qué necesitas…",
         "send": "Enviar a LITO",
         "sending": "Enviando...",
         "quickPills": {
           "prepareWeek": "Prepara la semana",
           "today": "Qué toca hoy",
           "signals": "Ver señales",
-          "planner": "Planner (avanzado)"
+          "planner": "Planner (avanzado)",
+          "alerts": "Avisos"
         },
         "quickPrompts": {
           "prepareWeek": "Prepara 3 posts para esta semana y déjalos listos.",
           "today": "¿Qué me recomiendas publicar hoy? Dame una opción clara.",
-          "signals": "Enséñame las señales prioritarias de la semana y qué hago primero."
+          "signals": "Enséñame las señales prioritarias de la semana y qué hago primero.",
+          "alerts": "¿Qué avisos importantes tengo hoy y qué hago primero?"
         },
         "actions": {
           "title": "Acciones ahora",

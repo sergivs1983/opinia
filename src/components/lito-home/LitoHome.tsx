@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/components/i18n/I18nContext';
 import { useToast } from '@/components/ui/Toast';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -23,6 +23,7 @@ type LitoMessagePayload = {
 };
 
 type LitoTheme = 'day' | 'night';
+type QuickPillKey = 'prepareWeek' | 'today' | 'signals' | 'planner' | 'alerts';
 
 const THEME_STORAGE_KEY = 'opinia.lito.home.theme';
 
@@ -43,6 +44,7 @@ export default function LitoHome() {
   const [prompt, setPrompt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     try {
@@ -116,6 +118,7 @@ export default function LitoHome() {
       title: t('dashboard.litoPage.home.actions.card1Title'),
       description: t('dashboard.litoPage.home.actions.card1Description'),
       cta: t('dashboard.litoPage.home.actions.card1Cta'),
+      ctaVariant: 'primary' as const,
       onClick: () => router.push(withBiz('/dashboard/planner')),
     },
     {
@@ -124,6 +127,7 @@ export default function LitoHome() {
       title: t('dashboard.litoPage.home.actions.card2Title'),
       description: t('dashboard.litoPage.home.actions.card2Description'),
       cta: t('dashboard.litoPage.home.actions.card2Cta'),
+      ctaVariant: 'secondary' as const,
       onClick: () => {
         setPrompt(t('dashboard.litoPage.home.quickPrompts.prepareWeek'));
       },
@@ -134,6 +138,7 @@ export default function LitoHome() {
       title: t('dashboard.litoPage.home.actions.card3Title'),
       description: t('dashboard.litoPage.home.actions.card3Description'),
       cta: t('dashboard.litoPage.home.actions.card3Cta'),
+      ctaVariant: 'secondary' as const,
       onClick: () => router.push(withBiz('/dashboard/lito/review')),
     },
   ], [router, t, withBiz]);
@@ -222,7 +227,30 @@ export default function LitoHome() {
     }
   }, [sendPromptToLito]);
 
-  const handleQuickPill = useCallback((key: 'prepareWeek' | 'today' | 'signals' | 'planner') => {
+  const resizePrompt = useCallback(() => {
+    const node = promptRef.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    const lineHeight = Number.parseFloat(window.getComputedStyle(node).lineHeight || '22') || 22;
+    const minHeight = Math.ceil(lineHeight);
+    const maxHeight = Math.ceil(lineHeight * 3 + 8);
+    const nextHeight = Math.min(maxHeight, Math.max(minHeight, node.scrollHeight));
+    node.style.height = `${nextHeight}px`;
+    node.style.overflowY = node.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, []);
+
+  useEffect(() => {
+    resizePrompt();
+  }, [prompt, resizePrompt]);
+
+  const handleQuickPill = useCallback((key: QuickPillKey) => {
+    if (key === 'alerts') {
+      const nextPrompt = t('dashboard.litoPage.home.quickPrompts.alerts');
+      setPrompt(nextPrompt);
+      void sendPromptToLito(nextPrompt);
+      return;
+    }
+
     if (key === 'planner') {
       router.push(withBiz('/dashboard/planner'));
       return;
@@ -239,6 +267,13 @@ export default function LitoHome() {
   }, [router, sendPromptToLito, t, withBiz]);
 
   const isSubmitDisabled = submitting || prompt.trim().length === 0;
+  const quickPills = useMemo<Array<{ key: QuickPillKey; icon: string; label: string }>>(() => [
+    { key: 'prepareWeek', icon: '✨', label: t('dashboard.litoPage.home.quickPills.prepareWeek') },
+    { key: 'today', icon: '📅', label: t('dashboard.litoPage.home.quickPills.today') },
+    { key: 'alerts', icon: '🔔', label: t('dashboard.litoPage.home.quickPills.alerts') },
+    { key: 'signals', icon: '📈', label: t('dashboard.litoPage.home.quickPills.signals') },
+    { key: 'planner', icon: '🧭', label: t('dashboard.litoPage.home.quickPills.planner') },
+  ], [t]);
 
   return (
     <section className="lito-home" data-theme={theme}>
@@ -254,43 +289,39 @@ export default function LitoHome() {
 
       <div className="lito-home-shell">
         <header className="lito-home-header">
-          <p className="lito-home-eyebrow">LITO Copilot</p>
+          <p className="lito-home-eyebrow">LITO COPILOT</p>
           <h1>{t('dashboard.litoPage.home.title')}</h1>
           <p>{t('dashboard.litoPage.home.subtitle')}</p>
         </header>
 
         <div className="lito-home-input-card">
           <textarea
+            ref={promptRef}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('dashboard.litoPage.home.inputPlaceholder')}
             className="lito-home-input"
-            rows={3}
+            rows={1}
           />
           <button
             type="button"
             className="lito-home-send"
             onClick={() => void sendPromptToLito()}
             disabled={isSubmitDisabled}
+            aria-label={t('dashboard.litoPage.home.send')}
           >
-            {submitting ? t('dashboard.litoPage.home.sending') : t('dashboard.litoPage.home.send')}
+            {submitting ? '…' : '↗'}
           </button>
         </div>
 
         <div className="lito-home-quick-pills">
-          <button type="button" className="lito-home-pill" onClick={() => handleQuickPill('prepareWeek')}>
-            {t('dashboard.litoPage.home.quickPills.prepareWeek')}
-          </button>
-          <button type="button" className="lito-home-pill" onClick={() => handleQuickPill('today')}>
-            {t('dashboard.litoPage.home.quickPills.today')}
-          </button>
-          <button type="button" className="lito-home-pill" onClick={() => handleQuickPill('signals')}>
-            {t('dashboard.litoPage.home.quickPills.signals')}
-          </button>
-          <button type="button" className="lito-home-pill" onClick={() => handleQuickPill('planner')}>
-            {t('dashboard.litoPage.home.quickPills.planner')}
-          </button>
+          {quickPills.map((pill, index) => (
+            <button type="button" key={`${pill.key}-${index}`} className="lito-home-pill" onClick={() => handleQuickPill(pill.key)}>
+              <span className="lito-home-pill-icon" aria-hidden="true">{pill.icon}</span>
+              <span>{pill.label}</span>
+            </button>
+          ))}
         </div>
 
         {visibleActionCards.length > 0 ? (
@@ -311,6 +342,7 @@ export default function LitoHome() {
                   title={card.title}
                   description={card.description}
                   ctaLabel={card.cta}
+                  ctaVariant={card.ctaVariant}
                   onCta={card.onClick}
                 />
               ))}

@@ -8,11 +8,20 @@ type ActionCardProps = {
   description: string;
   badge?: string;
   ctaLabel: string;
+  ctaVariant?: 'primary' | 'secondary';
   onCta: () => void;
   className?: string;
 };
 
-export default function ActionCard({ title, description, badge, ctaLabel, onCta, className }: ActionCardProps) {
+export default function ActionCard({
+  title,
+  description,
+  badge,
+  ctaLabel,
+  ctaVariant = 'primary',
+  onCta,
+  className,
+}: ActionCardProps) {
   const handleMouseMove = (event: MouseEvent<HTMLElement>) => {
     const card = event.currentTarget;
     const rect = card.getBoundingClientRect();
@@ -29,7 +38,11 @@ export default function ActionCard({ title, description, badge, ctaLabel, onCta,
         {badge ? <span className="lito-home-action-badge">{badge}</span> : null}
         <h3 className="lito-home-action-title">{title}</h3>
         <p className="lito-home-action-description">{description}</p>
-        <button type="button" className="lito-home-action-cta" onClick={onCta}>
+        <button
+          type="button"
+          className={cn('lito-home-action-cta', ctaVariant === 'secondary' && 'lito-home-action-cta-secondary')}
+          onClick={onCta}
+        >
           {ctaLabel}
         </button>
       </div>

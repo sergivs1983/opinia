@@ -164,6 +164,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const isClassicDashboard = searchParams?.get('classic') === '1';
+  const isLitoHomeView = pathname === '/dashboard/lito';
 
   type NavItem = { key: string; href: string; label: string; icon: React.ReactNode; active: boolean };
   const NAV: NavItem[] = [
@@ -1050,13 +1051,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         className="sticky top-0 z-50 border-b border-white/5 bg-zinc-950/95 backdrop-blur-md shadow-glass transition-all duration-200 ease-premium"
       >
         <div className="mx-auto flex h-16 max-w-[1480px] items-center gap-2 px-6">
-          <button
-            onClick={() => setMobileDrawerOpen((prev) => !prev)}
-            className={cn('inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/75 transition-all duration-[220ms] ease-premium hover:bg-white/10 hover:text-white/92 lg:hidden', ringAccent)}
-            aria-label={t('dashboard.layout.toggleNavigation')}
-          >
-            {icons.menu}
-          </button>
+          {!isLitoHomeView ? (
+            <button
+              onClick={() => setMobileDrawerOpen((prev) => !prev)}
+              className={cn('inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/75 transition-all duration-[220ms] ease-premium hover:bg-white/10 hover:text-white/92 lg:hidden', ringAccent)}
+              aria-label={t('dashboard.layout.toggleNavigation')}
+            >
+              {icons.menu}
+            </button>
+          ) : null}
 
           <button onClick={() => router.push('/dashboard/businesses')} className="shrink-0">
             <Logo size="sm" />
@@ -1467,7 +1470,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {mobileDrawerOpen && (
+      {mobileDrawerOpen && !isLitoHomeView && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
@@ -1494,7 +1497,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {!sidebarPinned && sidebarCollapsed && (
+      {!isLitoHomeView && !sidebarPinned && sidebarCollapsed && (
         <div
           className="fixed bottom-0 left-0 top-16 z-30 hidden w-3 lg:block"
           onMouseEnter={openSidebarHover}
@@ -1502,7 +1505,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {sidebarHoverOpen && !sidebarPinned && sidebarCollapsed && (
+      {!isLitoHomeView && sidebarHoverOpen && !sidebarPinned && sidebarCollapsed && (
         <div className="fixed inset-0 z-40 hidden lg:block">
           <button
             type="button"
@@ -1555,56 +1558,68 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="mx-auto flex w-full min-w-0 max-w-[1480px] items-start gap-6 overflow-hidden px-6 py-6">
-        <aside
-          data-testid="dashboard-sidebar"
-            className={cn(
-              'hidden shrink-0 rounded-xl border border-white/10 bg-zinc-900/60 p-4 shadow-glass backdrop-blur-xl transition-[width] duration-[220ms] ease-premium lg:flex lg:flex-col',
-              sidebarCollapsed ? 'w-[84px]' : 'w-[280px]',
-            )}
-        >
-          <div className={cn('mb-3 flex items-center gap-2', sidebarCollapsed ? 'flex-col justify-center' : 'justify-between')}>
-            <button
-              type="button"
-              onClick={toggleSidebarCollapsed}
+      <div
+        className={cn(
+          'mx-auto flex w-full min-w-0 max-w-[1480px] items-start overflow-hidden py-6',
+          isLitoHomeView ? 'gap-0 px-0 md:px-2' : 'gap-6 px-6',
+        )}
+      >
+        {!isLitoHomeView ? (
+          <aside
+            data-testid="dashboard-sidebar"
               className={cn(
-                'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/14 bg-white/6 text-white/80 transition-all duration-[220ms] ease-premium hover:bg-white/12 hover:text-white',
-                ringAccent,
+                'hidden shrink-0 rounded-xl border border-white/10 bg-zinc-900/60 p-4 shadow-glass backdrop-blur-xl transition-[width] duration-[220ms] ease-premium lg:flex lg:flex-col',
+                sidebarCollapsed ? 'w-[84px]' : 'w-[280px]',
               )}
-              aria-label={sidebarCollapsed ? t('dashboard.layout.expandSidebar') : t('dashboard.layout.collapseSidebar')}
-              aria-pressed={sidebarCollapsed}
-            >
-              {icons.sidebar}
-            </button>
-            <button
-              type="button"
-              onClick={toggleSidebarPinned}
-              className={cn(
-                'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/14 bg-white/6 text-white/80 transition-all duration-[220ms] ease-premium hover:bg-white/12 hover:text-white',
-                sidebarPinned && 'border-brand-accent/35 text-emerald-300 shadow-[0_0_16px_rgba(0,168,107,0.22)]',
-                ringAccent,
-              )}
-              aria-label={sidebarPinned ? t('dashboard.layout.enableAutoSidebar') : t('dashboard.layout.pinSidebar')}
-              aria-pressed={sidebarPinned}
-            >
-              {sidebarPinned ? icons.pin : icons.pinOff}
-            </button>
-          </div>
-          {renderSidebarNav({ compact: sidebarCollapsed })}
-        </aside>
+          >
+            <div className={cn('mb-3 flex items-center gap-2', sidebarCollapsed ? 'flex-col justify-center' : 'justify-between')}>
+              <button
+                type="button"
+                onClick={toggleSidebarCollapsed}
+                className={cn(
+                  'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/14 bg-white/6 text-white/80 transition-all duration-[220ms] ease-premium hover:bg-white/12 hover:text-white',
+                  ringAccent,
+                )}
+                aria-label={sidebarCollapsed ? t('dashboard.layout.expandSidebar') : t('dashboard.layout.collapseSidebar')}
+                aria-pressed={sidebarCollapsed}
+              >
+                {icons.sidebar}
+              </button>
+              <button
+                type="button"
+                onClick={toggleSidebarPinned}
+                className={cn(
+                  'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/14 bg-white/6 text-white/80 transition-all duration-[220ms] ease-premium hover:bg-white/12 hover:text-white',
+                  sidebarPinned && 'border-brand-accent/35 text-emerald-300 shadow-[0_0_16px_rgba(0,168,107,0.22)]',
+                  ringAccent,
+                )}
+                aria-label={sidebarPinned ? t('dashboard.layout.enableAutoSidebar') : t('dashboard.layout.pinSidebar')}
+                aria-pressed={sidebarPinned}
+              >
+                {sidebarPinned ? icons.pin : icons.pinOff}
+              </button>
+            </div>
+            {renderSidebarNav({ compact: sidebarCollapsed })}
+          </aside>
+        ) : null}
 
         {/* ── Content ── */}
-        <main className="w-0 min-w-0 flex-1 pb-20 md:pb-0">
-          <div className="mx-auto w-full max-w-[1320px]">
-            <section className="glass-panel p-6 md:p-7">
-              {children}
-            </section>
+        <main className={cn('w-0 min-w-0 flex-1', isLitoHomeView ? 'pb-0' : 'pb-20 md:pb-0')}>
+          <div className={cn('mx-auto w-full', isLitoHomeView ? 'max-w-[1400px]' : 'max-w-[1320px]')}>
+            {isLitoHomeView ? (
+              children
+            ) : (
+              <section className="glass-panel p-6 md:p-7">
+                {children}
+              </section>
+            )}
           </div>
         </main>
       </div>
 
       {/* ── Mobile tabs ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-white/12 bg-[#070B14]/90 py-1.5 backdrop-blur-xl">
+      {!isLitoHomeView && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-white/12 bg-[#070B14]/90 py-1.5 backdrop-blur-xl">
         {MOBILE_TABS.map(item => (
           <button
             key={item.key}
@@ -1618,7 +1633,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <span>{item.label}</span>
           </button>
         ))}
-      </nav>
+        </nav>
+      )}
 
       {commandOpen && (
         <div className="fixed inset-0 z-[70] flex items-start justify-center px-4 pt-24">
@@ -1701,7 +1717,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         onAction={handlePaywallAction}
       />
 
-      <LitoLauncher />
+      {!pathname.startsWith('/dashboard/lito') ? <LitoLauncher /> : null}
       <PwaBootstrap />
     </div>
   );

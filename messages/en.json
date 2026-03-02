@@ -1148,19 +1148,21 @@
       "home": {
         "title": "What do you want to prepare today?",
         "subtitle": "Write one idea and LITO will turn it into a publish-ready action.",
-        "inputPlaceholder": "Describe what you want to publish and LITO will open chat with context...",
+        "inputPlaceholder": "Write what you need…",
         "send": "Send to LITO",
         "sending": "Sending...",
         "quickPills": {
           "prepareWeek": "Prepare the week",
           "today": "What is due today",
           "signals": "View signals",
-          "planner": "Planner (advanced)"
+          "planner": "Planner (advanced)",
+          "alerts": "Alerts"
         },
         "quickPrompts": {
           "prepareWeek": "Prepare 3 posts for this week and leave them ready.",
           "today": "What should I publish today? Give me one clear option.",
-          "signals": "Show me this week's top signals and what to do first."
+          "signals": "Show me this week's top signals and what to do first.",
+          "alerts": "What important alerts do I have today and what should I do first?"
         },
         "actions": {
           "title": "Action cards",
