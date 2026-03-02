@@ -31,10 +31,12 @@
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.2",
     "@vercel/og": "^0.8.6",
+    "framer-motion": "^12.34.4",
     "lucide-react": "^0.460.0",
     "next": "^14.2.35",
     "next-intl": "^4.8.3",
     "p-limit": "^3.1.0",
+    "posthog-js": "^1.356.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8"
@@ -51,6 +53,7 @@
     "eslint-config-next": "^14.2.35",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
+    "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   },
