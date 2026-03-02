@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import {
+  cleanupStuckLitoJobs,
   LITO_WORKER_DEFAULT_LIMIT,
   markLitoJobDone,
   markLitoJobFailedOrRetry,
@@ -79,10 +80,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const limit = payload.limit ?? LITO_WORKER_DEFAULT_LIMIT;
 
   try {
+    const requeued = await cleanupStuckLitoJobs({ admin });
     const jobs = await popLitoJobs({ admin, limit });
     if (jobs.length === 0) {
       return withNoStore(
-        NextResponse.json({ ok: true, processed: 0, failed: 0, request_id: requestId }),
+        NextResponse.json({ ok: true, processed: 0, failed: 0, requeued, request_id: requestId }),
         requestId,
       );
     }
@@ -159,6 +161,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ok: true,
         processed,
         failed,
+        requeued,
         request_id: requestId,
       }),
       requestId,

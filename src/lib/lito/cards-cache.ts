@@ -65,6 +65,17 @@ export async function popLitoJobs(input: {
   return ((data || []) as LitoJobRow[]).filter((row) => row.job_type === LITO_REBUILD_CARDS_JOB_TYPE);
 }
 
+export async function cleanupStuckLitoJobs(input: {
+  admin: SupabaseClient;
+}): Promise<number> {
+  const { data, error } = await input.admin.rpc('cleanup_lito_jobs');
+  if (error) throw new Error(error.message || 'cleanup_lito_jobs_failed');
+
+  if (typeof data === 'number' && Number.isFinite(data)) return data;
+  const parsed = Number(data ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export async function upsertLitoCardsCache(input: {
   admin: SupabaseClient;
   bizId: string;
