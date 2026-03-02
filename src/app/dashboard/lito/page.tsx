@@ -7,7 +7,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import CommandBar from '@/components/lito/home/CommandBar';
 import type { OrchestratorSafeJsonEvent } from '@/components/lito/home/CommandBar';
-import ActionCardStack from '@/components/lito/home/ActionCardStack';
+import ActionCardStack, {
+  type ActionResolveResult,
+  type RefreshedActionCards,
+} from '@/components/lito/home/ActionCardStack';
 import CardQueueDrawer from '@/components/lito/home/CardQueueDrawer';
 import LitoHeader from '@/components/lito/home/LitoHeader';
 import { useActionCards } from '@/components/lito/home/useActionCards';
@@ -56,6 +59,14 @@ type SocialDraftListPayload = {
   }>;
 };
 
+type ActionCardsRefreshPayload = {
+  ok?: boolean;
+  cards?: ActionCard[];
+  mode?: 'basic' | 'advanced';
+  queue_count?: number;
+  source?: 'cache' | 'stale' | 'empty';
+};
+
 type CommandPanelState = {
   loading: boolean;
   text: string;
@@ -99,7 +110,7 @@ const COPY: Record<LocaleKey, LocalCopy> = {
     assistantFallbackError: 'No he pogut respondre ara mateix.',
     copied: 'Copiat',
     ready: 'A punt',
-    actionFailed: 'No s’ha pogut completar l’acció.',
+    actionFailed: 'Error',
     selectBusiness: 'Selecciona un negoci per continuar.',
     retry: 'Reintentar',
   },
@@ -128,7 +139,7 @@ const COPY: Record<LocaleKey, LocalCopy> = {
     assistantFallbackError: 'No pude responder ahora mismo.',
     copied: 'Copiado',
     ready: 'Listo',
-    actionFailed: 'No se pudo completar la acción.',
+    actionFailed: 'Error',
     selectBusiness: 'Selecciona un negocio para continuar.',
     retry: 'Reintentar',
   },
@@ -157,7 +168,7 @@ const COPY: Record<LocaleKey, LocalCopy> = {
     assistantFallbackError: 'I could not respond right now.',
     copied: 'Copied',
     ready: 'Ready',
-    actionFailed: 'Could not complete action.',
+    actionFailed: 'Error',
     selectBusiness: 'Select a business to continue.',
     retry: 'Retry',
   },
@@ -221,6 +232,7 @@ export default function DashboardLitoPage() {
   const [commandPanel, setCommandPanel] = useState<CommandPanelState | null>(null);
   const [orchestratorView, setOrchestratorView] = useState<OrchestratorViewState | null>(null);
   const [actionBusy, setActionBusy] = useState<Record<string, boolean>>({});
+  const [queueSnapshot, setQueueSnapshot] = useState<{ cards: ActionCard[]; queueCount: number } | null>(null);
 
   const lang = useMemo(() => resolveLocale(locale), [locale]);
   const copy = COPY[lang];
@@ -280,6 +292,7 @@ export default function DashboardLitoPage() {
 
   const cardsForStack = useMemo(() => orchestratorView?.cards || cards, [orchestratorView?.cards, cards]);
   const modeForStack = useMemo(() => orchestratorView?.mode || mode, [orchestratorView?.mode, mode]);
+  const hasOrchestratorView = Boolean(orchestratorView);
   const selectedCardSet = useMemo(
     () => new Set(orchestratorView?.selectedCardIds || []),
     [orchestratorView?.selectedCardIds],
@@ -288,20 +301,35 @@ export default function DashboardLitoPage() {
     () => (typeof orchestratorView?.queueCount === 'number' ? orchestratorView.queueCount : queueCount),
     [orchestratorView?.queueCount, queueCount],
   );
+  const cardsForQueueDrawerBase = useMemo(() => {
+    if (hasOrchestratorView) {
+      return cards.filter((card) => !selectedCardSet.has(card.id));
+    }
+    const visibleLimit = modeForStack === 'advanced' ? 6 : 2;
+    return cards.slice(visibleLimit);
+  }, [hasOrchestratorView, cards, selectedCardSet, modeForStack]);
+  const queueCountForQueueDrawerBase = useMemo(
+    () => (hasOrchestratorView ? queueCountForStack : cardsForQueueDrawerBase.length),
+    [hasOrchestratorView, queueCountForStack, cardsForQueueDrawerBase.length],
+  );
   const cardsForQueueDrawer = useMemo(
-    () => (orchestratorView ? cards.filter((card) => !selectedCardSet.has(card.id)) : cards),
-    [orchestratorView, cards, selectedCardSet],
+    () => (hasOrchestratorView ? cardsForQueueDrawerBase : queueSnapshot?.cards || cardsForQueueDrawerBase),
+    [hasOrchestratorView, cardsForQueueDrawerBase, queueSnapshot],
   );
   const queueCountForQueueDrawer = useMemo(
-    () => (orchestratorView ? cardsForQueueDrawer.length : queueCount),
-    [orchestratorView, cardsForQueueDrawer, queueCount],
+    () => (hasOrchestratorView ? queueCountForQueueDrawerBase : queueSnapshot?.queueCount ?? queueCountForQueueDrawerBase),
+    [hasOrchestratorView, queueCountForQueueDrawerBase, queueSnapshot],
   );
 
-  const withActionBusy = useCallback(async (card: ActionCard, cta: ActionCardCta, task: () => Promise<void>) => {
+  useEffect(() => {
+    setQueueSnapshot(null);
+  }, [activeBizId, hasOrchestratorView]);
+
+  const withActionBusy = useCallback(async <T,>(card: ActionCard, cta: ActionCardCta, task: () => Promise<T>): Promise<T> => {
     const key = actionBusyKey(card.id, cta.action);
     setActionBusy((prev) => ({ ...prev, [key]: true }));
     try {
-      await task();
+      return await task();
     } finally {
       setActionBusy((prev) => ({ ...prev, [key]: false }));
     }
@@ -322,11 +350,44 @@ export default function DashboardLitoPage() {
     if (!response.ok) {
       const payload = await response.json().catch(() => ({} as Record<string, unknown>));
       const message = (payload.message as string) || (payload.error as string) || 'request_failed';
-      throw new Error(message);
+      const error = new Error(message);
+      (error as Error & { status?: number }).status = response.status;
+      throw error;
     }
 
     return response;
   }, []);
+
+  const refreshActionCards = useCallback(async (): Promise<RefreshedActionCards | null> => {
+    if (!activeBizId) return null;
+
+    try {
+      const response = await fetch(`/api/lito/action-cards?biz_id=${encodeURIComponent(activeBizId)}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-store',
+          'x-request-id': createClientRequestId(),
+        },
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as ActionCardsRefreshPayload;
+      if (!response.ok || !payload.ok) return null;
+
+      const sourceValue = payload.source === 'stale' ? 'stale' : payload.source === 'cache' ? 'cache' : 'empty';
+      if (sourceValue !== 'cache' && sourceValue !== 'stale') return null;
+
+      return {
+        cards: Array.isArray(payload.cards) ? payload.cards : [],
+        mode: payload.mode === 'advanced' ? 'advanced' : 'basic',
+        queueCount: Number.isFinite(payload.queue_count) ? Number(payload.queue_count) : 0,
+        source: sourceValue,
+      };
+    } catch {
+      return null;
+    } finally {
+      void refresh();
+    }
+  }, [activeBizId, refresh]);
 
   const approveSocialDraft = useCallback(async (draftId: string): Promise<boolean> => {
     if (!activeBizId) return false;
@@ -350,12 +411,17 @@ export default function DashboardLitoPage() {
     return true;
   }, [activeBizId, postJson]);
 
-  const handleCardAction = useCallback(async (card: ActionCard, cta: ActionCardCta) => {
-    await withActionBusy(card, cta, async () => {
+  const handleCardAction = useCallback(async (card: ActionCard, cta: ActionCardCta): Promise<ActionResolveResult> => {
+    return withActionBusy(card, cta, async () => {
       const payload = cta.payload || {};
       const scheduleId = getPayloadValue(payload, 'schedule_id') || findRef(card, 'schedule_id');
       const draftId = getPayloadValue(payload, 'draft_id') || findRef(card, 'draft_id');
       const platform = getPayloadValue(payload, 'platform');
+      const actionErrorStatus = (error: unknown): number | null => {
+        if (!error || typeof error !== 'object') return null;
+        const status = (error as { status?: unknown }).status;
+        return typeof status === 'number' ? status : null;
+      };
 
       try {
         if (cta.action === 'copy_open') {
@@ -373,51 +439,50 @@ export default function DashboardLitoPage() {
             window.open('https://www.tiktok.com/', '_blank', 'noopener,noreferrer');
           }
 
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'mark_done' && scheduleId) {
           await postJson(`/api/social/schedules/${scheduleId}/publish`);
           toast(copy.ready, 'success');
-          await refresh();
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'snooze' && scheduleId) {
           await postJson(`/api/social/schedules/${scheduleId}/snooze`, { mode: 'tomorrow_same_time' });
           toast(copy.ready, 'success');
-          await refresh();
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'approve' && draftId) {
           const approved = await approveSocialDraft(draftId);
           if (approved) {
             toast(copy.ready, 'success');
-            await refresh();
-            return;
+            return { resolved: true };
           }
+          toast(copy.ready, 'info');
+          return { resolved: true };
         }
 
         if (cta.action === 'open_weekly_wizard') {
           setCommand(lang === 'ca' ? 'Prepara la meva setmana amb 3 posts.' : lang === 'es' ? 'Prepara mi semana con 3 posts.' : 'Prepare my week with 3 posts.');
           toast(copy.ready, 'info');
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'open_pending') {
           router.push(`/dashboard/planner${activeBizId ? `?biz_id=${encodeURIComponent(activeBizId)}` : ''}`);
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'view_recommendation') {
           router.push(`/dashboard/lito/review${activeBizId ? `?biz_id=${encodeURIComponent(activeBizId)}` : ''}`);
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'ack') {
           toast(copy.ready, 'info');
-          return;
+          return { resolved: true };
         }
 
         if (cta.action === 'regenerate' || cta.action === 'edit' || cta.action === 'view_only') {
@@ -427,20 +492,35 @@ export default function DashboardLitoPage() {
             payload,
           });
           toast(copy.ready, 'info');
-          return;
+          return { resolved: true };
         }
 
         toast(copy.ready, 'info');
+        return { resolved: true };
       } catch (actionError) {
+        const status = actionErrorStatus(actionError);
+        if (status === 404 || status === 405) {
+          toast(copy.ready, 'info');
+          return { resolved: true };
+        }
         console.error('lito_action_cards_action_error', {
           card_id: card.id,
           action: cta.action,
           error: actionError instanceof Error ? actionError.message : String(actionError),
         });
         toast(copy.actionFailed, 'error');
+        return { resolved: false };
       }
     });
-  }, [withActionBusy, toast, copy, postJson, refresh, approveSocialDraft, lang, router, activeBizId]);
+  }, [withActionBusy, toast, copy, postJson, approveSocialDraft, lang, router, activeBizId]);
+
+  const handleQueueCardsChange = useCallback((nextCards: ActionCard[], nextQueueCount: number) => {
+    if (hasOrchestratorView) return;
+    setQueueSnapshot({
+      cards: nextCards,
+      queueCount: Math.max(0, nextQueueCount),
+    });
+  }, [hasOrchestratorView]);
 
   const handleCommandPanelState = useCallback((next: CommandPanelState) => {
     setCommandPanel(next);
@@ -509,7 +589,7 @@ export default function DashboardLitoPage() {
           mode={modeForStack}
           source={source}
           queueCount={queueCountForStack}
-          queueIsRemaining={Boolean(orchestratorView)}
+          queueIsRemaining={hasOrchestratorView}
           title={copy.weekTitle}
           emptyTitle={copy.emptyTitle}
           emptySubtitle={copy.emptySubtitle}
@@ -518,6 +598,8 @@ export default function DashboardLitoPage() {
           viewAllLabel={copy.viewAll}
           onOpenQueue={() => setQueueOpen(true)}
           onAction={handleCardAction}
+          onRefreshCards={refreshActionCards}
+          onQueueCardsChange={handleQueueCardsChange}
           busyMap={actionBusy}
         />
 

@@ -215,6 +215,22 @@
   gap: 12px;
 }
 
+.lito-action-item {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.lito-action-item.state-loading {
+  opacity: 0.72;
+}
+
+.lito-action-item.state-resolved {
+  opacity: 0;
+  transform: translateY(-14px);
+  pointer-events: none;
+}
+
 .lito-action-card {
   border: 1px solid rgba(16, 20, 23, 0.1);
   border-radius: 14px;
