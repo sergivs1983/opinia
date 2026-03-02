@@ -7,6 +7,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import CommandBar from '@/components/lito/home/CommandBar';
 import type { OrchestratorSafeJsonEvent } from '@/components/lito/home/CommandBar';
+import type {
+  ReviewCardGenerateInput,
+  ReviewCardSaveDraftInput,
+} from '@/components/lito/home/ActionCard';
 import ActionCardStack, {
   type ActionResolveResult,
   type RefreshedActionCards,
@@ -389,6 +393,75 @@ export default function DashboardLitoPage() {
     }
   }, [activeBizId, refresh]);
 
+  const streamChatText = useCallback(async (response: Response): Promise<string> => {
+    const body = response.body;
+    if (!body) return '';
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let delimiter = buffer.indexOf('\n\n');
+      while (delimiter >= 0) {
+        const raw = buffer.slice(0, delimiter);
+        buffer = buffer.slice(delimiter + 2);
+
+        const lines = raw.split(/\r?\n/).filter(Boolean);
+        let eventName = 'message';
+        const dataLines: string[] = [];
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            eventName = line.slice(6).trim() || 'message';
+            continue;
+          }
+          if (line.startsWith('data:')) {
+            dataLines.push(line.slice(5).trimStart());
+          }
+        }
+
+        const rawData = dataLines.join('\n');
+        if (!rawData) {
+          delimiter = buffer.indexOf('\n\n');
+          continue;
+        }
+
+        let parsed: unknown = null;
+        try {
+          parsed = JSON.parse(rawData);
+        } catch {
+          parsed = null;
+        }
+
+        if (eventName === 'token') {
+          const delta = (parsed as { delta?: unknown } | null)?.delta;
+          if (typeof delta === 'string' && delta.length > 0) {
+            fullText += delta;
+          }
+        } else if (eventName === 'done') {
+          const finalText = (parsed as { text?: unknown } | null)?.text;
+          if (typeof finalText === 'string' && finalText.trim().length > 0) {
+            fullText = finalText;
+          }
+        } else if (eventName === 'error') {
+          const errorMessage = (parsed && typeof parsed === 'object' && 'message' in parsed)
+            ? String((parsed as { message?: unknown }).message || '')
+            : '';
+          throw new Error(errorMessage || 'chat_stream_failed');
+        }
+
+        delimiter = buffer.indexOf('\n\n');
+      }
+    }
+
+    return fullText.trim();
+  }, []);
+
   const approveSocialDraft = useCallback(async (draftId: string): Promise<boolean> => {
     if (!activeBizId) return false;
 
@@ -410,6 +483,70 @@ export default function DashboardLitoPage() {
     await postJson(`/api/social/drafts/${draftId}/approve`, { version });
     return true;
   }, [activeBizId, postJson]);
+
+  const handleGenerateReviewResponse = useCallback(async (input: ReviewCardGenerateInput): Promise<string | null> => {
+    if (!activeBizId) return null;
+
+    const reviewText = input.reviewText.trim();
+    const starsLine = typeof input.stars === 'number' ? `Puntuació: ${input.stars}/5` : 'Puntuació: no disponible';
+    const prompt = [
+      lang === 'es'
+        ? 'Escribe una respuesta breve y cercana para esta reseña. No digas que se enviará automáticamente.'
+        : lang === 'en'
+          ? 'Write a short, friendly reply for this review. Do not claim it will be auto-posted.'
+          : 'Escriu una resposta breu i propera per aquesta ressenya. No diguis que s’enviarà automàticament.',
+      starsLine,
+      `Review: ${reviewText || '(sense text)'}`,
+    ].join('\n');
+
+    try {
+      const response = await fetch('/api/lito/chat', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'x-request-id': createClientRequestId(),
+        },
+        body: JSON.stringify({
+          biz_id: activeBizId,
+          message: prompt,
+          mode: 'chat',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('chat_failed');
+      }
+
+      const text = await streamChatText(response);
+      if (!text) {
+        toast(copy.actionFailed, 'error');
+        return null;
+      }
+      return text;
+    } catch {
+      toast(copy.actionFailed, 'error');
+      return null;
+    }
+  }, [activeBizId, lang, streamChatText, toast, copy.actionFailed]);
+
+  const handleSaveReviewDraft = useCallback(async (input: ReviewCardSaveDraftInput): Promise<boolean> => {
+    if (!activeBizId) return false;
+    try {
+      await postJson('/api/lito/reviews/drafts', {
+        biz_id: activeBizId,
+        review_id: input.reviewId,
+        response_text: input.responseText,
+      });
+      toast(copy.ready, 'success');
+      void refresh();
+      return true;
+    } catch {
+      toast(copy.actionFailed, 'error');
+      return false;
+    }
+  }, [activeBizId, postJson, toast, copy.ready, copy.actionFailed, refresh]);
 
   const handleCardAction = useCallback(async (card: ActionCard, cta: ActionCardCta): Promise<ActionResolveResult> => {
     return withActionBusy(card, cta, async () => {
@@ -485,12 +622,29 @@ export default function DashboardLitoPage() {
           return { resolved: true };
         }
 
-        if (cta.action === 'regenerate' || cta.action === 'edit' || cta.action === 'view_only') {
+        if (cta.action === 'view_response') {
+          return { resolved: false };
+        }
+
+        if (cta.action === 'dismiss') {
+          toast(copy.ready, 'info');
+          return { resolved: true };
+        }
+
+        if (cta.action === 'regenerate' || cta.action === 'edit') {
           console.info('lito_action_cards_placeholder', {
             card_id: card.id,
             action: cta.action,
             payload,
           });
+          toast(copy.ready, 'info');
+          return { resolved: true };
+        }
+
+        if (cta.action === 'view_only') {
+          if (card.type === 'review_unanswered') {
+            return { resolved: false };
+          }
           toast(copy.ready, 'info');
           return { resolved: true };
         }
@@ -600,6 +754,8 @@ export default function DashboardLitoPage() {
           onAction={handleCardAction}
           onRefreshCards={refreshActionCards}
           onQueueCardsChange={handleQueueCardsChange}
+          onGenerateReviewResponse={handleGenerateReviewResponse}
+          onSaveReviewDraft={handleSaveReviewDraft}
           busyMap={actionBusy}
         />
 
@@ -624,6 +780,8 @@ export default function DashboardLitoPage() {
         busyMap={actionBusy}
         onClose={() => setQueueOpen(false)}
         onAction={handleCardAction}
+        onGenerateReviewResponse={handleGenerateReviewResponse}
+        onSaveReviewDraft={handleSaveReviewDraft}
       />
 
       <CommandBar

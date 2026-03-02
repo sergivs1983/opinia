@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import ActionCard from '@/components/lito/home/ActionCard';
+import type {
+  ReviewCardGenerateInput,
+  ReviewCardSaveDraftInput,
+} from '@/components/lito/home/ActionCard';
 import type { ActionCardsSource } from '@/components/lito/home/useActionCards';
 import type { ActionCard as LitoActionCard, ActionCardCta, ActionCardMode } from '@/types/lito-cards';
 
@@ -35,6 +39,8 @@ type ActionCardStackProps = {
   onAction: (card: LitoActionCard, cta: ActionCardCta) => Promise<ActionResolveResult>;
   onRefreshCards?: () => Promise<RefreshedActionCards | null>;
   onQueueCardsChange?: (cards: LitoActionCard[], queueCount: number) => void;
+  onGenerateReviewResponse?: (input: ReviewCardGenerateInput) => Promise<string | null>;
+  onSaveReviewDraft?: (input: ReviewCardSaveDraftInput) => Promise<boolean>;
   busyMap: Record<string, boolean>;
 };
 
@@ -60,6 +66,8 @@ export default function ActionCardStack({
   onAction,
   onRefreshCards,
   onQueueCardsChange,
+  onGenerateReviewResponse,
+  onSaveReviewDraft,
   busyMap,
 }: ActionCardStackProps) {
   const [visibleCards, setVisibleCards] = useState<LitoActionCard[]>([]);
@@ -242,6 +250,8 @@ export default function ActionCardStack({
               <ActionCard
                 card={card}
                 busy={cardBusy(card)}
+                onGenerateReviewResponse={onGenerateReviewResponse}
+                onSaveReviewDraft={onSaveReviewDraft}
                 onAction={(nextCard, cta) => {
                   void handleAction(nextCard, cta);
                 }}

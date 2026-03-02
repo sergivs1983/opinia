@@ -1,6 +1,10 @@
 'use client';
 
 import ActionCard from '@/components/lito/home/ActionCard';
+import type {
+  ReviewCardGenerateInput,
+  ReviewCardSaveDraftInput,
+} from '@/components/lito/home/ActionCard';
 import type { ActionCard as LitoActionCard, ActionCardCta } from '@/types/lito-cards';
 
 type CardQueueDrawerProps = {
@@ -13,6 +17,8 @@ type CardQueueDrawerProps = {
   busyMap: Record<string, boolean>;
   onClose: () => void;
   onAction: (card: LitoActionCard, cta: ActionCardCta) => void;
+  onGenerateReviewResponse?: (input: ReviewCardGenerateInput) => Promise<string | null>;
+  onSaveReviewDraft?: (input: ReviewCardSaveDraftInput) => Promise<boolean>;
 };
 
 function cardBusyKey(cardId: string, action: string): string {
@@ -29,6 +35,8 @@ export default function CardQueueDrawer({
   busyMap,
   onClose,
   onAction,
+  onGenerateReviewResponse,
+  onSaveReviewDraft,
 }: CardQueueDrawerProps) {
   if (!open) return null;
 
@@ -50,6 +58,8 @@ export default function CardQueueDrawer({
                 busyMap[cardBusyKey(card.id, card.primary_cta.action)]
                 || (card.secondary_cta && busyMap[cardBusyKey(card.id, card.secondary_cta.action)]),
               )}
+              onGenerateReviewResponse={onGenerateReviewResponse}
+              onSaveReviewDraft={onSaveReviewDraft}
               onAction={onAction}
             />
           ))}

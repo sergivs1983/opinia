@@ -286,6 +286,54 @@
   margin-top: auto;
 }
 
+.lito-action-review-inline {
+  margin-top: 8px;
+  border-top: 1px solid rgba(16, 20, 23, 0.08);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lito-action-review-label {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #647180;
+}
+
+.lito-action-review-preview {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #2a343d;
+  white-space: pre-wrap;
+}
+
+.lito-action-review-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.lito-action-review-textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(16, 20, 23, 0.16);
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #1f2933;
+  background: rgba(255, 255, 255, 0.96);
+  resize: vertical;
+}
+
+.lito-action-review-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #b3261e;
+}
+
 .lito-action-card-primary,
 .lito-action-card-secondary {
   border-radius: 10px;
