@@ -6,12 +6,10 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 import Button from '@/components/ui/Button';
-import GlassCard from '@/components/ui/GlassCard';
 import { useT } from '@/components/i18n/I18nContext';
-import { textMain, textSub } from '@/components/ui/glass';
 import { getOrgPlanConfig } from '@/lib/ai/quota';
-import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { tokens, cx } from '@/lib/design/tokens';
 
 type PlanCode = 'starter' | 'business' | 'scale';
 
@@ -110,6 +108,7 @@ export default function DashboardPlansPage() {
     const role = (membership?.role || '').toLowerCase();
     return role === 'owner' || role === 'manager';
   }, [membership?.role]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPlan, setCurrentPlan] = useState<PlanCode>('starter');
@@ -145,7 +144,7 @@ export default function DashboardPlansPage() {
         const payload = (await response.json().catch(() => ({}))) as EntitlementsResponse;
 
         if (!response.ok || !payload.ok) {
-          throw new Error(payload.message || 'No s\'ha pogut carregar els límits del pla.');
+          throw new Error(payload.message || 'No sha pogut carregar els limits del pla.');
         }
 
         const plan = normalizePlan(payload.plan_code || org.plan_code || org.plan);
@@ -154,6 +153,7 @@ export default function DashboardPlansPage() {
         const planConfig = getOrgPlanConfig(plan);
         const limit = Number(payload.usage?.limit ?? payload.plan_limits?.drafts_limit ?? planConfig.drafts_limit);
         const used = Number(payload.usage?.used ?? 0);
+
         setLimitDrafts(Number.isFinite(limit) && limit > 0 ? limit : planConfig.drafts_limit);
         setUsedDrafts(Number.isFinite(used) ? used : 0);
         setSignals(signalLabel(payload.entitlements?.signals_level));
@@ -161,7 +161,7 @@ export default function DashboardPlansPage() {
         const fallbackPlan = normalizePlan(org.plan_code || org.plan);
         setCurrentPlan(fallbackPlan);
         setLimitDrafts(getOrgPlanConfig(fallbackPlan).drafts_limit);
-        setError(loadError instanceof Error ? loadError.message : 'No s\'ha pogut carregar el pla.');
+        setError(loadError instanceof Error ? loadError.message : 'No sha pogut carregar el pla.');
       } finally {
         setLoading(false);
       }
@@ -170,106 +170,115 @@ export default function DashboardPlansPage() {
 
   if (!canManage) {
     return (
-      <div className="space-y-6 pb-16" data-testid="dashboard-plans-page">
+      <div className={cx('space-y-6 pb-16', tokens.text.primary)} data-testid="dashboard-plans-page">
         <header className="space-y-1">
-          <h1 className={cn('text-2xl font-semibold md:text-3xl', textMain)}>Plans i Entitlements</h1>
+          <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Plans i Entitlements</h1>
         </header>
-        <GlassCard variant="glass" className="space-y-2 p-4 md:p-5">
-          <p className={cn('text-sm font-medium', textMain)}>Accés restringit</p>
-          <p className={cn('text-sm', textSub)}>Només owner/manager pot veure i gestionar facturació.</p>
-          <Link href="/dashboard">
-            <Button size="sm">Tornar al dashboard</Button>
+
+        <section className={cx('space-y-2 p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.radius.card, tokens.shadow.card)}>
+          <p className={cx('text-sm font-medium', tokens.text.primary)}>Accés restringit</p>
+          <p className={cx('text-sm', tokens.text.secondary)}>Només owner/manager pot veure i gestionar facturació.</p>
+          <Link href="/dashboard/lito">
+            <Button size="sm">Tornar a LITO</Button>
           </Link>
-        </GlassCard>
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 pb-16" data-testid="dashboard-plans-page">
+    <div className={cx('space-y-6 pb-16', tokens.text.primary)} data-testid="dashboard-plans-page">
       <header className="space-y-1">
-        <h1 className={cn('text-2xl font-semibold md:text-3xl', textMain)}>Plans i Entitlements</h1>
-        <p className={cn('text-sm md:text-base', textSub)}>
+        <h1 className={cx('text-2xl font-semibold md:text-3xl', tokens.text.primary)}>Plans i Entitlements</h1>
+        <p className={cx('text-sm md:text-base', tokens.text.secondary)}>
           Paquets per locals, equip i Drafts LITO mensuals.
         </p>
       </header>
 
-      <GlassCard variant="glass" className="space-y-2 p-4 md:p-5">
-        <p className={cn('text-sm font-medium', textMain)}>Consum actual</p>
-        <p className={cn('text-sm', textSub)}>Drafts mes: {usedDrafts}/{limitDrafts}</p>
-        <p className={cn('text-sm', textSub)}>Signals: {signals}</p>
-        {loading ? <p className={cn('text-xs', textSub)}>{t('common.loading')}</p> : null}
-        {error ? <p className="text-xs text-amber-300">{error}</p> : null}
-      </GlassCard>
+      <section className={cx('space-y-2 p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.radius.card, tokens.shadow.card)}>
+        <p className={cx('text-sm font-medium', tokens.text.primary)}>Consum actual</p>
+        <p className={cx('text-sm', tokens.text.secondary)}>Drafts mes: {usedDrafts}/{limitDrafts}</p>
+        <p className={cx('text-sm', tokens.text.secondary)}>Signals: {signals}</p>
+        {loading ? <p className={cx('text-xs', tokens.text.secondary)}>{t('common.loading')}</p> : null}
+        {error ? <p className={cx('text-xs', tokens.text.warning)}>{error}</p> : null}
+      </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
         {PLAN_CARDS.map((plan) => {
           const active = currentPlan === plan.id;
           return (
-            <GlassCard
+            <article
               key={plan.id}
-              variant={active ? 'strong' : 'glass'}
-              className={cn(
-                'relative overflow-hidden border p-5',
-                active ? 'border-emerald-400/40' : 'border-white/10',
+              className={cx(
+                'relative overflow-hidden p-5',
+                tokens.bg.surface,
+                active ? tokens.border.strong : tokens.border.default,
+                tokens.radius.card,
+                tokens.shadow.card,
               )}
             >
               {plan.recommended ? (
-                <span className="absolute right-3 top-3 rounded-full border border-emerald-300/40 bg-emerald-400/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-100">
+                <span className={cx('absolute right-3 top-3 rounded-full px-2 py-0.5 text-[11px] font-semibold', tokens.bg.soft, tokens.text.secondary)}>
                   Recomanat
                 </span>
               ) : null}
-              <h2 className={cn('text-lg font-semibold', textMain)}>{plan.name}</h2>
-              <p className="mt-1 text-2xl font-bold text-white">{plan.price}<span className={cn('ml-1 text-sm font-medium', textSub)}>/mes</span></p>
-              <ul className={cn('mt-4 space-y-2 text-sm', textSub)}>
+
+              <h2 className={cx('text-lg font-semibold', tokens.text.primary)}>{plan.name}</h2>
+              <p className={cx('mt-1 text-2xl font-bold', tokens.text.primary)}>
+                {plan.price}
+                <span className={cx('ml-1 text-sm font-medium', tokens.text.secondary)}>/mes</span>
+              </p>
+
+              <ul className={cx('mt-4 space-y-2 text-sm', tokens.text.secondary)}>
                 <li>Locals inclosos: {plan.locations}</li>
                 <li>Seients: {plan.seats}</li>
                 <li>Drafts LITO/mes: {plan.drafts}</li>
                 <li>Signals: {plan.signals}</li>
               </ul>
+
               <div className="mt-4 flex gap-2">
                 {active ? (
-                  <span className="inline-flex h-8 items-center rounded-lg border border-emerald-300/35 bg-emerald-500/15 px-3 text-xs font-medium text-emerald-100">
+                  <span className={cx('inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium', tokens.bg.soft, tokens.text.primary)}>
                     Pla actiu
                   </span>
                 ) : (
                   <a
                     href="mailto:hello@opinia.app?subject=Canvi%20de%20pla"
                     onClick={() => trackUpgradeClick(plan.id)}
-                    className="inline-flex h-8 items-center rounded-lg border border-white/20 bg-white/8 px-3 text-xs font-medium text-white/80 transition hover:bg-white/14"
+                    className={tokens.button.secondary}
                   >
                     Contactar
                   </a>
                 )}
               </div>
-            </GlassCard>
+            </article>
           );
         })}
       </section>
 
-      <GlassCard variant="glass" className="p-4 md:p-5">
-        <p className={cn('text-sm', textSub)}>
+      <section className={cx('space-y-3 p-4 md:p-5', tokens.bg.surface, tokens.border.default, tokens.radius.card, tokens.shadow.card)}>
+        <p className={cx('text-sm', tokens.text.secondary)}>
           Billing gestionat amb Stripe.
           {stripePortalUrl ? (
             <a
               href={stripePortalUrl}
               target="_blank"
               rel="noreferrer"
-              className="ml-2 text-emerald-300 underline underline-offset-2 hover:text-emerald-200"
+              className={cx('ml-2 underline underline-offset-2', tokens.text.primary)}
             >
               Obrir portal de facturació
             </a>
           ) : null}
         </p>
-        <p className={cn('text-sm', textSub)}>
+        <p className={cx('text-sm', tokens.text.secondary)}>
           Governance staff: límit diari 10 accions, cap mensual 30% de quota org i panic toggle per owner/manager.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/dashboard/settings">
+          <Link href="/dashboard/lito?tab=config">
             <Button size="sm">Obrir configuració</Button>
           </Link>
         </div>
-      </GlassCard>
+      </section>
     </div>
   );
 }
