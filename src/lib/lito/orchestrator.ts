@@ -121,7 +121,7 @@ function cardId(type: ActionCardType, refId: string): string {
   return `${type}:${refId}`;
 }
 
-function actionLabel(type: ActionCardType, action: ActionCardCtaAction): string {
+export function actionCardCtaLabel(type: ActionCardType, action: ActionCardCtaAction): string {
   if (type === 'due_post') {
     if (action === 'copy_open') return 'Copiar i obrir';
     if (action === 'snooze') return 'Demà va millor';
@@ -157,7 +157,7 @@ function makeCta(
   payload: Record<string, unknown>,
 ): ActionCardCta {
   return {
-    label: actionLabel(type, action),
+    label: actionCardCtaLabel(type, action),
     action,
     payload,
   };
@@ -216,9 +216,24 @@ export function sliceCardsByMode(cards: ActionCard[], mode: ActionCardMode): Act
   return cards.slice(0, limit);
 }
 
-async function resolveMode(admin: SupabaseClient, orgId: string): Promise<ActionCardMode> {
+export async function resolveActionCardsMode(admin: SupabaseClient, orgId: string): Promise<ActionCardMode> {
   const entitlements = await getOrgEntitlements({ supabase: admin, orgId });
   return normalizeMode(getSignalsLevel(entitlements));
+}
+
+export function projectCardsForRole(cards: ActionCard[], role: ActionCardRole): ActionCard[] {
+  return cards.map((card) => {
+    const payload = card.primary_cta?.payload || card.secondary_cta?.payload || {};
+    const actions = getAllowedCardActions(card.type, role);
+    const primaryAction = actions[0] || 'view_only';
+    const secondaryAction = actions[1];
+
+    return {
+      ...card,
+      primary_cta: makeCta(card.type, primaryAction, payload),
+      secondary_cta: secondaryAction ? makeCta(card.type, secondaryAction, payload) : undefined,
+    };
+  });
 }
 
 async function queryDueSchedule(input: {
@@ -563,7 +578,7 @@ function buildFollowUpCard(input: {
 export async function buildActionCards(input: BuildActionCardsInput): Promise<BuildActionCardsResult> {
   const now = input.now || new Date();
   const generatedAt = now.toISOString();
-  const mode = await resolveMode(input.admin, input.orgId);
+  const mode = await resolveActionCardsMode(input.admin, input.orgId);
 
   const [dueSchedule, pendingDraft, weekHasSchedules, signals, followUpData] = await Promise.all([
     queryDueSchedule({

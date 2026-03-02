@@ -6,11 +6,20 @@ import { z } from 'zod';
 
 import { createLogger } from '@/lib/logger';
 import { getLitoBizAccess } from '@/lib/lito/action-drafts';
-import { buildActionCards } from '@/lib/lito/orchestrator';
+import {
+  enqueueRebuildCards,
+  getLitoCardsCacheByBiz,
+  normalizeCachedCards,
+} from '@/lib/lito/cards-cache';
+import {
+  projectCardsForRole,
+  sliceCardsByMode,
+  sortCardsByPriority,
+} from '@/lib/lito/orchestrator';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { ActionCardRole } from '@/types/lito-cards';
+import type { ActionCardMode, ActionCardRole } from '@/types/lito-cards';
 
 const QuerySchema = z.object({
   biz_id: z.string().uuid(),
@@ -25,6 +34,23 @@ function withNoStore(response: NextResponse, requestId: string): NextResponse {
 function parseRole(role: string | null | undefined): ActionCardRole | null {
   if (role === 'owner' || role === 'manager' || role === 'staff') return role;
   return null;
+}
+
+function parseMode(mode: string | null | undefined): ActionCardMode {
+  return mode === 'advanced' ? 'advanced' : 'basic';
+}
+
+function enqueueInBackground(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  bizId: string;
+  log: ReturnType<typeof createLogger>;
+}): void {
+  void enqueueRebuildCards({ admin: input.admin, bizId: input.bizId }).catch((error) => {
+    input.log.warn('lito_action_cards_enqueue_failed', {
+      biz_id: input.bizId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -79,21 +105,40 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const admin = createAdminClient();
-    const result = await buildActionCards({
-      admin,
-      bizId: payload.biz_id,
-      orgId: access.orgId,
-      userId: user.id,
-      role,
-    });
+    const cached = await getLitoCardsCacheByBiz({ admin, bizId: payload.biz_id });
+
+    if (!cached) {
+      enqueueInBackground({ admin, bizId: payload.biz_id, log });
+      return withNoStore(
+        NextResponse.json({
+          ok: true,
+          generated_at: new Date().toISOString(),
+          mode: 'basic',
+          cards: [],
+          queue_count: 0,
+          request_id: requestId,
+        }),
+        requestId,
+      );
+    }
+
+    const mode = parseMode(cached.mode);
+    const cards = normalizeCachedCards(cached.cards);
+    const cardsForRole = projectCardsForRole(cards, role);
+    const sortedCards = sortCardsByPriority(cardsForRole);
+    const visibleCards = sliceCardsByMode(sortedCards, mode);
+
+    if (cached.stale) {
+      enqueueInBackground({ admin, bizId: payload.biz_id, log });
+    }
 
     return withNoStore(
       NextResponse.json({
         ok: true,
-        generated_at: result.generatedAt,
-        mode: result.mode,
-        cards: result.cards,
-        queue_count: result.queueCount,
+        generated_at: cached.generated_at || cached.updated_at || new Date().toISOString(),
+        mode,
+        cards: visibleCards,
+        queue_count: sortedCards.length,
         request_id: requestId,
       }),
       requestId,
