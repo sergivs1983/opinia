@@ -3,5 +3,5 @@ import { redirect } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 
 export default function DashboardHealthPage() {
-  redirect('/dashboard/settings?panel=health');
+  redirect('/dashboard/lito?modal=settings&panel=health');
 }

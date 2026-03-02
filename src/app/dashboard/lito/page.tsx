@@ -21,9 +21,9 @@ export default function DashboardLitoPage({ searchParams }: DashboardLitoPagePro
 
   if (tab === 'planner') redirect('/dashboard/planner');
   if (tab === 'inbox' || tab === 'review' || tab === 'archive' || tab === 'arxiu') redirect('/dashboard/arxiu');
-  if (tab === 'config') redirect('/dashboard/settings?panel=config');
-  if (tab === 'health') redirect('/dashboard/settings?panel=health');
-  if (tab === 'plans') redirect('/dashboard/settings?panel=plans');
+  if (tab === 'config') redirect('/dashboard/lito?modal=settings&panel=general');
+  if (tab === 'health') redirect('/dashboard/lito?modal=settings&panel=health');
+  if (tab === 'plans') redirect('/dashboard/lito?modal=settings&panel=billing');
 
   return <LitoDashboardPage />;
 }
