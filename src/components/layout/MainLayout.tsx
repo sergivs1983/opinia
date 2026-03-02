@@ -86,7 +86,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const businessLabel = biz?.name || 'Sense negoci actiu';
   const initial = userInitial(userName);
   const showCommandBar = false;
-  const contentMaxWidth = pathname.startsWith('/dashboard/lito') ? 540 : 1040;
+  const isLitoRoute = pathname.startsWith('/dashboard/lito');
+  const contentMaxWidth = isLitoRoute ? '100%' : 1040;
+  const contentPadding = isLitoRoute ? '0' : '48px 24px 120px';
 
   return (
     <div style={{ minHeight: '100dvh', background: shellTokens.bg, color: shellTokens.textPrimary }}>
@@ -283,7 +285,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 width: '100%',
                 maxWidth: contentMaxWidth,
                 margin: '0 auto',
-                padding: '48px 24px 120px',
+                padding: contentPadding,
               }}
             >
               {children}

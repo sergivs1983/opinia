@@ -74,7 +74,7 @@ function ReviewCard({ onResolve }: { onResolve: (action: 'reject' | 'approve') =
         boxShadow: '0 20px 60px rgba(0,0,0,0.07),0 4px 16px rgba(0,0,0,0.04)',
         padding: '36px 36px 32px',
         width: '100%',
-        maxWidth: 580,
+        maxWidth: 540,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -380,93 +380,95 @@ export default function LITOHome() {
   return (
     <section className={cx(styles.shell, tokens.bg.global, tokens.text.primary)}>
       <main className={styles.main}>
-        <div className={styles.slideUp} style={{ marginBottom: 40 }}>
-          <h1
-            className={tokens.text.primary}
-            style={{
-              fontSize: 34,
-              fontWeight: 600,
-              fontFamily: "Georgia,'Times New Roman',serif",
-              lineHeight: 1.2,
-              letterSpacing: '-0.5px',
-              marginBottom: 8,
-            }}
-          >
-            Bon dia.
-          </h1>
-          <p className={tokens.text.secondary} style={{ fontSize: 16, fontWeight: 400, lineHeight: 1.5 }}>
-            {resolved ? 'Perfecte. Tot al dia per ara.' : 'Avui tenim 3 temes pendents.'}
-          </p>
-        </div>
-
-        {!resolved ? (
-          <div className={resolveAnim ? styles.resolveCard : styles.slideUpDelayed} style={{ width: '100%' }}>
-            <ReviewCard onResolve={handleResolve} />
-            <QueuePills count={2} />
-          </div>
-        ) : (
-          <div
-            className={styles.successPop}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '60px 40px',
-              background: 'white',
-              borderRadius: 32,
-              border: '1.5px solid rgba(255,255,255,0.9)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.05)',
-              width: '100%',
-              maxWidth: 580,
-              gap: 20,
-            }}
-          >
-            <div
+        <div className={styles.heroInner}>
+          <div className={cx(styles.heroHeader, styles.slideUp)}>
+            <h1
+              className={tokens.text.primary}
               style={{
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg,#10b981,#059669)',
+                fontSize: 34,
+                fontWeight: 600,
+                fontFamily: "Georgia,'Times New Roman',serif",
+                lineHeight: 1.2,
+                letterSpacing: '-0.5px',
+                margin: '0 0 8px',
+              }}
+            >
+              Bon dia.
+            </h1>
+            <p className={tokens.text.secondary} style={{ fontSize: 16, fontWeight: 400, lineHeight: 1.5, margin: 0 }}>
+              {resolved ? 'Perfecte. Tot al dia per ara.' : 'Avui tenim 3 temes pendents.'}
+            </p>
+          </div>
+
+          {!resolved ? (
+            <div className={cx(styles.heroBody, resolveAnim ? styles.resolveCard : styles.slideUpDelayed)}>
+              <ReviewCard onResolve={handleResolve} />
+              <QueuePills count={2} />
+            </div>
+          ) : (
+            <div
+              className={cx(styles.heroBody, styles.successPop)}
+              style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 8px 24px rgba(16,185,129,0.25)',
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-                <path d="M5 14l6 6 12-12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <p className={tokens.text.primary} style={{ fontSize: 20, fontWeight: 600, fontFamily: 'Georgia,serif', marginBottom: 6 }}>Tot a punt.</p>
-              <p className={tokens.text.secondary} style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300 }}>
-                La resposta sha enviat. La Marta rebra la teva resposta a Google.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setResolved(false)}
-              style={{
-                marginTop: 8,
-                padding: '10px 24px',
-                borderRadius: 14,
-                border: '1.5px solid #e4e4e7',
+                padding: '60px 40px',
                 background: 'white',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 500,
-                color: '#52525b',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
+                borderRadius: 32,
+                border: '1.5px solid rgba(255,255,255,0.9)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.05)',
+                width: '100%',
+                maxWidth: 540,
+                gap: 20,
               }}
             >
-              Veure el proper tema
-              <IconChevron />
-            </button>
-          </div>
-        )}
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg,#10b981,#059669)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 8px 24px rgba(16,185,129,0.25)',
+                }}
+              >
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+                  <path d="M5 14l6 6 12-12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <p className={tokens.text.primary} style={{ fontSize: 20, fontWeight: 600, fontFamily: 'Georgia,serif', marginBottom: 6 }}>Tot a punt.</p>
+                <p className={tokens.text.secondary} style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300 }}>
+                  La resposta sha enviat. La Marta rebra la teva resposta a Google.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResolved(false)}
+                style={{
+                  marginTop: 8,
+                  padding: '10px 24px',
+                  borderRadius: 14,
+                  border: '1.5px solid #e4e4e7',
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: '#52525b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                Veure el proper tema
+                <IconChevron />
+              </button>
+            </div>
+          )}
+        </div>
       </main>
 
       <CommandBar />
