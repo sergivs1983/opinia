@@ -396,3 +396,11 @@
   position: relative;
   z-index: 1;
 }
+
+.lito-layout {
+  height: 100dvh;
+}
+
+.lito-commandbar-safe {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
