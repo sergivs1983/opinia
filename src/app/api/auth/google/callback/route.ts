@@ -4,9 +4,11 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getAdminClient } from '@/lib/supabase/admin';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
+import { roleCanManageIntegrations } from '@/lib/roles';
 import { saveOAuthTokens } from '@/lib/server/tokens';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 
@@ -18,12 +20,6 @@ type SupabaseErrorLike = {
 type ConsumedOAuthStateRow = {
   biz_id: string;
   code_verifier: string;
-};
-
-type BusinessLookupRow = {
-  id: string;
-  org_id: string;
-  is_active?: boolean | null;
 };
 
 function getAppOrigin(): string {
@@ -43,24 +39,6 @@ function isUuid(value: string | null): value is string {
   return typeof value === 'string' && UUID_V4_LIKE_REGEX.test(value);
 }
 
-function classifyBusinessLookup(error: unknown, found: boolean): 'ok' | 'rls_denied' | 'not_found' | 'query_error' {
-  if (found) return 'ok';
-  if (!error || typeof error !== 'object') return 'not_found';
-  const code = (error as SupabaseErrorLike).code;
-  if (code === '42501') return 'rls_denied';
-  if (code === 'PGRST116') return 'not_found';
-  return 'query_error';
-}
-
-function isMissingMembershipBizColumns(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const e = error as SupabaseErrorLike;
-  const message = (e.message || '').toLowerCase();
-  return e.code === '42703'
-    || message.includes('column')
-    || message.includes('does not exist');
-}
-
 function isMissingColumnError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const e = error as SupabaseErrorLike;
@@ -77,6 +55,15 @@ function parseScopes(scopeValue?: string): string[] | null {
     .filter(Boolean);
   return scopes.length > 0 ? scopes : null;
 }
+
+type GoogleTokenResponse = {
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+  error?: string;
+  error_description?: string;
+};
 
 function redirectWithError(message: string, requestId: string) {
   const target = new URL('/dashboard/settings', getAppOrigin());
@@ -114,16 +101,11 @@ export async function GET(request: Request) {
     const receivedState = url.searchParams.get('state');
     const stateIsUuid = isUuid(receivedState);
 
-    if (process.env.NODE_ENV === 'development') {
-      console.info('[google-oauth-callback] state-received', {
-        request_id: requestId,
-        state: receivedState,
-        is_uuid: stateIsUuid,
-      });
-    }
-
     if (oauthError) {
-      return redirectWithError(`oauth_error:${oauthError}`, requestId);
+      log.warn('OAuth provider returned error', {
+        error: oauthError,
+      });
+      return redirectWithError('oauth_error', requestId);
     }
 
     if (!code) {
@@ -161,84 +143,22 @@ export async function GET(request: Request) {
 
     const businessId = consumedState.biz_id;
     const codeVerifier = consumedState.code_verifier;
-
-    const admin = getAdminClient();
-
-    const { data: bizRowRaw, error: bizError } = await admin
-      .from('businesses')
-      .select('id, org_id, is_active')
-      .eq('id', businessId)
-      .maybeSingle();
-    const bizLookup = classifyBusinessLookup(bizError, !!bizRowRaw);
-    if (bizLookup !== 'ok' || !bizRowRaw) {
-      log.warn('OAuth callback business lookup failed', {
-        business_id: businessId,
-        user_id: user.id,
-        lookup_result: bizLookup,
-        error_code: (bizError as SupabaseErrorLike | null)?.code || null,
-        error: (bizError as SupabaseErrorLike | null)?.message || null,
-      });
-      return redirectWithError('business_not_found', requestId);
-    }
-    const bizRow = bizRowRaw as BusinessLookupRow;
-
-    let membershipOk = false;
-
-    const { data: membershipData, error: membershipError } = await admin
-      .from('memberships')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('biz_id', businessId)
-      .eq('is_active', true)
-      .not('accepted_at', 'is', null)
-      .limit(1)
-      .maybeSingle();
-
-    if (membershipError) {
-      if (isMissingMembershipBizColumns(membershipError)) {
-        const { data: fallbackMembershipData, error: fallbackMembershipError } = await admin
-          .from('memberships')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('org_id', bizRow.org_id)
-          .not('accepted_at', 'is', null)
-          .limit(1)
-          .maybeSingle();
-        if (fallbackMembershipError) {
-          log.warn('OAuth callback membership fallback check failed', {
-            business_id: businessId,
-            user_id: user.id,
-            org_id: bizRow.org_id,
-            error_code: fallbackMembershipError.code || null,
-            error: fallbackMembershipError.message || null,
-          });
-        } else {
-          membershipOk = !!fallbackMembershipData;
-        }
-      } else {
-        log.warn('OAuth callback membership check failed', {
-          business_id: businessId,
-          user_id: user.id,
-          error_code: membershipError.code || null,
-          error: membershipError.message || null,
-        });
-      }
-    } else {
-      membershipOk = !!membershipData;
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.info('[google-oauth-callback] access-check', {
-        request_id: requestId,
-        business_found: true,
-        membership_ok: membershipOk,
-      });
-    }
-
-    if (!membershipOk) {
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+    });
+    if (access instanceof NextResponse) {
       log.warn('OAuth callback denied by membership', {
         business_id: businessId,
         user_id: user.id,
+      });
+      return redirectWithError('not_allowed', requestId);
+    }
+    if (!access.membership.orgId || !roleCanManageIntegrations(access.role)) {
+      log.warn('OAuth callback denied by role', {
+        business_id: businessId,
+        user_id: user.id,
+        role: access.role,
       });
       return redirectWithError('not_allowed', requestId);
     }
@@ -272,14 +192,12 @@ export async function GET(request: Request) {
       cache: 'no-store',
     });
 
-    const tokenJson = await tokenResponse.json() as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-      scope?: string;
-      error?: string;
-      error_description?: string;
-    };
+    let tokenJson: GoogleTokenResponse = {};
+    try {
+      tokenJson = await tokenResponse.json() as GoogleTokenResponse;
+    } catch {
+      tokenJson = {};
+    }
 
     if (!tokenResponse.ok || !tokenJson.access_token) {
       log.warn('Google token exchange failed', {
@@ -289,6 +207,7 @@ export async function GET(request: Request) {
       return redirectWithError('token_exchange_failed', requestId);
     }
 
+    const admin = createAdminClient();
     const provider = 'google_business';
     const tokenExpiresAt = typeof tokenJson.expires_in === 'number'
       ? new Date(Date.now() + tokenJson.expires_in * 1000).toISOString()
@@ -345,7 +264,7 @@ export async function GET(request: Request) {
     } else {
       const fullInsertPayload: Record<string, unknown> = {
         biz_id: businessId,
-        org_id: bizRow.org_id,
+        org_id: access.membership.orgId,
         provider,
         is_active: true,
         access_token: tokenJson.access_token,
@@ -370,7 +289,7 @@ export async function GET(request: Request) {
           .from('integrations')
           .insert({
             biz_id: businessId,
-            org_id: bizRow.org_id,
+            org_id: access.membership.orgId,
             provider,
             is_active: true,
           })

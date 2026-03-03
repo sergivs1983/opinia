@@ -6,21 +6,22 @@ Data d'auditoria: 2026-03-03.
 
 - Scope escanejat: **168** endpoints a `src/app/api/**/route.ts`.
 - Endpoints amb accés DB/RPC (tractats com a tenant-data candidats): **126**.
-- Amb gate estàndard o wrapper equivalent (`requireBizAccess*` / `requireImplicitBizAccessPatternB`): **94**.
-- **ENDPOINTS SENSE GATE** (gate abans de la 1a query = NO): **32**.
-- Gate **abans de la 1a query DB/RPC** (criteri estricte d'aquesta auditoria): **94 SI** / **32 NO**.
+- Amb gate estàndard o wrapper equivalent (`requireBizAccess*` / `requireImplicitBizAccessPatternB`): **95**.
+- **ENDPOINTS SENSE GATE** (gate abans de la 1a query = NO): **31**.
+- Gate **abans de la 1a query DB/RPC** (criteri estricte d'aquesta auditoria): **95 SI** / **31 NO**.
 - Risc agregat: **1 Critical**, **96 High**, **29 Medium**.
 - **Wave 1 (aquest commit): 10/10 rutes prioritàries FIXED**.
-- **Pendents Onada 2**: **22 rutes** (1 USER_FACING_TENANT + 17 INTERNAL + 4 PUBLIC_NON_TENANT).
+- **Pendents Onada 2**: **21 rutes** (0 USER_FACING_TENANT + 17 INTERNAL + 4 PUBLIC_NON_TENANT).
 - Pendents Onada 2 classificades: **SI (116/116)**.
 - **Wave2 Lot1 Batch2**: **12 rutes WRITES FIXED** (`admin/billing/integrations/webhooks/onboarding`).
 - **Wave2 Lot1 Batch3**: **16 rutes WRITES FIXED** (`audit/business-memory/lito/memory/planner/social`).
 - **Wave2 Lot1 Batch4 (final)**: **17 rutes WRITES FIXED** (`businesses/competitors/content-studio/exports/growth-links/integrations/lito-action-drafts/metrics/orgs/push/team/workspace`).
-- **Wave2 Lot2 Batch1b**: **14 rutes GET A* FIXED** (context implícit de biz + Pattern B 404; `auth/google/callback` queda especial).
+- **Wave2 Lot2 Batch1b**: **14 rutes GET A* FIXED** (context implícit de biz + Pattern B 404).
 - **Wave2 Lot2 Batch2**: **6 rutes GET Tipus B FIXED** (`brand-image signed-url`, `content assets signed-url`, `exports signed-url`, `g/[slug]`, `publish-jobs/[jobId]`, `recommendations/[id]/howto`).
 - **Wave2 Lot2 Batch3**: **1 ruta GET Tipus C FIXED** (`/api/social/notifications` amb paginació scoped per `access.bizId`).
+- **OAuth callback hardening**: `/api/auth/google/callback` reclassificat a `INTERNAL_AUTH` i blindat (state one-time + session binding + RBAC per biz de `oauth_state`).
 - **WRITES USER_FACING_TENANT pendents (estat actual)**: **0 rutes**.
-- **GET USER_FACING_TENANT pendents (estat actual)**: **1 ruta**.
+- **GET USER_FACING_TENANT pendents (estat actual)**: **0 rutes**.
 
 > Nota: aquest informe separa "gate estàndard" (`requireBizAccess*`) de controls alternatius (membership/HMAC/cron helpers).
 
@@ -57,8 +58,9 @@ Pendents WRITES USER_FACING_TENANT (després Batch 4): **0 rutes**.
 
 Comptadors de classificació:
 
-- #USER_FACING_TENANT: **95**
+- #USER_FACING_TENANT: **94**
 - #INTERNAL: **17**
+- #INTERNAL_AUTH: **1**
 - #PUBLIC_NON_TENANT: **4**
 
 <!-- WAVE2_CLASSIFIED_START -->
@@ -78,7 +80,7 @@ Comptadors de classificació:
 | /api/admin/businesses | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES, LOT2-B1b READS A*) |
 | /api/admin/org-settings/lito | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES, LOT2-B1b READS A*) |
 | /api/audit | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B3 WRITES, LOT2-B1a READS) |
-| /api/auth/google/callback | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/auth/google/callback | INTERNAL_AUTH | Callback OAuth Google (provider -> backend): consumeix `oauth_state` one-time i escriu integració/token del biz resolt server-side. | FIXED (HARDENED + RECLASSIFIED) |
 | /api/billing | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES, LOT2-B1b READS A*) |
 | /api/billing/staff-ai-paused | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
 | /api/billing/status | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1b READS A* + RBAC) |
@@ -201,7 +203,7 @@ Comptadors de classificació:
 | /api/admin/businesses | GET,POST,PUT,PATCH | b:org_id,slug,business_id \| biz/resource:SI | SI | High | FIXED LOT1-B2/LOT2-B1b: GET+POST+PUT+PATCH amb gate Pattern B abans de DB + RBAC via `access.role` (404). |
 | /api/admin/org-settings/lito | GET,PATCH | b:userId,orgId,org_id,ai_provider \| biz/resource:SI | SI | High | FIXED LOT1-B2/LOT2-B1b: GET+PATCH amb gate Pattern B abans de DB + RBAC owner/manager (404). |
 | /api/audit | GET,POST | q:biz_id \| b:org_id,biz_id \| biz/resource:SI | SI | High | FIXED LOT1-B3/LOT2-B1a: GET+POST amb `requireBizAccessPatternB` abans de DB i scope per `access.bizId`. |
-| /api/auth/google/callback | GET | q:error,code,state \| biz/resource:SI | NO | High | Usa admin/service-role sense `requireBizAccess*`. |
+| /api/auth/google/callback | GET | q:error,code,state \| biz/resource:SI | SI | High | HARDENED: `biz_id` resolt exclusivament via `consume_oauth_state` (one-time+expiry+auth.uid) i validat amb `requireBizAccessPatternB` + RBAC abans d'escriure integració/tokens. |
 | /api/billing | GET,POST | q:org_id \| b:plan_id,org_id \| biz/resource:SI | SI | High | FIXED LOT1-B2/LOT2-B1b: GET+POST amb gate Pattern B abans de DB + RBAC via `access.role` (404). |
 | /api/billing/staff-ai-paused | POST | b:org_id \| biz/resource:SI | SI | High | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de DB + RBAC owner/manager via `access.role`. |
 | /api/billing/status | GET | biz/resource:SI | SI | High | FIXED LOT2-B1b: gate Pattern B implícit abans de DB + RBAC owner/manager amb 404. |
@@ -328,7 +330,6 @@ Comptadors de classificació:
 - /api/_internal/signals/to-weekly
 - /api/_internal/social/reminders/run
 - /api/_internal/voice/purge
-- /api/auth/google/callback
 - /api/content-intel/generate
 - /api/content-intel/suggestions/[id]
 - /api/content-studio/render
@@ -347,6 +348,7 @@ Comptadors de classificació:
 - /api/locale
 - /api/ops-actions
 - /api/review-audit
+- /api/reviews/[reviewId]/generate
 - /api/stripe/webhook
 - /api/triggers
 
