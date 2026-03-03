@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { dispatchEvent } from '@/lib/integrations';
 import { bumpDailyMetric } from '@/lib/metrics';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import {
   validateBody,
   ContentStudioRenderSchema,
@@ -87,9 +88,15 @@ export async function POST(request: Request) {
 
     const payload = body as RenderBody;
     const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
+    const access = await requireBizAccessPatternB(request, workspaceBusinessId || null, {
+      supabase,
+      user,
+      headerBizId: workspaceBusinessId || undefined,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
+    const guardedBizId = access.bizId;
 
     let suggestion: SuggestionRenderRow | null = null;
-    let businessId: string | null = null;
     let sourceSuggestionId: string | null = null;
     let sourceStoredPayload: JsonValue | null = null;
 
@@ -98,6 +105,7 @@ export async function POST(request: Request) {
         .from('content_suggestions')
         .select('id, business_id, language, title, hook, caption, cta, best_time, shot_list, hashtags, evidence')
         .eq('id', payload.suggestionId)
+        .eq('business_id', guardedBizId)
         .single();
 
       if (suggestionError || !suggestionData) {
@@ -106,12 +114,12 @@ export async function POST(request: Request) {
 
       suggestion = suggestionData as SuggestionRenderRow;
       sourceSuggestionId = suggestion.id;
-      businessId = suggestion.business_id;
     } else if (payload.sourceAssetId) {
       const { data: sourceAssetData, error: sourceAssetError } = await supabase
         .from('content_assets')
         .select('id, business_id, suggestion_id, language, payload')
         .eq('id', payload.sourceAssetId)
+        .eq('business_id', guardedBizId)
         .single();
 
       if (sourceAssetError || !sourceAssetData) {
@@ -119,7 +127,6 @@ export async function POST(request: Request) {
       }
 
       const sourceAsset = sourceAssetData as StoredAssetRow;
-      businessId = sourceAsset.business_id;
       sourceSuggestionId = sourceAsset.suggestion_id || null;
       sourceStoredPayload = sourceAsset.payload;
 
@@ -128,6 +135,7 @@ export async function POST(request: Request) {
           .from('content_suggestions')
           .select('id, business_id, language, title, hook, caption, cta, best_time, shot_list, hashtags, evidence')
           .eq('id', sourceSuggestionId)
+          .eq('business_id', guardedBizId)
           .maybeSingle();
 
         if (suggestionData) {
@@ -136,27 +144,21 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!businessId) {
+    if (!payload.suggestionId && !payload.sourceAssetId) {
       return withResponseRequestId(NextResponse.json({ error: 'bad_request', message: 'Missing render source' }, { status: 400 }));
     }
 
-    if (workspaceBusinessId && workspaceBusinessId !== businessId) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Asset source does not belong to current workspace' }, { status: 403 }),
-      );
-    }
-
     // ── Bloc 8: Rate limit + AI daily quota ──
-    const rlKey = `${businessId}:${user.id}`;
+    const rlKey = `${guardedBizId}:${user.id}`;
     const rl = await rateLimitAI(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
-    const quota = await checkDailyAIQuota(businessId, 'free');
+    const quota = await checkDailyAIQuota(guardedBizId, 'free');
     if (!quota.ok) return withResponseRequestId(quota.res);
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, name, default_language')
-      .eq('id', businessId)
+      .eq('id', guardedBizId)
       .single();
 
     if (businessError || !businessData) {

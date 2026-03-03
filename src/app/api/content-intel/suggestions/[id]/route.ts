@@ -46,32 +46,51 @@ export async function PATCH(
     const [body, bodyErr] = await validateBody(request, ContentSuggestionPatchSchema);
     if (bodyErr) return withResponseRequestId(bodyErr);
 
-    const { data: suggestionData, error: suggestionError } = await supabase
-      .from('content_suggestions')
-      .select('id, business_id, status')
-      .eq('id', routeParams.id)
-      .single();
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    let access = await requireBizAccessPatternB(request, workspaceBizId, {
+      supabase,
+      user,
+      headerBizId: workspaceBizId || undefined,
+    });
 
-    if (suggestionError || !suggestionData) {
-      return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Suggestion not found' }, { status: 404 }));
+    // Fallback Pattern B when workspace biz_id is missing.
+    if (access instanceof NextResponse) {
+      const { data: suggestionData, error: suggestionError } = await supabase
+        .from('content_suggestions')
+        .select('id, business_id, status')
+        .eq('id', routeParams.id)
+        .maybeSingle();
+      if (suggestionError || !suggestionData) {
+        return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Suggestion not found' }, { status: 404 }));
+      }
+
+      const suggestion = suggestionData as SuggestionRow;
+      access = await requireBizAccessPatternB(request, suggestion.business_id, {
+        supabase,
+        user,
+        bodyBizId: suggestion.business_id,
+      });
+      if (access instanceof NextResponse) return withResponseRequestId(access);
     }
-
-    const suggestion = suggestionData as SuggestionRow;
-
-    // ── Patró B: cross-tenant → 404 (no filtrar existència) ──────────────
-    const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: suggestion.business_id });
-    if (bizGuard) return withResponseRequestId(bizGuard);
 
     const { data: updatedData, error: updateError } = await supabase
       .from('content_suggestions')
       .update({ status: body.status })
       .eq('id', routeParams.id)
+      .eq('business_id', access.bizId)
       .select('id, insight_id, business_id, language, type, title, hook, shot_list, caption, cta, best_time, hashtags, evidence, status, created_at')
       .single();
 
-    if (updateError || !updatedData) {
+    if (updateError) {
+      if (updateError.code === 'PGRST116') {
+        return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Suggestion not found' }, { status: 404 }));
+      }
       log.error('Failed to update content suggestion status', { error: updateError?.message || 'unknown' });
       return withResponseRequestId(NextResponse.json({ error: 'db_error', message: 'Failed to update suggestion' }, { status: 500 }));
+    }
+
+    if (!updatedData) {
+      return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Suggestion not found' }, { status: 404 }));
     }
 
     return withResponseRequestId(NextResponse.json({ suggestion: updatedData, request_id: requestId }));

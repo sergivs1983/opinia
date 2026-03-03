@@ -85,26 +85,20 @@ export const PUT = withRequestContext(async function(request: Request) {
   if (err) return err;
 
   const { id, ...updates } = body;
-
-  // ── Patró B: fetch biz_id from resource, then guard ──────────────────────
-  const { data: existing } = await supabase
-    .from('action_triggers')
-    .select('biz_id')
-    .eq('id', id)
-    .single();
-  if (!existing) return NextResponse.json({ error: 'not_found', message: 'Trigger no trobat' }, { status: 404 });
-
-  // Patró B: cross-tenant → 404 (no filtrar existència)
-  const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: existing.biz_id });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, null, { supabase, user });
+  if (access instanceof NextResponse) return access;
 
   const { data, error } = await supabase
     .from('action_triggers')
     .update(updates)
     .eq('id', id)
+    .eq('biz_id', access.bizId)
     .select()
     .single();
 
+  if (error?.code === 'PGRST116') {
+    return NextResponse.json({ error: 'not_found', message: 'Trigger no trobat' }, { status: 404 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ trigger: data });
 });
@@ -119,20 +113,18 @@ export const DELETE = withRequestContext(async function(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+  const access = await requireBizAccessPatternB(request, searchParams.get('biz_id'), { supabase, user });
+  if (access instanceof NextResponse) return access;
 
-  // ── Patró B: fetch biz_id from resource, then guard ──────────────────────
-  const { data: existing } = await supabase
+  const { data: deleted, error } = await supabase
     .from('action_triggers')
-    .select('biz_id')
+    .delete()
     .eq('id', id)
-    .single();
-  if (!existing) return NextResponse.json({ error: 'not_found', message: 'Trigger no trobat' }, { status: 404 });
+    .eq('biz_id', access.bizId)
+    .select('id')
+    .maybeSingle();
 
-  // Patró B: cross-tenant → 404 (no filtrar existència)
-  const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: existing.biz_id });
-  if (bizGuard) return bizGuard;
-
-  const { error } = await supabase.from('action_triggers').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!deleted) return NextResponse.json({ error: 'not_found', message: 'Trigger no trobat' }, { status: 404 });
   return NextResponse.json({ ok: true });
 });

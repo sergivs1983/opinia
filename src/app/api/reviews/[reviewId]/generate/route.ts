@@ -24,7 +24,7 @@ import {
 import { runPipeline } from '@/lib/pipeline';
 import type { PipelineInput } from '@/lib/pipeline';
 import type { LLMProvider } from '@/lib/llm/provider';
-import { requireBizAccess } from '@/lib/api-handler';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { rateLimitAI, checkDailyAIQuota } from '@/lib/security/ratelimit';
 
 export async function POST(
@@ -57,22 +57,50 @@ export async function POST(
       log = withRequestId(log, requestId);
     }
 
-    // ── Load review + business ──
-    const { data: review } = await supabase.from('reviews').select('*').eq('id', routeParams.reviewId).single();
-    if (!review) return withResponseRequestId(NextResponse.json({ error: 'Review not found' }, { status: 404 }));
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    let access = await requireBizAccessPatternB(request, workspaceBizId, {
+      supabase,
+      user,
+      headerBizId: workspaceBizId || undefined,
+    });
 
-    // ── Biz-level guard (defense-in-depth, layer 2 after RLS) ──
-    const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: review.biz_id });
-    if (bizGuard) return withResponseRequestId(bizGuard);
+    // Fallback Pattern B for clients not sending workspace biz_id.
+    // Lookup keeps 404 indistinguishable (inexistent vs cross-tenant).
+    if (access instanceof NextResponse) {
+      const { data: reviewBizRow } = await supabase
+        .from('reviews')
+        .select('biz_id')
+        .eq('id', routeParams.reviewId)
+        .maybeSingle();
+      const lookedUpBizId = typeof reviewBizRow?.biz_id === 'string' ? reviewBizRow.biz_id : null;
+      if (!lookedUpBizId) {
+        return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Recurs no trobat' }, { status: 404 }));
+      }
+      access = await requireBizAccessPatternB(request, lookedUpBizId, {
+        supabase,
+        user,
+        bodyBizId: lookedUpBizId,
+      });
+      if (access instanceof NextResponse) return withResponseRequestId(access);
+    }
 
-    const { data: biz } = await supabase.from('businesses').select('*').eq('id', review.biz_id).single();
+    // ── Load review + business scoped to guarded biz ──
+    const { data: review } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('id', routeParams.reviewId)
+      .eq('biz_id', access.bizId)
+      .single();
+    if (!review) return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Recurs no trobat' }, { status: 404 }));
+
+    const { data: biz } = await supabase.from('businesses').select('*').eq('id', access.bizId).single();
     if (!biz) return withResponseRequestId(NextResponse.json({ error: 'Business not found' }, { status: 404 }));
 
     // ── Bloc 8: Rate limit + AI daily quota ──
-    const rlKey = `${review.biz_id}:${user.id}`;
+    const rlKey = `${access.bizId}:${user.id}`;
     const rl = await rateLimitAI(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
-    const quota = await checkDailyAIQuota(review.biz_id, 'free');
+    const quota = await checkDailyAIQuota(access.bizId, 'free');
     if (!quota.ok) return withResponseRequestId(quota.res);
 
     const mismatches = [];

@@ -4,7 +4,6 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
 import {
   acquireLitoCopyJob,
   buildIdempotencyKey,
@@ -40,6 +39,7 @@ import { ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { trackEvent } from '@/lib/telemetry';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { validateBody } from '@/lib/validations';
 
 const GenerateBodySchema = z.object({
@@ -301,13 +301,17 @@ export async function POST(request: Request) {
     const payload = body as z.infer<typeof GenerateBodySchema>;
     const guardrailDevHooks = resolveGuardrailDevHooks(request);
 
-    const access = await getAcceptedBusinessMembershipContext({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-    const memberRole = toLitoMemberRole(access.role);
-    if (!access.allowed || !memberRole) {
+    if (access instanceof NextResponse) {
+      return withStandardHeaders(access, requestId);
+    }
+
+    const memberRole = toLitoMemberRole(access.membership.role);
+    if (!memberRole) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,

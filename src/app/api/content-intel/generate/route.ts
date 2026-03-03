@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { callLLMClient } from '@/lib/llm/client';
 import type { LLMProvider } from '@/lib/llm/provider';
-import { requireBizAccess } from '@/lib/api-handler';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { rateLimitAI, checkDailyAIQuota } from '@/lib/security/ratelimit';
 import {
   validateBody,
@@ -195,25 +195,28 @@ export async function POST(request: Request) {
 
     const payload = body as GenerateRequestBody;
 
+    const access = await requireBizAccessPatternB(request, payload.businessId, {
+      supabase,
+      user,
+      bodyBizId: payload.businessId,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
+
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, org_id, name, type, default_language, formality, ai_instructions, tone_keywords_positive, tone_keywords_negative, default_signature, city, llm_provider')
-      .eq('id', payload.businessId)
+      .eq('id', access.bizId)
       .single();
 
     if (businessError || !businessData) {
       return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Business not found' }, { status: 404 }));
     }
 
-    // ── Biz-level guard ──────────────────────────────────────────────────────
-    const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: payload.businessId });
-    if (bizGuard) return withResponseRequestId(bizGuard);
-
     // ── Bloc 8: Rate limit + AI daily quota ──
-    const rlKey = `${payload.businessId}:${user.id}`;
+    const rlKey = `${access.bizId}:${user.id}`;
     const rl = await rateLimitAI(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
-    const quota = await checkDailyAIQuota(payload.businessId, 'free');
+    const quota = await checkDailyAIQuota(access.bizId, 'free');
     if (!quota.ok) return withResponseRequestId(quota.res);
 
     const business = businessData as BusinessIntelRow;
@@ -249,7 +252,7 @@ export async function POST(request: Request) {
     let reviewQuery = supabase
       .from('reviews')
       .select('id, source, review_text, rating, review_date, created_at')
-      .eq('biz_id', payload.businessId)
+      .eq('biz_id', access.bizId)
       .gte('review_date', from)
       .lt('review_date', to)
       .order('review_date', { ascending: false })
@@ -271,7 +274,7 @@ export async function POST(request: Request) {
       let fallbackQuery = supabase
         .from('reviews')
         .select('id, source, review_text, rating, review_date, created_at')
-        .eq('biz_id', payload.businessId)
+        .eq('biz_id', access.bizId)
         .gte('created_at', from)
         .lt('created_at', to)
         .order('created_at', { ascending: false })
@@ -297,7 +300,7 @@ export async function POST(request: Request) {
     const { data: kbData } = await supabase
       .from('knowledge_base_entries')
       .select('category, content')
-      .eq('biz_id', payload.businessId)
+      .eq('biz_id', access.bizId)
       .limit(12);
 
     const kbFacts = (kbData || [])

@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody, DLQActionSchema } from '@/lib/validations';
-import { requireBizAccess, requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
+import { requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
 import { parseLimitParam } from '@/lib/security/query-limits';
 
 /**
@@ -21,40 +21,25 @@ export const GET = withRequestContext(async function(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') || 'queued';
-  const bizId = searchParams.get('biz_id');
+  const queryBizId = searchParams.get('biz_id');
   const limitResult = parseLimitParam(searchParams, 'limit', 50);
   if (!limitResult.ok) return limitResult.error;
   const { limit } = limitResult;
+
+  const access = await requireBizAccessPatternB(request, queryBizId, {
+    supabase,
+    user,
+    queryBizId,
+  });
+  if (access instanceof NextResponse) return access;
 
   let query = supabase
     .from('failed_jobs')
     .select('id, org_id, biz_id, job_type, error_code, error_message, provider, model, attempt_count, max_attempts, next_retry_at, status, created_at, updated_at')
     .eq('status', status)
+    .eq('biz_id', access.bizId)
     .order('created_at', { ascending: false })
     .limit(limit);
-
-  if (bizId) {
-    // ── Biz-level guard (si biz_id present) ───────────────────────────────
-    const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId });
-    if (bizGuard) return bizGuard;
-    query = query.eq('biz_id', bizId);
-  } else {
-    // ── Sense biz_id: filtre org explícit (defense-in-depth vs RLS laxa) ─
-    // No confiem únicament en la RLS de failed_jobs per aïllar tenants.
-    // Obtenim les orgs de l'usuari i filtrem explícitament.
-    const { data: memberships } = await supabase
-      .from('memberships')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .not('accepted_at', 'is', null);
-
-    const orgIds = (memberships || []).map((m: { org_id: string }) => m.org_id);
-    if (orgIds.length === 0) {
-      // Usuari sense cap org acceptada: retornem buit sense tocar la DB.
-      return NextResponse.json([]);
-    }
-    query = query.in('org_id', orgIds);
-  }
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -82,6 +67,13 @@ export const POST = withRequestContext(async function(request: Request) {
 
   const { action } = body;
   const admin = createAdminClient();
+  const queryBizId = new URL(request.url).searchParams.get('biz_id');
+  const access = await requireBizAccessPatternB(request, queryBizId, {
+    supabase,
+    user,
+    queryBizId,
+  });
+  if (access instanceof NextResponse) return access;
 
   // ── RETRY SINGLE ──────────────────────────────────────────
   if (action === 'retry') {
@@ -89,18 +81,13 @@ export const POST = withRequestContext(async function(request: Request) {
       .from('failed_jobs')
       .select('*')
       .eq('id', body.failed_job_id)
-      .single();
+      .eq('biz_id', access.bizId)
+      .maybeSingle();
 
     if (!job) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    // ── Patró B: job d'un altre tenant → 404 (no filtrar existència) ────
-    if (job.biz_id) {
-      const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: job.biz_id });
-      if (bizGuard) return bizGuard;
-    }
-
     if (job.attempt_count >= job.max_attempts) {
-      await admin.from('failed_jobs').update({ status: 'failed' }).eq('id', job.id);
+      await admin.from('failed_jobs').update({ status: 'failed' }).eq('id', job.id).eq('biz_id', access.bizId);
       log.warn('DLQ job max attempts reached', { job_id: job.id, attempts: job.attempt_count });
       return NextResponse.json(
         { error: 'max_attempts_reached', message: `Job exceeded ${job.max_attempts} retry attempts` },
@@ -116,7 +103,7 @@ export const POST = withRequestContext(async function(request: Request) {
       status: 'retrying',
       attempt_count: newAttempt,
       next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
-    }).eq('id', job.id);
+    }).eq('id', job.id).eq('biz_id', access.bizId);
 
     const { error: retryAuditError } = await admin.from('activity_log').insert({
       org_id: job.org_id,
@@ -139,20 +126,11 @@ export const POST = withRequestContext(async function(request: Request) {
   if (action === 'retry_batch') {
     const batchLimit = Math.min(body.limit || 10, 50);
 
-    // ── Defense-in-depth: filtre org explícit (no confiar únicament en RLS) ─
-    const { data: batchMems } = await supabase
-      .from('memberships')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .not('accepted_at', 'is', null);
-    const batchOrgIds = (batchMems || []).map((m: { org_id: string }) => m.org_id);
-    if (batchOrgIds.length === 0) return NextResponse.json({ retried: 0 });
-
     const { data: jobs } = await supabase
       .from('failed_jobs')
       .select('id, attempt_count, max_attempts')
       .eq('status', 'queued')
-      .in('org_id', batchOrgIds)
+      .eq('biz_id', access.bizId)
       .order('created_at', { ascending: true })
       .limit(batchLimit);
 
@@ -165,7 +143,7 @@ export const POST = withRequestContext(async function(request: Request) {
     await admin.from('failed_jobs').update({
       status: 'retrying',
       next_retry_at: new Date(Date.now() + 60_000).toISOString(),
-    }).in('id', ids);
+    }).eq('biz_id', access.bizId).in('id', ids);
 
     log.info('DLQ batch retry', { count: ids.length });
     return NextResponse.json({ retried: ids.length, job_ids: ids });
@@ -173,22 +151,16 @@ export const POST = withRequestContext(async function(request: Request) {
 
   // ── RESOLVE ───────────────────────────────────────────────
   if (action === 'resolve') {
-    // Read first (via user supabase for RLS check)
     const { data: job } = await supabase
       .from('failed_jobs')
       .select('org_id, biz_id, job_type, status')
       .eq('id', body.failed_job_id)
+      .eq('biz_id', access.bizId)
       .maybeSingle();
 
     if (!job) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    // ── Patró B: job d'un altre tenant → 404 (no filtrar existència) ────
-    if (job.biz_id) {
-      const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: job.biz_id });
-      if (bizGuard) return bizGuard;
-    }
-
-    await admin.from('failed_jobs').update({ status: 'resolved' }).eq('id', body.failed_job_id);
+    await admin.from('failed_jobs').update({ status: 'resolved' }).eq('id', body.failed_job_id).eq('biz_id', access.bizId);
 
     const { error: resolveAuditError } = await admin.from('activity_log').insert({
       org_id: job.org_id,

@@ -11,7 +11,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { getAcceptedBusinessMembershipContext, hasAcceptedBusinessMembership } from '@/lib/authz';
 
 export interface ApiContext {
   user: { id: string; email?: string } | null;
@@ -29,6 +29,27 @@ interface HandlerOptions {
 }
 
 type HandlerFn<P = unknown> = (request: Request, ctx: ApiContext, params?: P) => Promise<NextResponse>;
+
+type PatternBRequestUser = { id: string; email?: string } | null;
+
+export type PatternBAccessContext = {
+  supabase: SupabaseClient;
+  user: { id: string; email?: string };
+  bizId: string;
+  membership: {
+    orgId: string;
+    role: string | null;
+    normalizedRole: string | null;
+  };
+};
+
+type PatternBRequestOptions = {
+  supabase?: SupabaseClient;
+  user?: PatternBRequestUser;
+  bodyBizId?: string | null | undefined;
+  queryBizId?: string | null | undefined;
+  headerBizId?: string | null | undefined;
+};
 
 // ============================================================
 // IN-MEMORY RATE LIMITER (per-user, per-route)
@@ -131,6 +152,42 @@ export async function requireBizAccess({
   return null;
 }
 
+function patternBNotFoundResponse(): NextResponse {
+  return NextResponse.json(
+    { error: 'not_found', code: 'RESOURCE_NOT_FOUND', message: 'Recurs no trobat' },
+    { status: 404 },
+  );
+}
+
+function resolvePatternBSources(
+  request: Request,
+  explicitBizId: string | null | undefined,
+  options: PatternBRequestOptions,
+): Array<string | null | undefined> {
+  const url = new URL(request.url);
+  const queryBizId = options.queryBizId
+    ?? url.searchParams.get('biz_id')
+    ?? url.searchParams.get('business_id')
+    ?? url.searchParams.get('bizId')
+    ?? url.searchParams.get('businessId');
+  const headerBizId = options.headerBizId
+    ?? request.headers.get('x-biz-id')
+    ?? request.headers.get('x-business-id');
+  return [explicitBizId, options.bodyBizId, queryBizId, headerBizId];
+}
+
+async function requireBizAccessPatternBArgs(
+  args: Parameters<typeof requireBizAccess>[0],
+): Promise<NextResponse | null> {
+  const result = await requireBizAccess(args);
+  if (result !== null && result.status === 403) {
+    // 403 BIZ_FORBIDDEN → 404: cross-tenant resource ≡ non-existent resource.
+    // No revelem que el recurs existeix en un altre tenant.
+    return patternBNotFoundResponse();
+  }
+  return result;
+}
+
 /**
  * requireBizAccessPatternB — Variant per a endpoints Patró B.
  *
@@ -156,17 +213,63 @@ export async function requireBizAccess({
  */
 export async function requireBizAccessPatternB(
   args: Parameters<typeof requireBizAccess>[0],
-): Promise<NextResponse | null> {
-  const result = await requireBizAccess(args);
-  if (result !== null && result.status === 403) {
-    // 403 BIZ_FORBIDDEN → 404: cross-tenant resource ≡ non-existent resource.
-    // No revelem que el recurs existeix en un altre tenant.
-    return NextResponse.json(
-      { error: 'not_found', code: 'RESOURCE_NOT_FOUND', message: 'Recurs no trobat' },
-      { status: 404 },
-    );
+): Promise<NextResponse | null>;
+export async function requireBizAccessPatternB(
+  request: Request,
+  bizId: string | null | undefined,
+  options?: PatternBRequestOptions,
+): Promise<PatternBAccessContext | NextResponse>;
+export async function requireBizAccessPatternB(
+  arg1: Parameters<typeof requireBizAccess>[0] | Request,
+  arg2?: string | null | undefined,
+  arg3: PatternBRequestOptions = {},
+): Promise<PatternBAccessContext | NextResponse | null> {
+  if (!(arg1 instanceof Request)) {
+    return requireBizAccessPatternBArgs(arg1);
   }
-  return result;
+
+  const request = arg1;
+  const options = arg3;
+  const supabase = options.supabase ?? createServerSupabaseClient();
+
+  let user = options.user ?? null;
+  if (!user) {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      return NextResponse.json(
+        { error: 'unauthorized', message: 'Auth required' },
+        { status: 401 },
+      );
+    }
+    user = { id: authUser.id, email: authUser.email ?? undefined };
+  }
+
+  const sourceCheck = assertSingleBizId(resolvePatternBSources(request, arg2, options));
+  if (sourceCheck.error) return patternBNotFoundResponse();
+
+  const normalizedBizId = parseBizId(sourceCheck.bizId);
+  if (!normalizedBizId) return patternBNotFoundResponse();
+
+  const membership = await getAcceptedBusinessMembershipContext({
+    supabase,
+    userId: user.id,
+    businessId: normalizedBizId,
+  });
+
+  if (!membership.allowed || !membership.orgId) {
+    return patternBNotFoundResponse();
+  }
+
+  return {
+    supabase,
+    user,
+    bizId: normalizedBizId,
+    membership: {
+      orgId: membership.orgId,
+      role: membership.role,
+      normalizedRole: membership.normalizedRole,
+    },
+  };
 }
 
 /**

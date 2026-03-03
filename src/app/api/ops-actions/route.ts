@@ -85,18 +85,8 @@ export const PATCH = withRequestContext(async function(request: Request) {
   if (err) return err;
 
   const { id, ...updates } = body;
-
-  // ── Patró B: fetch biz_id from resource, then guard ──────────────────────
-  const { data: existing } = await supabase
-    .from('ops_actions')
-    .select('biz_id')
-    .eq('id', id)
-    .single();
-  if (!existing) return NextResponse.json({ error: 'not_found', message: 'Acció no trobada' }, { status: 404 });
-
-  // Patró B: cross-tenant → 404 (no filtrar existència)
-  const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: existing.biz_id });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, null, { supabase, user });
+  if (access instanceof NextResponse) return access;
 
   const payload: Record<string, unknown> = { ...updates };
   if (updates.status === 'done') payload.done_at = new Date().toISOString();
@@ -105,9 +95,13 @@ export const PATCH = withRequestContext(async function(request: Request) {
     .from('ops_actions')
     .update(payload)
     .eq('id', id)
+    .eq('biz_id', access.bizId)
     .select()
     .single();
 
+  if (error?.code === 'PGRST116') {
+    return NextResponse.json({ error: 'not_found', message: 'Acció no trobada' }, { status: 404 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 });
@@ -122,20 +116,18 @@ export const DELETE = withRequestContext(async function(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+  const access = await requireBizAccessPatternB(request, searchParams.get('biz_id'), { supabase, user });
+  if (access instanceof NextResponse) return access;
 
-  // ── Patró B: fetch biz_id from resource, then guard ──────────────────────
-  const { data: existing } = await supabase
+  const { data: deleted, error } = await supabase
     .from('ops_actions')
-    .select('biz_id')
+    .delete()
     .eq('id', id)
-    .single();
-  if (!existing) return NextResponse.json({ error: 'not_found', message: 'Acció no trobada' }, { status: 404 });
+    .eq('biz_id', access.bizId)
+    .select('id')
+    .maybeSingle();
 
-  // Patró B: cross-tenant → 404 (no filtrar existència)
-  const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: existing.biz_id });
-  if (bizGuard) return bizGuard;
-
-  const { error } = await supabase.from('ops_actions').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!deleted) return NextResponse.json({ error: 'not_found', message: 'Acció no trobada' }, { status: 404 });
   return NextResponse.json({ success: true });
 });
