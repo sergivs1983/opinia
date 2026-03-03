@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 
@@ -27,14 +29,31 @@ export async function GET(
   { params }: { params: { slug: string } }
 ) {
   const requestId = crypto.randomUUID();
-  const admin = createAdminClient();
+  const supabase = createServerSupabaseClient();
   const { slug } = params;
 
-  // Find link
+  const gate = await requireResourceAccessPatternB(
+    request,
+    slug,
+    ResourceTable.GrowthLinks,
+    { supabase },
+  );
+
+  if (gate instanceof NextResponse) {
+    const fallback = NextResponse.redirect(new URL('/', request.url));
+    fallback.headers.set('Cache-Control', 'no-store');
+    fallback.headers.set('x-request-id', requestId);
+    return fallback;
+  }
+
+  const admin = createAdminClient();
+
+  // Find link (scoped by Pattern B gate)
   const { data: link } = await admin
     .from('growth_links')
     .select('id, org_id, biz_id, target_url, is_active, scan_count')
     .eq('slug', slug)
+    .eq('biz_id', gate.bizId)
     .maybeSingle();
 
   // Reject if not found, inactive, or target_url is not a safe absolute URL

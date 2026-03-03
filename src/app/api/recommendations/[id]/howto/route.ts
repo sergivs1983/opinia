@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createRequestId } from '@/lib/logger';
 import { parseTemplateFromGeneratedCopy, ensureTemplateOrFallback } from '@/lib/recommendations/d0';
 import { buildHowToGuide, type RecommendationVertical } from '@/lib/recommendations/howto';
@@ -67,11 +67,22 @@ export async function GET(
     const [routeParams, paramsError] = validateParams(params, HowToParamsSchema);
     if (paramsError) return withHeaders(paramsError);
 
+    const gate = await requireResourceAccessPatternB(
+      request,
+      routeParams.id,
+      ResourceTable.RecommendationLog,
+      { supabase, user },
+    );
+    if (gate instanceof NextResponse) {
+      return withHeaders(gate);
+    }
+
     const { data: recommendationData, error: recommendationError } = await supabase
       .from('recommendation_log')
       .select('id, biz_id, rule_id, generated_copy')
       .eq('id', routeParams.id)
-      .single();
+      .eq('biz_id', gate.bizId)
+      .maybeSingle();
 
     if (recommendationError || !recommendationData) {
       return withHeaders(
@@ -80,17 +91,6 @@ export async function GET(
     }
 
     const recommendation = recommendationData as RecommendationLogRow;
-    const access = await hasAcceptedBusinessMembership({
-      supabase,
-      userId: user.id,
-      businessId: recommendation.biz_id,
-    });
-
-    if (!access.allowed) {
-      return withHeaders(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-      );
-    }
 
     const { data: ruleData, error: ruleError } = await supabase
       .from('playbook_rules')

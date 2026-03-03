@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateParams,
@@ -36,33 +37,26 @@ export async function GET(
     const [routeParams, paramsErr] = validateParams(params, ExportParamsSchema);
     if (paramsErr) return withResponseRequestId(paramsErr);
 
+    const access = await requireResourceAccessPatternB(
+      request,
+      routeParams.id,
+      ResourceTable.Exports,
+      { supabase, user },
+    );
+    if (access instanceof NextResponse) return withResponseRequestId(access);
+
     const { data: exportData, error: exportError } = await supabase
       .from('exports')
       .select('id, business_id, storage_bucket, storage_path, status')
       .eq('id', routeParams.id)
-      .single();
+      .eq('business_id', access.bizId)
+      .maybeSingle();
 
     if (exportError || !exportData) {
       return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Export not found', request_id: requestId }, { status: 404 }));
     }
 
     const exportRow = exportData as ExportSignedRow;
-    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
-    if (workspaceBusinessId && workspaceBusinessId !== exportRow.business_id) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Export does not belong to current workspace', request_id: requestId }, { status: 403 }),
-      );
-    }
-
-    const { data: businessAccess, error: businessAccessError } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', exportRow.business_id)
-      .single();
-
-    if (businessAccessError || !businessAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }));
-    }
 
     const objectPath = exportStoragePathToObjectPath(exportRow.storage_path, exportRow.storage_bucket);
     const { data: signedData, error: signedError } = await supabase.storage

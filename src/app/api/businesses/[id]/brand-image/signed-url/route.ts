@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateParams,
@@ -15,10 +16,6 @@ type BusinessBrandImageSignedRow = Pick<
   Business,
   'id' | 'org_id' | 'brand_image_bucket' | 'brand_image_path' | 'brand_image_kind'
 >;
-
-type MembershipAccessRow = {
-  id: string;
-};
 
 function getSupabaseErrorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object') return null;
@@ -73,10 +70,20 @@ export async function GET(
       );
     }
 
+    const access = await requireResourceAccessPatternB(
+      request,
+      businessId,
+      ResourceTable.Businesses,
+      { supabase, user },
+    );
+    if (access instanceof NextResponse) {
+      return withResponseRequestId(access);
+    }
+
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, org_id, brand_image_bucket, brand_image_path, brand_image_kind')
-      .eq('id', businessId)
+      .eq('id', access.bizId)
       .maybeSingle();
 
     if (businessError) {
@@ -132,46 +139,6 @@ export async function GET(
     }
 
     const business = businessData as BusinessBrandImageSignedRow;
-
-    const { data: membershipData, error: membershipError } = await supabase
-      .from('memberships')
-      .select('id')
-      .eq('org_id', business.org_id)
-      .eq('user_id', user.id)
-      .not('accepted_at', 'is', null)
-      .limit(1)
-      .maybeSingle();
-
-    if (membershipError) {
-      const code = getSupabaseErrorCode(membershipError);
-      console.error('[brand-image-signed-url] membership check failed', {
-        businessId,
-        hasUserId: true,
-        userId: user.id,
-        supabaseErrorCode: code,
-      });
-      log.error('Failed to validate business membership for brand image signed URL', {
-        business_id: business.id,
-        user_id: user.id,
-        error: membershipError.message,
-      });
-      return withResponseRequestId(
-        NextResponse.json({ error: 'internal', request_id: requestId }, { status: 500 }),
-      );
-    }
-
-    const membership = membershipData as MembershipAccessRow | null;
-    if (!membership) {
-      console.error('[brand-image-signed-url] forbidden membership', {
-        businessId,
-        hasUserId: true,
-        userId: user.id,
-      });
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', request_id: requestId }, { status: 403 }),
-      );
-    }
-
     if (!business.brand_image_path) {
       console.error('[brand-image-signed-url] image not found in business row', {
         businessId,

@@ -6,19 +6,20 @@ Data d'auditoria: 2026-03-03.
 
 - Scope escanejat: **168** endpoints a `src/app/api/**/route.ts`.
 - Endpoints amb accés DB/RPC (tractats com a tenant-data candidats): **126**.
-- Amb gate estàndard o wrapper equivalent (`requireBizAccess*` / `requireImplicitBizAccessPatternB`): **87**.
-- **ENDPOINTS SENSE GATE** (gate abans de la 1a query = NO): **39**.
-- Gate **abans de la 1a query DB/RPC** (criteri estricte d'aquesta auditoria): **87 SI** / **39 NO**.
+- Amb gate estàndard o wrapper equivalent (`requireBizAccess*` / `requireImplicitBizAccessPatternB`): **93**.
+- **ENDPOINTS SENSE GATE** (gate abans de la 1a query = NO): **33**.
+- Gate **abans de la 1a query DB/RPC** (criteri estricte d'aquesta auditoria): **93 SI** / **33 NO**.
 - Risc agregat: **1 Critical**, **96 High**, **29 Medium**.
 - **Wave 1 (aquest commit): 10/10 rutes prioritàries FIXED**.
-- **Pendents Onada 2**: **29 rutes** (8 USER_FACING_TENANT + 17 INTERNAL + 4 PUBLIC_NON_TENANT).
+- **Pendents Onada 2**: **23 rutes** (2 USER_FACING_TENANT + 17 INTERNAL + 4 PUBLIC_NON_TENANT).
 - Pendents Onada 2 classificades: **SI (116/116)**.
 - **Wave2 Lot1 Batch2**: **12 rutes WRITES FIXED** (`admin/billing/integrations/webhooks/onboarding`).
 - **Wave2 Lot1 Batch3**: **16 rutes WRITES FIXED** (`audit/business-memory/lito/memory/planner/social`).
 - **Wave2 Lot1 Batch4 (final)**: **17 rutes WRITES FIXED** (`businesses/competitors/content-studio/exports/growth-links/integrations/lito-action-drafts/metrics/orgs/push/team/workspace`).
 - **Wave2 Lot2 Batch1b**: **14 rutes GET A* FIXED** (context implícit de biz + Pattern B 404; `auth/google/callback` queda especial).
+- **Wave2 Lot2 Batch2**: **6 rutes GET Tipus B FIXED** (`brand-image signed-url`, `content assets signed-url`, `exports signed-url`, `g/[slug]`, `publish-jobs/[jobId]`, `recommendations/[id]/howto`).
 - **WRITES USER_FACING_TENANT pendents (estat actual)**: **0 rutes**.
-- **GET USER_FACING_TENANT pendents (estat actual)**: **8 rutes**.
+- **GET USER_FACING_TENANT pendents (estat actual)**: **2 rutes**.
 
 > Nota: aquest informe separa "gate estàndard" (`requireBizAccess*`) de controls alternatius (membership/HMAC/cron helpers).
 
@@ -83,10 +84,10 @@ Comptadors de classificació:
 | /api/billing/trial | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1b READS A* + RBAC) |
 | /api/business-memory | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B3 WRITES) |
 | /api/businesses/[id]/brand-image | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
-| /api/businesses/[id]/brand-image/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/businesses/[id]/brand-image/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/competitors | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
 | /api/content-studio/assets | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
-| /api/content-studio/assets/[id]/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/content-studio/assets/[id]/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/content-studio/x-generate | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
 | /api/cron/audit-cleanup | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
 | /api/cron/audit-probe | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
@@ -97,9 +98,9 @@ Comptadors de classificació:
 | /api/demo-seed | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (PRE-WAVE2) |
 | /api/enterprise/overview | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS explicit, LOT2-B1b READS A*) |
 | /api/exports | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
-| /api/exports/[id]/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/exports/[id]/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/exports/weekly | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
-| /api/g/[slug] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/g/[slug] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/growth-links | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
 | /api/health | PUBLIC_NON_TENANT | Healthcheck públic; només comprova disponibilitat de DB, sense dades tenant. | CLASSIFIED |
 | /api/insights/ops | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
@@ -148,12 +149,12 @@ Comptadors de classificació:
 | /api/planner | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B3 WRITES) |
 | /api/planner/[id] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
 | /api/planner/[id]/send | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
-| /api/publish-jobs/[jobId] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/publish-jobs/[jobId] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/push/status | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/push/subscribe | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
 | /api/push/unsubscribe | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
 | /api/recommendations/[id]/feedback | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
-| /api/recommendations/[id]/howto | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/recommendations/[id]/howto | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/recommendations/weekly | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/replies/[replyId]/approve | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
 | /api/replies/[replyId]/publish | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
@@ -206,12 +207,12 @@ Comptadors de classificació:
 | /api/billing/trial | GET | biz/resource:SI | SI | High | FIXED LOT2-B1b: gate Pattern B implícit abans de DB + RBAC owner/manager amb 404. |
 | /api/business-memory | GET,PUT,PATCH | q:biz_id \| b:bizId,userId \| biz/resource:SI | SI | High | FIXED LOT1-B3: gate `requireBizAccessPatternB` + RBAC per `access.role` en GET/PUT/PATCH. |
 | /api/businesses/[id]/brand-image | POST | p:id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT1-B4: `requireBizAccessPatternB` abans de la 1a query + persistència scoped per `access.bizId`. |
-| /api/businesses/[id]/brand-image/signed-url | GET | p:id \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
+| /api/businesses/[id]/brand-image/signed-url | GET | p:id \| biz/resource:SI | SI | High | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.Businesses)` abans de DB i query scoped per `access.bizId`. |
 | /api/competitors | GET,POST,DELETE | q:biz_id,id \| b:biz_id,org_id,place_id,review_count \| biz/resource:SI | SI | High | FIXED LOT1-B4: gate `requireBizAccessPatternB` abans de DB; DELETE sense lookup previ i scoped per `biz_id`. |
 | /api/content-intel/generate | POST | b:businessId,maxReviews \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/content-intel/suggestions/[id] | PATCH | p:id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/content-studio/assets | GET | h:x-biz-id \| b:businessId,templateId \| biz/resource:SI | SI | High | FIXED LOT2-B1a: gate `requireBizAccessPatternB` abans de `content_assets` i llista scoped per `access.bizId`. |
-| /api/content-studio/assets/[id]/signed-url | GET | p:id \| h:x-biz-id \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
+| /api/content-studio/assets/[id]/signed-url | GET | p:id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.ContentAssets)` abans de DB i lookup scoped per `access.bizId`. |
 | /api/content-studio/render | POST | h:x-biz-id \| b:suggestionId,sourceAssetId,templateId \| biz/resource:SI | NO | Critical | Usa admin/service-role sense `requireBizAccess*`. |
 | /api/content-studio/x-generate | POST | h:x-biz-id \| b:suggestionId \| biz/resource:SI | SI | High | FIXED LOT1-B4: gate `requireBizAccessPatternB` abans del lookup de `content_suggestions` + query scoped. |
 | /api/cron/audit-cleanup | POST | h:authorization \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
@@ -224,9 +225,9 @@ Comptadors de classificació:
 | /api/dlq | GET,POST | q:status,biz_id \| b:failed_job_id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/enterprise/overview | GET | q:biz_id,range,channel \| b:total_reviews,neg_reviews,biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a/B1b: gate Pattern B (explícit+implícit) abans de DB; context de biz resolt de forma única amb 404 indistingible. |
 | /api/exports | GET | h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: gate `requireBizAccessPatternB` abans de DB i query scoped per `access.bizId`. |
-| /api/exports/[id]/signed-url | GET | p:id \| h:x-biz-id \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
+| /api/exports/[id]/signed-url | GET | p:id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.Exports)` abans de DB i lookup scoped per `access.bizId`. |
 | /api/exports/weekly | POST | h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT1-B4: gate `requireBizAccessPatternB` ja aplicat abans de la 1a query DB. |
-| /api/g/[slug] | GET | p:slug \| biz/resource:SI | NO | Medium | Usa admin/service-role sense `requireBizAccess*`. |
+| /api/g/[slug] | GET | p:slug \| biz/resource:SI | SI | Medium | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.GrowthLinks)` abans de DB; lookup de `growth_links` scoped per `gate.bizId`. |
 | /api/growth-links | GET,POST,DELETE | q:biz_id,id \| b:biz_id,org_id \| biz/resource:SI | SI | High | FIXED LOT1-B4: migrat a `requireBizAccessPatternB`; DELETE sense lookup manual previ de recurs. |
 | /api/health | GET | biz/resource:NO | NO | Medium | Sense gate estàndard; depèn de RLS/lògica manual. |
 | /api/insights/ops | GET | q:biz_id,range \| biz/resource:SI | SI | Medium | `requireBizAccess*` abans de la query principal. |
@@ -279,12 +280,12 @@ Comptadors de classificació:
 | /api/planner | GET,POST | h:x-biz-id \| b:businessId,suggestionId,assetId,textPostId \| biz/resource:SI | SI | High | FIXED LOT1-B3: gate `requireBizAccessPatternB` + RBAC per `access.role` (404 Pattern B en mismatch). |
 | /api/planner/[id] | PATCH | p:id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB, scoped per `gate.bizId`. |
 | /api/planner/[id]/send | POST | p:id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB, scoped per `gate.bizId`. |
-| /api/publish-jobs/[jobId] | GET | p:jobId \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
+| /api/publish-jobs/[jobId] | GET | p:jobId \| biz/resource:SI | SI | High | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.PublishJobs)` abans de DB; query scoped per `gate.bizId`. |
 | /api/push/status | GET | q:biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: `requirePushBizAccess` consolidat amb `requireBizAccessPatternB`; query scoped per `access.bizId`. |
 | /api/push/subscribe | POST | b:biz_id \| biz/resource:SI | SI | High | FIXED LOT1-B4: `requirePushBizAccess` consolidat sobre `requireBizAccessPatternB` sense lookup extra de membresia. |
 | /api/push/unsubscribe | POST | b:biz_id \| biz/resource:SI | SI | High | FIXED LOT1-B4: `requirePushBizAccess` consolidat sobre `requireBizAccessPatternB` sense lookup extra de membresia. |
 | /api/recommendations/[id]/feedback | POST | p:id \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB + scoped per `gate.bizId`. |
-| /api/recommendations/[id]/howto | GET | p:id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
+| /api/recommendations/[id]/howto | GET | p:id \| biz/resource:SI | SI | High | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.RecommendationLog)` abans de DB; query scoped per `gate.bizId`. |
 | /api/recommendations/weekly | GET | b:biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: gate estàndard + RBAC amb `gate.role`; lookup de negoci scoped per `gate.bizId`. |
 | /api/replies/[replyId]/approve | POST | p:replyId \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB + scoped per `gate.bizId`. |
 | /api/replies/[replyId]/publish | POST | p:replyId \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB + scoped per `gate.bizId`. |
@@ -327,10 +328,8 @@ Comptadors de classificació:
 - /api/_internal/social/reminders/run
 - /api/_internal/voice/purge
 - /api/auth/google/callback
-- /api/businesses/[id]/brand-image/signed-url
 - /api/content-intel/generate
 - /api/content-intel/suggestions/[id]
-- /api/content-studio/assets/[id]/signed-url
 - /api/content-studio/render
 - /api/cron/audit-cleanup
 - /api/cron/audit-probe
@@ -339,8 +338,6 @@ Comptadors de classificació:
 - /api/cron/worker/google/publish
 - /api/demo-generate
 - /api/dlq
-- /api/exports/[id]/signed-url
-- /api/g/[slug]
 - /api/health
 - /api/jobs
 - /api/kb
@@ -348,8 +345,6 @@ Comptadors de classificació:
 - /api/lito/copy/refine
 - /api/locale
 - /api/ops-actions
-- /api/publish-jobs/[jobId]
-- /api/recommendations/[id]/howto
 - /api/review-audit
 - /api/social/notifications
 - /api/stripe/webhook
@@ -359,4 +354,4 @@ Comptadors de classificació:
 
 - `rg` sobre `src/app/api/**` per trobar `supabase.from(`, `supabase.rpc(`, `createAdminClient/getAdminClient`, `requireBizAccess*`, i checks de membership/HMAC/cron.
 - Classificació de risc per heurística (tipus de client DB, tipus de guard, natura interna/cron/webhook), amb ajust manual en rutes conegudes.
-- El camp “Gate abans 1a query” segueix criteri estricte de l'objectiu: compta `requireBizAccess*` i el wrapper equivalent `requireImplicitBizAccessPatternB`; no compta altres guards alternatius.
+- El camp “Gate abans 1a query” segueix criteri estricte de l'objectiu: compta `requireBizAccess*` i els wrappers equivalents `requireImplicitBizAccessPatternB` / `requireResourceAccessPatternB`; no compta altres guards alternatius.

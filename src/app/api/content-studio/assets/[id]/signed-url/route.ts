@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateParams,
@@ -37,34 +38,26 @@ export async function GET(
     const [routeParams, paramsErr] = validateParams(params, ContentStudioAssetParamsSchema);
     if (paramsErr) return withResponseRequestId(paramsErr);
 
+    const access = await requireResourceAccessPatternB(
+      request,
+      routeParams.id,
+      ResourceTable.ContentAssets,
+      { supabase, user },
+    );
+    if (access instanceof NextResponse) return withResponseRequestId(access);
+
     const { data: assetData, error: assetError } = await supabase
       .from('content_assets')
       .select('id, business_id, storage_bucket, storage_path, status')
       .eq('id', routeParams.id)
-      .single();
+      .eq('business_id', access.bizId)
+      .maybeSingle();
 
     if (assetError || !assetData) {
       return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Asset not found' }, { status: 404 }));
     }
 
     const asset = assetData as AssetSignedRow;
-    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
-
-    if (workspaceBusinessId && workspaceBusinessId !== asset.business_id) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Asset does not belong to current workspace' }, { status: 403 }),
-      );
-    }
-
-    const { data: businessAccess, error: businessAccessError } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', asset.business_id)
-      .single();
-
-    if (businessAccessError || !businessAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business' }, { status: 403 }));
-    }
 
     const objectPath = storagePathToObjectPath(asset.storage_path, asset.storage_bucket);
     const { data: signedData, error: signedError } = await supabase.storage

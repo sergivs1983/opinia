@@ -16,7 +16,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 
@@ -47,7 +47,18 @@ export async function GET(
     return json({ error: 'unauthorized', message: 'Auth required' }, { status: 401 });
   }
 
-  // ── Fetch job (RLS limits to user's own biz_ids via user_biz_ids()) ───────
+  const gate = await requireResourceAccessPatternB(
+    request,
+    params.jobId,
+    ResourceTable.PublishJobs,
+    { supabase, user },
+  );
+  if (gate instanceof NextResponse) {
+    log.warn('Access denied (Pattern B 404)', { job_id: params.jobId });
+    return json({ error: 'not_found', message: 'Not found' }, { status: 404 });
+  }
+
+  // ── Fetch job scoped by Pattern B gate ────────────────────────────────────
   const { data: job } = await supabase
     .from('publish_jobs')
     .select(`
@@ -67,22 +78,11 @@ export async function GET(
       updated_at
     `)
     .eq('id', params.jobId)
+    .eq('biz_id', gate.bizId)
     .maybeSingle();
 
   if (!job) {
     log.warn('Publish job not found (Pattern B 404)', { job_id: params.jobId });
-    return json({ error: 'not_found', message: 'Not found' }, { status: 404 });
-  }
-
-  // ── Pattern B 404: re-verify membership (defence-in-depth) ───────────────
-  const { allowed } = await hasAcceptedBusinessMembership({
-    supabase,
-    userId: user.id,
-    businessId: job.biz_id,
-  });
-
-  if (!allowed) {
-    log.warn('Access denied (Pattern B 404)', { job_id: params.jobId });
     return json({ error: 'not_found', message: 'Not found' }, { status: 404 });
   }
 

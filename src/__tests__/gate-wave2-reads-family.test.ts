@@ -130,6 +130,54 @@ function run() {
   includes('integrations/google/businesses GET: uses implicit biz gate helper', integrationsGoogleBusinesses, 'requireImplicitBizAccessPatternB(request');
   includes('integrations/google/businesses GET: missing context returns 404', integrationsGoogleBusinesses, "{ status: 404 },");
 
+  const brandImageSignedUrl = read('src/app/api/businesses/[id]/brand-image/signed-url/route.ts');
+  includes('businesses/[id]/brand-image/signed-url GET: uses resource gate helper', brandImageSignedUrl, 'requireResourceAccessPatternB(');
+  includes('businesses/[id]/brand-image/signed-url GET: uses businesses resource table', brandImageSignedUrl, 'ResourceTable.Businesses');
+  ordered('businesses/[id]/brand-image/signed-url GET: gate before businesses query', brandImageSignedUrl, 'requireResourceAccessPatternB(', ".from('businesses')");
+  includes('businesses/[id]/brand-image/signed-url GET: resource query scoped by access.bizId', brandImageSignedUrl, ".eq('id', access.bizId)");
+  includes('businesses/[id]/brand-image/signed-url GET: cross-tenant/inexistent -> 404', brandImageSignedUrl, "{ status: 404 }");
+  includes('businesses/[id]/brand-image/signed-url GET: own success path returns signed URL', brandImageSignedUrl, 'signedUrl: signedData.signedUrl');
+
+  const contentAssetSignedUrl = read('src/app/api/content-studio/assets/[id]/signed-url/route.ts');
+  includes('content-studio/assets/[id]/signed-url GET: uses resource gate helper', contentAssetSignedUrl, 'requireResourceAccessPatternB(');
+  includes('content-studio/assets/[id]/signed-url GET: uses content assets resource table', contentAssetSignedUrl, 'ResourceTable.ContentAssets');
+  ordered('content-studio/assets/[id]/signed-url GET: gate before content_assets query', contentAssetSignedUrl, 'requireResourceAccessPatternB(', ".from('content_assets')");
+  includes('content-studio/assets/[id]/signed-url GET: resource query scoped by gate.bizId', contentAssetSignedUrl, ".eq('business_id', access.bizId)");
+  includes('content-studio/assets/[id]/signed-url GET: cross-tenant/inexistent -> 404', contentAssetSignedUrl, "{ status: 404 }");
+  includes('content-studio/assets/[id]/signed-url GET: own success path returns signed URL', contentAssetSignedUrl, 'signedUrl: signedData.signedUrl');
+
+  const exportSignedUrl = read('src/app/api/exports/[id]/signed-url/route.ts');
+  includes('exports/[id]/signed-url GET: uses resource gate helper', exportSignedUrl, 'requireResourceAccessPatternB(');
+  includes('exports/[id]/signed-url GET: uses exports resource table', exportSignedUrl, 'ResourceTable.Exports');
+  ordered('exports/[id]/signed-url GET: gate before exports query', exportSignedUrl, 'requireResourceAccessPatternB(', ".from('exports')");
+  includes('exports/[id]/signed-url GET: resource query scoped by gate.bizId', exportSignedUrl, ".eq('business_id', access.bizId)");
+  includes('exports/[id]/signed-url GET: cross-tenant/inexistent -> 404', exportSignedUrl, "{ status: 404 }");
+  includes('exports/[id]/signed-url GET: own success path returns signed URL', exportSignedUrl, 'signedUrl: signedData.signedUrl');
+
+  const growthLink = read('src/app/api/g/[slug]/route.ts');
+  includes('g/[slug] GET: uses resource gate helper', growthLink, 'requireResourceAccessPatternB(');
+  includes('g/[slug] GET: uses growth links resource table', growthLink, 'ResourceTable.GrowthLinks');
+  ordered('g/[slug] GET: gate before growth_links query', growthLink, 'requireResourceAccessPatternB(', ".from('growth_links')");
+  includes('g/[slug] GET: resource query scoped by gate.bizId', growthLink, ".eq('biz_id', gate.bizId)");
+  includes('g/[slug] GET: cross-tenant/inexistent uses indistinguishable fallback', growthLink, "NextResponse.redirect(new URL('/', request.url))");
+  includes('g/[slug] GET: own success path performs redirect', growthLink, "NextResponse.redirect(link.target_url, { status: 302 })");
+
+  const publishJob = read('src/app/api/publish-jobs/[jobId]/route.ts');
+  includes('publish-jobs/[jobId] GET: uses resource gate helper', publishJob, 'requireResourceAccessPatternB(');
+  includes('publish-jobs/[jobId] GET: uses publish_jobs resource table', publishJob, 'ResourceTable.PublishJobs');
+  ordered('publish-jobs/[jobId] GET: gate before publish_jobs query', publishJob, 'requireResourceAccessPatternB(', ".from('publish_jobs')");
+  includes('publish-jobs/[jobId] GET: resource query scoped by gate.bizId', publishJob, ".eq('biz_id', gate.bizId)");
+  includes('publish-jobs/[jobId] GET: cross-tenant/inexistent -> 404', publishJob, "{ status: 404 }");
+  includes('publish-jobs/[jobId] GET: own success path returns payload', publishJob, 'return json({');
+
+  const recommendationHowto = read('src/app/api/recommendations/[id]/howto/route.ts');
+  includes('recommendations/[id]/howto GET: uses resource gate helper', recommendationHowto, 'requireResourceAccessPatternB(');
+  includes('recommendations/[id]/howto GET: uses recommendation log resource table', recommendationHowto, 'ResourceTable.RecommendationLog');
+  ordered('recommendations/[id]/howto GET: gate before recommendation query', recommendationHowto, 'requireResourceAccessPatternB(', ".from('recommendation_log')");
+  includes('recommendations/[id]/howto GET: resource query scoped by gate.bizId', recommendationHowto, ".eq('biz_id', gate.bizId)");
+  includes('recommendations/[id]/howto GET: cross-tenant/inexistent -> 404', recommendationHowto, "{ status: 404 }");
+  includes('recommendations/[id]/howto GET: own success path returns ok', recommendationHowto, 'ok: true,');
+
   console.log(`\n=== RESULTS: ${pass}/${pass + fail} passed ===`);
   if (fail > 0) process.exit(1);
 }

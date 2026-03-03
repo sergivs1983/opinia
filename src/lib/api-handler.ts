@@ -91,6 +91,10 @@ export enum ResourceTable {
   Signals = 'signals',
   PublishJobs = 'publish_jobs',
   KbEntries = 'kb_entries',
+  Businesses = 'businesses',
+  ContentAssets = 'content_assets',
+  Exports = 'exports',
+  GrowthLinks = 'growth_links',
   Connectors = 'connectors',
   LitoThreads = 'lito_threads',
   PlannerItems = 'content_planner_items',
@@ -104,6 +108,7 @@ type ResourceLookupSpec = {
   tables: string[];
   idColumn: string;
   bizColumn: string;
+  resourceIdParser?: (resourceId: string | null | undefined) => string | null;
   resolver?: (supabase: SupabaseClient, resourceId: string) => Promise<string | null>;
 };
 
@@ -140,6 +145,7 @@ if (typeof setInterval !== 'undefined') {
 // BIZ-LEVEL ACCESS GUARD (defense-in-depth, layer 2 after RLS)
 // ============================================================
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const RESOURCE_SLUG_RE = /^[a-z0-9][a-z0-9_-]{1,127}$/i;
 
 /**
  * parseBizId — valida format UUID i retorna string normalitzat o null.
@@ -149,6 +155,12 @@ export function parseBizId(input: string | null | undefined): string | null {
   if (!input) return null;
   const trimmed = input.trim();
   return UUID_RE.test(trimmed) ? trimmed : null;
+}
+
+function parseResourceSlug(input: string | null | undefined): string | null {
+  if (!input) return null;
+  const trimmed = input.trim();
+  return RESOURCE_SLUG_RE.test(trimmed) ? trimmed : null;
 }
 
 /**
@@ -386,6 +398,27 @@ const RESOURCE_LOOKUP: Record<ResourceTable, ResourceLookupSpec> = {
     idColumn: 'id',
     bizColumn: 'biz_id',
   },
+  [ResourceTable.Businesses]: {
+    tables: ['businesses'],
+    idColumn: 'id',
+    bizColumn: 'id',
+  },
+  [ResourceTable.ContentAssets]: {
+    tables: ['content_assets'],
+    idColumn: 'id',
+    bizColumn: 'business_id',
+  },
+  [ResourceTable.Exports]: {
+    tables: ['exports'],
+    idColumn: 'id',
+    bizColumn: 'business_id',
+  },
+  [ResourceTable.GrowthLinks]: {
+    tables: ['growth_links'],
+    idColumn: 'slug',
+    bizColumn: 'biz_id',
+    resourceIdParser: parseResourceSlug,
+  },
   [ResourceTable.Connectors]: {
     tables: ['connectors'],
     idColumn: 'id',
@@ -618,15 +651,21 @@ async function lookupBizIdFromResource(
   const spec = RESOURCE_LOOKUP[resourceTable];
   if (!spec) return null;
 
+  const normalizedResourceId = spec.resourceIdParser
+    ? spec.resourceIdParser(resourceId)
+    : parseBizId(resourceId);
+
+  if (!normalizedResourceId) return null;
+
   if (spec.resolver) {
-    return spec.resolver(supabase, resourceId);
+    return spec.resolver(supabase, normalizedResourceId);
   }
 
   for (const table of spec.tables) {
     const { data, error } = await supabase
       .from(table)
       .select(spec.bizColumn)
-      .eq(spec.idColumn, resourceId)
+      .eq(spec.idColumn, normalizedResourceId)
       .maybeSingle();
 
     if (error) {
@@ -653,7 +692,9 @@ export async function requireResourceAccessPatternB(
   resourceTable: ResourceTable,
   options: Omit<PatternBRequestOptions, 'bodyBizId' | 'queryBizId' | 'headerBizId'> = {},
 ): Promise<PatternBAccessResult> {
-  const normalizedResourceId = parseBizId(resourceId);
+  const normalizedResourceId = typeof resourceId === 'string'
+    ? resourceId.trim()
+    : '';
   if (!normalizedResourceId) return patternBNotFoundDenied();
 
   const supabase = options.supabase ?? createServerSupabaseClient();
