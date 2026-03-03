@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { upsertGbpReplyFromDraft } from '@/lib/publish/execute-bridge';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { validateParams } from '@/lib/validations';
 import { loadDraftContext, withStandardHeaders } from '@/app/api/lito/action-drafts/_shared';
@@ -48,11 +49,43 @@ export async function POST(
       ? ctx.draft.payload
       : {}) as Record<string, unknown>;
 
+    let bridgeResult: {
+      reviewId: string;
+      replyId: string;
+      replyUpdatedAt: string;
+      createdReview: boolean;
+      createdReply: boolean;
+    } | null = null;
+
+    if (ctx.draft.kind === 'gbp_update') {
+      try {
+        bridgeResult = await upsertGbpReplyFromDraft({
+          admin,
+          draft: ctx.draft,
+          nowIso,
+        });
+      } catch (bridgeError) {
+        log.error('lito_action_draft_execute_bridge_failed', {
+          draft_id: ctx.draft.id,
+          error: bridgeError instanceof Error ? bridgeError.message : String(bridgeError),
+        });
+        return withStandardHeaders(
+          NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
+          requestId,
+        );
+      }
+    }
+
     const nextPayload = {
       ...payload,
       execution: {
         executed_at: nowIso,
         mode: 'manual_mvp',
+        review_id: bridgeResult?.reviewId ?? null,
+        reply_id: bridgeResult?.replyId ?? null,
+        reply_updated_at: bridgeResult?.replyUpdatedAt ?? null,
+        created_review: bridgeResult?.createdReview ?? false,
+        created_reply: bridgeResult?.createdReply ?? false,
       },
     };
 
