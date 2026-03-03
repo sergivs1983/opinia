@@ -35,6 +35,7 @@ import { audit } from '@/lib/audit';
 import { writeAudit } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { buildReplyPublishIdempotencyKey } from '@/lib/publish/domain';
 import { validateCsrf } from '@/lib/security/csrf';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,7 +170,10 @@ export async function POST(
   }
 
   // ── 9. Idempotency key (scoped to biz_id via UNIQUE(biz_id, idempotency_key)) ──
-  const idempotencyKey = `reply:${params.replyId}:${reply.updated_at}`;
+  const idempotencyKey = buildReplyPublishIdempotencyKey({
+    replyId: params.replyId,
+    updatedAtIso: reply.updated_at,
+  });
 
   const { data: existingJob } = await supabase
     .from('publish_jobs')
