@@ -15,6 +15,7 @@ import { getOAuthTokens, saveOAuthTokens } from '@/lib/server/tokens';
 
 const UPSERT_CHUNK_SIZE = 200;
 const GBP_PROVIDER_STORAGE = 'google';
+const MAX_ERROR_DETAIL_LENGTH = 300;
 
 type ProviderLogger = {
   warn: (message: string, payload?: Record<string, unknown>) => void;
@@ -34,6 +35,7 @@ type IntegrationRow = {
   biz_id: string;
   account_id: string | null;
   is_active: boolean | null;
+  consecutive_failures?: number | null;
 };
 
 type GbpReviewRow = {
@@ -80,6 +82,16 @@ export class ReviewsProviderError extends Error {
     this.httpStatus = input.httpStatus;
   }
 }
+
+type IntegrationHealthStatus = 'ok' | 'error' | 'needs_reauth';
+
+export type IntegrationHealthUpdate = {
+  status: IntegrationHealthStatus;
+  errorCode?: string | null;
+  errorDetail?: string | null;
+  setNeedsReauth: boolean;
+  incrementFailures: boolean;
+};
 
 type CreateGoogleReviewsProviderArgs = {
   supabase: SupabaseClient;
@@ -169,6 +181,96 @@ function normalizeRawRef(value: unknown): string | null {
     return JSON.stringify(value);
   } catch {
     return null;
+  }
+}
+
+function toErrorDetail(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  return normalized.slice(0, MAX_ERROR_DETAIL_LENGTH);
+}
+
+function toSyncFailureCode(httpStatus: number, errorCode: string | null): string {
+  if (httpStatus === 429) return 'rate_limited';
+  if (errorCode && errorCode.trim().length > 0) return errorCode.trim();
+  return `http_${httpStatus}`;
+}
+
+export function deriveFailureHealthUpdate(input: {
+  httpStatus: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+}): IntegrationHealthUpdate {
+  const authFailure = isAuthFailure({
+    httpStatus: input.httpStatus,
+    errorCode: input.errorCode,
+  });
+
+  if (authFailure) {
+    return {
+      status: 'needs_reauth',
+      errorCode: input.errorCode || 'connector_auth_failed',
+      errorDetail: toErrorDetail(input.errorMessage || 'Google authentication failed'),
+      setNeedsReauth: true,
+      incrementFailures: true,
+    };
+  }
+
+  return {
+    status: 'error',
+    errorCode: toSyncFailureCode(input.httpStatus, input.errorCode),
+    errorDetail: toErrorDetail(input.errorMessage),
+    setNeedsReauth: false,
+    incrementFailures: true,
+  };
+}
+
+async function updateIntegrationHealth(args: {
+  supabase: SupabaseClient;
+  integrationId: string;
+  update: IntegrationHealthUpdate;
+}): Promise<void> {
+  let nextFailures = 0;
+  if (args.update.incrementFailures) {
+    const { data: current, error: currentError } = await args.supabase
+      .from('integrations')
+      .select('consecutive_failures')
+      .eq('id', args.integrationId)
+      .maybeSingle();
+
+    if (currentError) {
+      if (isSchemaCompatibilityError(currentError)) {
+        nextFailures = 1;
+      } else {
+        throw new Error(currentError.message || 'integration_health_lookup_failed');
+      }
+    } else {
+      const currentFailures = typeof (current as { consecutive_failures?: number | null })?.consecutive_failures === 'number'
+        ? Number((current as { consecutive_failures?: number | null }).consecutive_failures)
+        : 0;
+      nextFailures = Math.max(0, currentFailures) + 1;
+    }
+  }
+
+  const payload = {
+    last_sync_at: new Date().toISOString(),
+    last_sync_status: args.update.status,
+    last_error_code: args.update.errorCode || null,
+    last_error_detail: args.update.errorDetail || null,
+    needs_reauth: args.update.setNeedsReauth,
+    consecutive_failures: args.update.incrementFailures ? nextFailures : 0,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await args.supabase
+    .from('integrations')
+    .update(payload)
+    .eq('id', args.integrationId);
+
+  if (error) {
+    if (isSchemaCompatibilityError(error)) return;
+    throw new Error(error.message || 'integration_health_update_failed');
   }
 }
 
@@ -411,7 +513,7 @@ export function createGoogleReviewsProvider(args: CreateGoogleReviewsProviderArg
       const business = businessData as BusinessRow;
       const { data: integrationData, error: integrationError } = await supabase
         .from('integrations')
-        .select('id, biz_id, account_id, is_active')
+        .select('id, biz_id, account_id, is_active, consecutive_failures')
         .eq('biz_id', bizId)
         .eq('provider', 'google_business')
         .eq('is_active', true)
@@ -438,6 +540,18 @@ export function createGoogleReviewsProvider(args: CreateGoogleReviewsProviderArg
       const integration = integrationData as IntegrationRow;
       const locationResources = buildLocationResources({ business, integration });
       if (locationResources.length === 0) {
+        await updateIntegrationHealth({
+          supabase,
+          integrationId: integration.id,
+          update: {
+            status: 'error',
+            errorCode: 'missing_location',
+            errorDetail: 'No s’ha pogut resoldre cap localització de Google per aquest negoci.',
+            setNeedsReauth: false,
+            incrementFailures: true,
+          },
+        });
+
         return {
           imported: 0,
           updated: 0,
@@ -454,6 +568,18 @@ export function createGoogleReviewsProvider(args: CreateGoogleReviewsProviderArg
       try {
         tokens = await getOAuthTokens(supabase, integration.id);
       } catch {
+        await updateIntegrationHealth({
+          supabase,
+          integrationId: integration.id,
+          update: {
+            status: 'needs_reauth',
+            errorCode: 'connector_auth_failed',
+            errorDetail: 'Cal reconnectar Google per llegir noves ressenyes.',
+            setNeedsReauth: true,
+            incrementFailures: true,
+          },
+        });
+
         return {
           imported: 0,
           updated: 0,
@@ -497,26 +623,60 @@ export function createGoogleReviewsProvider(args: CreateGoogleReviewsProviderArg
       }
 
       if (!listed.ok) {
-        const shouldReauth = isAuthFailure({
+        const healthUpdate = deriveFailureHealthUpdate({
           httpStatus: listed.httpStatus,
           errorCode: listed.errorCode,
+          errorMessage: listed.errorMessage,
+        });
+        await updateIntegrationHealth({
+          supabase,
+          integrationId: integration.id,
+          update: healthUpdate,
         });
 
         throw new ReviewsProviderError({
           status: 502,
           code: 'upstream_error',
           message: 'Google reviews sync failed',
-          errorCode: listed.errorCode || undefined,
-          needsReauth: shouldReauth,
+          errorCode: healthUpdate.errorCode || undefined,
+          needsReauth: healthUpdate.status === 'needs_reauth',
           integrationId: integration.id,
           httpStatus: listed.httpStatus,
         });
       }
 
-      const counters = await upsertReviews({
+      let counters: { imported: number; updated: number; unchanged: number };
+      try {
+        counters = await upsertReviews({
+          supabase,
+          bizId,
+          reviews: listed.reviews,
+        });
+      } catch (error) {
+        await updateIntegrationHealth({
+          supabase,
+          integrationId: integration.id,
+          update: {
+            status: 'error',
+            errorCode: 'upsert_failed',
+            errorDetail: toErrorDetail(error instanceof Error ? error.message : String(error)),
+            setNeedsReauth: false,
+            incrementFailures: true,
+          },
+        });
+        throw error;
+      }
+
+      await updateIntegrationHealth({
         supabase,
-        bizId,
-        reviews: listed.reviews,
+        integrationId: integration.id,
+        update: {
+          status: 'ok',
+          errorCode: null,
+          errorDetail: null,
+          setNeedsReauth: false,
+          incrementFailures: false,
+        },
       });
 
       return {

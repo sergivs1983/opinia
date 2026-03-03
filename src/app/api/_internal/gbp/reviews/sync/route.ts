@@ -102,13 +102,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (synced.integration_id) {
-      await admin
-        .from('integrations')
-        .update({ last_sync_at: new Date().toISOString() })
-        .eq('id', synced.integration_id);
-    }
-
     await enqueueRebuildCards({
       supabase: admin,
       bizId,
