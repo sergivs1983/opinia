@@ -1,17 +1,7 @@
 /**
  * src/lib/integrations/google/publish.ts
  *
- * Google Business Profile — publish a reply to a review.
- *
- * TODO (GBP-IMPL): Implement real API call before production:
- *   PATCH https://mybusiness.googleapis.com/v4/accounts/{accountId}/locations/{locationId}/reviews/{reviewId}/reply
- *   Headers: Authorization: Bearer <accessToken>, Content-Type: application/json
- *   Body:    { "comment": "<replyText>" }
- *   Success: 200 with updated review object
- *   Error:   4xx/5xx — parse and propagate
- *
- * Until implemented, every call throws GbpNotImplementedError which the worker
- * treats as a permanent failure (no retry).
+ * Google Business Profile — publish/update a reply to a review.
  */
 
 // ─── Error types ──────────────────────────────────────────────────────────────
@@ -49,7 +39,7 @@ export class GbpTransientError extends Error {
 export interface PublishReplyToGoogleInput {
   /** Google OAuth2 access token */
   accessToken: string;
-  /** External review ID from reviews.external_id (Google's review name/ID) */
+  /** External review ID from reviews.external_id (Google's review resource name/ID) */
   externalReviewId: string;
   /** Final reply text to publish */
   replyText: string;
@@ -62,23 +52,113 @@ export interface PublishReplyToGoogleResult {
   gbpReplyId?: string;
 }
 
+type GoogleErrorPayload = {
+  error?: {
+    code?: number;
+    status?: string;
+    message?: string;
+  };
+  reviewReply?: {
+    updateTime?: string;
+  };
+};
+
+function asString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeReviewResource(externalReviewId: string): string | null {
+  const normalized = asString(externalReviewId);
+  if (!normalized) return null;
+
+  if (normalized.startsWith('accounts/') && normalized.includes('/reviews/')) {
+    return normalized;
+  }
+  if (normalized.includes('/reviews/')) {
+    return normalized.replace(/^\/+/, '');
+  }
+
+  return null;
+}
+
+function toGoogleErrorMessage(payload: GoogleErrorPayload | null): string {
+  const status = asString(payload?.error?.status);
+  const message = asString(payload?.error?.message);
+  if (status && message) return `${status}: ${message}`;
+  return message || status || 'google_publish_failed';
+}
+
+function toGoogleErrorCode(payload: GoogleErrorPayload | null): string {
+  const status = asString(payload?.error?.status);
+  return status || 'google_publish_failed';
+}
+
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 /**
  * Publish a reply to Google Business Profile.
  *
- * @throws GbpPermanentError  — don't retry (stub / bad input / auth revoked)
+ * @throws GbpPermanentError  — don't retry (bad input / auth revoked / not found)
  * @throws GbpTransientError  — retry with backoff (5xx / network error)
- *
- * TODO (GBP-IMPL): Replace stub with real PATCH call (see file header).
  */
 export async function publishReplyToGoogle(
-  _input: PublishReplyToGoogleInput,
+  input: PublishReplyToGoogleInput,
 ): Promise<PublishReplyToGoogleResult> {
-  // Stub: throw permanent error to force job → failed (no retry loop).
-  // Replace this entire function body with the real API call.
-  throw new GbpPermanentError(
-    'gbp_not_implemented',
-    'TODO (GBP-IMPL): publishReplyToGoogle is a stub — implement real GBP PATCH before production',
-  );
+  const accessToken = asString(input.accessToken);
+  const replyText = asString(input.replyText);
+  const reviewResource = normalizeReviewResource(input.externalReviewId);
+
+  if (!accessToken) {
+    throw new GbpPermanentError('connector_auth_failed', 'Missing Google access token');
+  }
+  if (!replyText) {
+    throw new GbpPermanentError('reply_content_invalid', 'Reply content is empty');
+  }
+  if (!reviewResource) {
+    throw new GbpPermanentError('review_external_id_invalid', 'review.external_id must include the GBP review resource');
+  }
+
+  const endpoint = `https://mybusiness.googleapis.com/v4/${reviewResource}/reply`;
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ comment: replyText }),
+      cache: 'no-store',
+    });
+  } catch (error) {
+    throw new GbpTransientError(
+      'google_network_error',
+      error instanceof Error ? error.message : 'Network error publishing Google reply',
+    );
+  }
+
+  const payload = await response.json().catch(() => null) as GoogleErrorPayload | null;
+
+  if (response.ok) {
+    return {
+      gbpReplyId: asString(payload?.reviewReply?.updateTime) || undefined,
+    };
+  }
+
+  const code = toGoogleErrorCode(payload);
+  const message = toGoogleErrorMessage(payload);
+
+  if (response.status === 429 || response.status >= 500) {
+    throw new GbpTransientError(code, message, response.status);
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    throw new GbpPermanentError('connector_auth_failed', message);
+  }
+
+  throw new GbpPermanentError(code, message);
 }
