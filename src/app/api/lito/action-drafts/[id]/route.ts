@@ -33,6 +33,7 @@ export async function PATCH(
     const payload = body as z.infer<typeof BodySchema>;
 
     const ctx = await loadDraftContext({
+      request,
       requestId,
       draftId: routeParams.id,
       route: 'PATCH /api/lito/action-drafts/[id]',

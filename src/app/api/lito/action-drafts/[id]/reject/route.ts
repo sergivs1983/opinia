@@ -26,6 +26,7 @@ export async function POST(
     if (paramsErr) return withStandardHeaders(paramsErr, requestId);
 
     const ctx = await loadDraftContext({
+      request,
       requestId,
       draftId: routeParams.id,
       route: 'POST /api/lito/action-drafts/[id]/reject',

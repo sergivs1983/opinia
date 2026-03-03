@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -82,10 +83,17 @@ export async function GET(
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const limit = (query as z.infer<typeof ThreadQuerySchema>).limit ?? 50;
 
+    const gate = await requireResourceAccessPatternB(request, routeParams.threadId, ResourceTable.LitoThreads, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+
     const { data: threadData, error: threadErr } = await supabase
       .from('lito_threads')
       .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
       .eq('id', routeParams.threadId)
+      .eq('biz_id', gate.bizId)
       .maybeSingle();
 
     if (threadErr || !threadData) {
@@ -96,10 +104,11 @@ export async function GET(
     }
 
     const thread = threadData as ThreadRow;
+
     const access = await hasAcceptedBusinessMembership({
       supabase,
       userId: user.id,
-      businessId: thread.biz_id,
+      businessId: gate.bizId,
       allowedRoles: [...LITO_ALLOWED_ROLES],
     });
     if (!access.allowed) {
@@ -174,10 +183,17 @@ export async function PATCH(
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof ThreadPatchSchema>;
 
+    const gate = await requireResourceAccessPatternB(request, routeParams.threadId, ResourceTable.LitoThreads, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+
     const { data: threadData, error: threadErr } = await supabase
       .from('lito_threads')
       .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
       .eq('id', routeParams.threadId)
+      .eq('biz_id', gate.bizId)
       .maybeSingle();
 
     if (threadErr || !threadData) {
@@ -188,10 +204,11 @@ export async function PATCH(
     }
 
     const thread = threadData as ThreadRow;
+
     const access = await hasAcceptedBusinessMembership({
       supabase,
       userId: user.id,
-      businessId: thread.biz_id,
+      businessId: gate.bizId,
       allowedRoles: [...LITO_ALLOWED_ROLES],
     });
     if (!access.allowed) {

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { createLogger } from '@/lib/logger';
-import { getLitoBizAccess, type LitoActionDraftRow } from '@/lib/lito/action-drafts';
+import { type LitoActionDraftRow } from '@/lib/lito/action-drafts';
+import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -19,6 +21,7 @@ export function withStandardHeaders(response: NextResponse, requestId: string): 
 }
 
 export async function loadDraftContext(params: {
+  request: Request;
   requestId: string;
   draftId: string;
   route: string;
@@ -38,11 +41,29 @@ export async function loadDraftContext(params: {
     };
   }
 
+  const gate = await requireResourceAccessPatternB(params.request, params.draftId, ResourceTable.Drafts, { supabase, user });
+  if (gate instanceof NextResponse) {
+    return {
+      response: withStandardHeaders(gate, params.requestId),
+    };
+  }
+
+  const role = toLitoMemberRole(gate.role);
+  if (!role || !gate.membership.orgId) {
+    return {
+      response: withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: params.requestId }, { status: 404 }),
+        params.requestId,
+      ),
+    };
+  }
+
   const admin = createAdminClient();
   const { data: draftData, error: draftErr } = await admin
     .from('lito_action_drafts')
     .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
     .eq('id', params.draftId)
+    .eq('biz_id', gate.bizId)
     .maybeSingle();
 
   if (draftErr || !draftData) {
@@ -55,12 +76,7 @@ export async function loadDraftContext(params: {
   }
 
   const draft = draftData as LitoActionDraftRow;
-  const access = await getLitoBizAccess({
-    supabase,
-    userId: user.id,
-    bizId: draft.biz_id,
-  });
-  if (!access.allowed || !access.role || access.orgId !== draft.org_id) {
+  if (gate.membership.orgId !== draft.org_id) {
     return {
       response: withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: params.requestId }, { status: 404 }),
@@ -72,12 +88,12 @@ export async function loadDraftContext(params: {
   log.info('lito_action_draft_context_loaded', {
     draft_id: draft.id,
     biz_id: draft.biz_id,
-    role: access.role,
+    role,
   });
 
   return {
     userId: user.id,
-    role: access.role,
+    role,
     draft,
   };
 }

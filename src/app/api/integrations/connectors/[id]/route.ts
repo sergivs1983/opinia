@@ -5,7 +5,7 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import {
   generateConnectorSecret,
   normalizeConnectorChannels,
@@ -68,16 +68,16 @@ export async function PATCH(
     const [body, bodyErr] = await validateBody(request, IntegrationsConnectorPatchSchema);
     if (bodyErr) return withRequestId(bodyErr);
     const payload = body as PatchBody;
-
-    const businessAccess = await hasAcceptedBusinessMembership({
+    const gate = await requireResourceAccessPatternB(request, routeParams.id, ResourceTable.Connectors, {
       supabase,
-      userId: user.id,
-      businessId,
-      allowedRoles: ['owner', 'admin'],
+      user,
     });
-    if (!businessAccess.allowed) {
+    if (gate instanceof NextResponse) return withRequestId(gate);
+
+    const normalizedRole = (gate.role || '').toLowerCase();
+    if (normalizedRole !== 'owner' && normalizedRole !== 'admin') {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per gestionar integracions', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
@@ -85,7 +85,7 @@ export async function PATCH(
       .from('connectors')
       .select('id, business_id, type, enabled, url, secret, allowed_channels, created_at, updated_at')
       .eq('id', routeParams.id)
-      .eq('business_id', businessId)
+      .eq('business_id', gate.bizId)
       .single();
 
     if (existingError || !existingData) {
@@ -128,7 +128,7 @@ export async function PATCH(
         allowed_channels: nextChannels,
       })
       .eq('id', routeParams.id)
-      .eq('business_id', businessId)
+      .eq('business_id', gate.bizId)
       .select('id, business_id, type, enabled, url, secret, allowed_channels, created_at, updated_at')
       .single();
 
@@ -140,7 +140,7 @@ export async function PATCH(
     }
 
     const updated = updatedData as ConnectorRow;
-    await syncBusinessLegacyWebhook(supabase, businessId, {
+    await syncBusinessLegacyWebhook(supabase, gate.bizId, {
       enabled: updated.enabled,
       url: updated.url,
       secret: updated.secret,

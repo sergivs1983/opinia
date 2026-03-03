@@ -68,12 +68,20 @@ export enum ResourceTable {
   Signals = 'signals',
   PublishJobs = 'publish_jobs',
   KbEntries = 'kb_entries',
+  Connectors = 'connectors',
+  LitoThreads = 'lito_threads',
+  PlannerItems = 'content_planner_items',
+  RecommendationLog = 'recommendation_log',
+  Replies = 'replies',
+  SocialSchedules = 'social_schedules',
+  Memberships = 'memberships',
 }
 
 type ResourceLookupSpec = {
   tables: string[];
   idColumn: string;
   bizColumn: string;
+  resolver?: (supabase: SupabaseClient, resourceId: string) => Promise<string | null>;
 };
 
 // ============================================================
@@ -194,6 +202,35 @@ function patternBNotFoundDenied(): PatternBAccessDenied {
   return toPatternBDenied(patternBNotFoundResponse());
 }
 
+async function resolveMembershipBizId(
+  supabase: SupabaseClient,
+  membershipId: string,
+): Promise<string | null> {
+  const { data: membershipData, error: membershipError } = await supabase
+    .from('memberships')
+    .select('org_id')
+    .eq('id', membershipId)
+    .maybeSingle();
+  if (membershipError || !membershipData) return null;
+
+  const orgId = (membershipData as { org_id?: string | null }).org_id;
+  if (!parseBizId(orgId)) {
+    return null;
+  }
+
+  const { data: businessData, error: businessError } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (businessError || !businessData) return null;
+
+  const bizId = parseBizId((businessData as { id?: string | null }).id);
+  return bizId;
+}
+
 const RESOURCE_LOOKUP: Record<ResourceTable, ResourceLookupSpec> = {
   [ResourceTable.Reviews]: {
     tables: ['reviews'],
@@ -219,6 +256,42 @@ const RESOURCE_LOOKUP: Record<ResourceTable, ResourceLookupSpec> = {
     tables: ['kb_entries'],
     idColumn: 'id',
     bizColumn: 'biz_id',
+  },
+  [ResourceTable.Connectors]: {
+    tables: ['connectors'],
+    idColumn: 'id',
+    bizColumn: 'business_id',
+  },
+  [ResourceTable.LitoThreads]: {
+    tables: ['lito_threads'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.PlannerItems]: {
+    tables: ['content_planner_items'],
+    idColumn: 'id',
+    bizColumn: 'business_id',
+  },
+  [ResourceTable.RecommendationLog]: {
+    tables: ['recommendation_log'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.Replies]: {
+    tables: ['replies'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.SocialSchedules]: {
+    tables: ['social_schedules'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.Memberships]: {
+    tables: ['memberships'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+    resolver: resolveMembershipBizId,
   },
 };
 
@@ -354,6 +427,10 @@ async function lookupBizIdFromResource(
   const spec = RESOURCE_LOOKUP[resourceTable];
   if (!spec) return null;
 
+  if (spec.resolver) {
+    return spec.resolver(supabase, resourceId);
+  }
+
   for (const table of spec.tables) {
     const { data, error } = await supabase
       .from(table)
@@ -393,9 +470,6 @@ export async function requireResourceAccessPatternB(
   return requireBizAccessPatternB(request, lookedUpBizId, {
     supabase,
     user: options.user,
-    bodyBizId: lookedUpBizId,
-    queryBizId: lookedUpBizId,
-    headerBizId: lookedUpBizId,
   });
 }
 
