@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 
 import { buildHmacHeaders, CronUnavailableError } from '@/lib/cron/hmac';
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -19,28 +20,18 @@ function jsonNoStore(body: Record<string, unknown>, requestId: string, status = 
   return response;
 }
 
-function hasValidCronSecret(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
-
-  const provided = request.headers.get('x-cron-secret');
-  if (provided && provided === expected) return true;
-
-  const auth = request.headers.get('authorization') || '';
-  if (auth.startsWith('Bearer ')) {
-    const token = auth.slice('Bearer '.length).trim();
-    return token === expected;
-  }
-
-  return false;
-}
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const requestId = getRequestIdFromHeaders(request.headers);
   const log = createLogger({ request_id: requestId, route: 'POST /api/cron/signals-run' });
 
-  if (!hasValidCronSecret(request)) {
-    return jsonNoStore({ error: 'not_found', request_id: requestId }, requestId, 404);
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'secret',
+  });
+  if (blocked) {
+    blocked.headers.set('x-request-id', requestId);
+    blocked.headers.set('Cache-Control', 'no-store');
+    return blocked;
   }
 
   const path = '/api/_internal/signals/run';

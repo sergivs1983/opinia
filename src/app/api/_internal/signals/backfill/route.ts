@@ -5,9 +5,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { getOrgEntitlements, getSignalsLevel } from '@/lib/billing/entitlements';
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { buildHmacHeaders, validateHmacHeader } from '@/lib/security/hmac';
+import { buildHmacHeaders } from '@/lib/security/hmac';
 import { runSignalsForBusiness } from '@/lib/signals/pro';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -110,17 +111,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader: request.headers.get('x-opin-signature'),
-    method: 'POST',
-    pathname: '/api/_internal/signals/backfill',
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
-    secret,
+    pathname: '/api/_internal/signals/backfill',
   });
-
-  if (!hmac.valid) {
-    return jsonNoStore({ error: 'unauthorized', reason: hmac.reason, request_id: requestId }, requestId, 401);
+  if (blocked) {
+    blocked.headers.set('Cache-Control', 'no-store');
+    blocked.headers.set('x-request-id', requestId);
+    return blocked;
   }
 
   let payloadRaw: unknown = {};

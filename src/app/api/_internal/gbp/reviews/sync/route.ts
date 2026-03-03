@@ -5,9 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { enqueueRebuildCards } from '@/lib/lito/cards-cache';
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { validateHmacHeader } from '@/lib/security/hmac';
 import { getOAuthTokens, saveOAuthTokens } from '@/lib/server/tokens';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
@@ -140,16 +140,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const log = createLogger({ request_id: requestId, route: 'POST /api/_internal/gbp/reviews/sync' });
   const rawBody = await request.text();
 
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader: request.headers.get('x-opin-signature'),
-    method: 'POST',
-    pathname: INTERNAL_PATH,
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
+    pathname: INTERNAL_PATH,
   });
-
-  if (!hmac.valid) {
-    return jsonNoStore({ error: 'unauthorized', reason: hmac.reason, request_id: requestId }, requestId, 401);
+  if (blocked) {
+    blocked.headers.set('Cache-Control', 'no-store');
+    blocked.headers.set('x-request-id', requestId);
+    return blocked;
   }
 
   let payloadRaw: unknown = {};

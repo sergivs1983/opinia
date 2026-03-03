@@ -15,6 +15,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import {
@@ -22,7 +23,6 @@ import {
   getWeekStartMondayIso,
   mapBusinessTypeToVertical,
 } from '@/lib/recommendations/d0';
-import { validateHmacHeader } from '@/lib/security/hmac';
 import { getSignalsForWeek } from '@/lib/signals/d13';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -55,17 +55,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── HMAC auth ────────────────────────────────────────────────────────────────
   const rawBody = await request.text();
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader: request.headers.get('x-opin-signature'),
-    method: 'POST',
-    pathname: '/api/_internal/signals/to-weekly',
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
+    pathname: '/api/_internal/signals/to-weekly',
   });
-
-  if (!hmac.valid) {
-    log.warn('HMAC validation failed', { reason: hmac.reason });
-    return jsonNoStore({ error: 'Unauthorized', request_id: requestId }, requestId, 401);
+  if (blocked) {
+    blocked.headers.set('Cache-Control', 'no-store');
+    blocked.headers.set('x-request-id', requestId);
+    return blocked;
   }
 
   // ── Parse body ───────────────────────────────────────────────────────────────

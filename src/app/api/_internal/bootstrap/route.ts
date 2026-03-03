@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { assertServiceRoleAllowed } from '@/lib/security/service-role';
@@ -33,6 +34,13 @@ function jsonWithActiveOrg(body: Record<string, unknown>, status: number, orgId:
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = request.headers.get('x-request-id')?.trim() || null;
+  const internalBlocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'secret',
+  });
+  if (internalBlocked) return internalBlocked;
+
   const serviceBlocked = assertServiceRoleAllowed(request);
   if (serviceBlocked) return serviceBlocked;
   const blocked = validateCsrf(request); if (blocked) return blocked;

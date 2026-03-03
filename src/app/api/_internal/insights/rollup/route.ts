@@ -4,9 +4,9 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { validateHmacHeader } from '@/lib/security/hmac';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 type BusinessRow = {
@@ -101,17 +101,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const log = createLogger({ request_id: requestId, route: 'POST /api/_internal/insights/rollup' });
   const rawBody = await request.text();
 
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader: request.headers.get('x-opin-signature'),
-    method: 'POST',
-    pathname: '/api/_internal/insights/rollup',
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
+    pathname: '/api/_internal/insights/rollup',
   });
-
-  if (!hmac.valid) {
-    log.warn('HMAC validation failed for insights rollup', { reason: hmac.reason });
-    return jsonNoStore({ error: 'Unauthorized', request_id: requestId }, requestId, 401);
+  if (blocked) {
+    blocked.headers.set('Cache-Control', 'no-store');
+    blocked.headers.set('x-request-id', requestId);
+    return blocked;
   }
 
   let payloadRaw: unknown = {};

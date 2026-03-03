@@ -4,10 +4,10 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { sendWebPush } from '@/lib/push/webpush';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { validateHmacHeader } from '@/lib/security/hmac';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const BodySchema = z.object({
@@ -73,19 +73,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const log = createLogger({ request_id: requestId, route: 'POST /api/_internal/social/reminders/run' });
 
   const rawBody = await request.text();
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader: request.headers.get('x-opin-signature'),
-    method: 'POST',
-    pathname: '/api/_internal/social/reminders/run',
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
+    pathname: '/api/_internal/social/reminders/run',
   });
-
-  if (!hmac.valid) {
-    return withNoStore(
-      NextResponse.json({ error: 'unauthorized', reason: hmac.reason, request_id: requestId }, { status: 401 }),
-      requestId,
-    );
+  if (blocked) {
+    return withNoStore(blocked, requestId);
   }
 
   let parsedBodyRaw: unknown = {};

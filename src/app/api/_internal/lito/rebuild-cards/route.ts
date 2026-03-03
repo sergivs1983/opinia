@@ -12,10 +12,10 @@ import {
   popLitoJobs,
   upsertLitoCardsCache,
 } from '@/lib/lito/cards-cache';
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { buildActionCards } from '@/lib/lito/orchestrator';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { validateHmacHeader } from '@/lib/security/hmac';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const BodySchema = z.object({
@@ -53,19 +53,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const log = createLogger({ request_id: requestId, route: 'POST /api/_internal/lito/rebuild-cards' });
 
   const rawBody = await request.text();
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader: request.headers.get('x-opin-signature'),
-    method: 'POST',
-    pathname: INTERNAL_PATH,
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
+    pathname: INTERNAL_PATH,
   });
-
-  if (!hmac.valid) {
-    return withNoStore(
-      NextResponse.json({ error: 'unauthorized', reason: hmac.reason, request_id: requestId }, { status: 401 }),
-      requestId,
-    );
+  if (blocked) {
+    return withNoStore(blocked, requestId);
   }
 
   const payload = parseBody(rawBody);

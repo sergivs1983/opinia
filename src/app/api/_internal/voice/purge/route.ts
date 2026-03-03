@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
-import { validateHmacHeader } from '@/lib/security/hmac';
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { log } from '@/lib/logger';
 
@@ -37,24 +37,14 @@ export async function POST(request: Request) {
   try {
     // Read raw body before HMAC validation (must be read once)
     const rawBody = await request.text();
-
-    const hmacResult = validateHmacHeader({
-      timestampHeader: request.headers.get('x-opin-timestamp'),
-      signatureHeader: request.headers.get('x-opin-signature'),
-      method:          'POST',
-      pathname:        PURGE_PATHNAME,
+    const blocked = requireInternalGuard(request, {
+      requestId,
+      mode: 'hmac',
       rawBody,
+      pathname: PURGE_PATHNAME,
     });
-
-    if (!hmacResult.valid) {
-      log.warn('voice_purge_hmac_rejected', { reason: hmacResult.reason, request_id: requestId });
-      return withPurgeHeaders(
-        NextResponse.json(
-          { error: 'unauthorized', reason: hmacResult.reason },
-          { status: 401 },
-        ),
-        requestId,
-      );
+    if (blocked) {
+      return withPurgeHeaders(blocked, requestId);
     }
 
     const admin = createAdminClient();

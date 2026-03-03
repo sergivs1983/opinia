@@ -34,7 +34,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import pLimit from 'p-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { validateHmacHeader } from '@/lib/security/hmac';
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { writeAudit } from '@/lib/audit-log';
 import { getValidGoogleAccessToken } from '@/lib/integrations/google/auth';
 import {
@@ -330,18 +330,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // ── HMAC guard ─────────────────────────────────────────────────────────────
   const rawBody = await request.text();
-
-  const hmac = validateHmacHeader({
-    timestampHeader: request.headers.get('x-opin-timestamp'),
-    signatureHeader:  request.headers.get('x-opin-signature'),
-    method:          'POST',
-    pathname: '/api/_internal/google/publish',
+  const blocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'hmac',
     rawBody,
+    pathname: '/api/_internal/google/publish',
   });
-
-  if (!hmac.valid) {
-    log.warn('HMAC validation failed', { reason: hmac.reason });
-    return jsonNoStore({ error: 'Unauthorized' }, 401);
+  if (blocked) {
+    blocked.headers.set('x-request-id', requestId);
+    blocked.headers.set('Cache-Control', 'no-store');
+    return blocked;
   }
 
   // ── Admin client (service_role — ONLY here) ────────────────────────────────

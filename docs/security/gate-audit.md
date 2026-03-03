@@ -6,12 +6,12 @@ Data d'auditoria: 2026-03-03.
 
 - Scope escanejat: **168** endpoints a `src/app/api/**/route.ts`.
 - Endpoints amb accés DB/RPC (tractats com a tenant-data candidats): **126**.
-- Amb gate estàndard o wrapper equivalent (`requireBizAccess*` / `requireImplicitBizAccessPatternB`): **95**.
-- **ENDPOINTS SENSE GATE** (gate abans de la 1a query = NO): **31**.
-- Gate **abans de la 1a query DB/RPC** (criteri estricte d'aquesta auditoria): **95 SI** / **31 NO**.
+- Amb gate estàndard o wrapper equivalent (`requireBizAccess*` / `requireImplicitBizAccessPatternB`): **112**.
+- **ENDPOINTS SENSE GATE** (gate abans de la 1a query = NO): **14**.
+- Gate **abans de la 1a query DB/RPC** (criteri estricte d'aquesta auditoria): **112 SI** / **14 NO**.
 - Risc agregat: **1 Critical**, **96 High**, **29 Medium**.
 - **Wave 1 (aquest commit): 10/10 rutes prioritàries FIXED**.
-- **Pendents Onada 2**: **21 rutes** (0 USER_FACING_TENANT + 17 INTERNAL + 4 PUBLIC_NON_TENANT).
+- **Pendents Onada 2**: **4 rutes** (0 USER_FACING_TENANT + 0 INTERNAL + 4 PUBLIC_NON_TENANT).
 - Pendents Onada 2 classificades: **SI (116/116)**.
 - **Wave2 Lot1 Batch2**: **12 rutes WRITES FIXED** (`admin/billing/integrations/webhooks/onboarding`).
 - **Wave2 Lot1 Batch3**: **16 rutes WRITES FIXED** (`audit/business-memory/lito/memory/planner/social`).
@@ -19,6 +19,7 @@ Data d'auditoria: 2026-03-03.
 - **Wave2 Lot2 Batch1b**: **14 rutes GET A* FIXED** (context implícit de biz + Pattern B 404).
 - **Wave2 Lot2 Batch2**: **6 rutes GET Tipus B FIXED** (`brand-image signed-url`, `content assets signed-url`, `exports signed-url`, `g/[slug]`, `publish-jobs/[jobId]`, `recommendations/[id]/howto`).
 - **Wave2 Lot2 Batch3**: **1 ruta GET Tipus C FIXED** (`/api/social/notifications` amb paginació scoped per `access.bizId`).
+- **Wave2 Lot3**: **17 rutes INTERNAL FIXED** amb `requireInternalGuard` (secret/HMAC + timestamp + anti-replay).
 - **OAuth callback hardening**: `/api/auth/google/callback` reclassificat a `INTERNAL_AUTH` i blindat (state one-time + session binding + RBAC per biz de `oauth_state`).
 - **WRITES USER_FACING_TENANT pendents (estat actual)**: **0 rutes**.
 - **GET USER_FACING_TENANT pendents (estat actual)**: **0 rutes**.
@@ -66,16 +67,16 @@ Comptadors de classificació:
 <!-- WAVE2_CLASSIFIED_START -->
 | Route | CLASS | JUSTIFICACIÓ | STATUS |
 |---|---|---|---|
-| /api/_internal/bootstrap | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/gbp/reviews/sync | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/insights/rollup | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/lito/rebuild-cards | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/rules/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/signals/backfill | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/signals/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/signals/to-weekly | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/social/reminders/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/_internal/voice/purge | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
+| /api/_internal/bootstrap | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/gbp/reviews/sync | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/insights/rollup | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/lito/rebuild-cards | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/rules/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/signals/backfill | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/signals/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/signals/to-weekly | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/social/reminders/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/_internal/voice/purge | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | FIXED (LOT3 INTERNAL GUARD) |
 | /api/admin/business-memberships | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES, LOT2-B1b READS A*) |
 | /api/admin/businesses | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES, LOT2-B1b READS A*) |
 | /api/admin/org-settings/lito | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES, LOT2-B1b READS A*) |
@@ -92,11 +93,11 @@ Comptadors de classificació:
 | /api/content-studio/assets | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/content-studio/assets/[id]/signed-url | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B2 READS resourceId) |
 | /api/content-studio/x-generate | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
-| /api/cron/audit-cleanup | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
-| /api/cron/audit-probe | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
-| /api/cron/gbp-reviews-sync | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
-| /api/cron/signals-run | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
-| /api/cron/worker/google/publish | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | CLASSIFIED |
+| /api/cron/audit-cleanup | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/cron/audit-probe | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/cron/gbp-reviews-sync | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/cron/signals-run | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | FIXED (LOT3 INTERNAL GUARD) |
+| /api/cron/worker/google/publish | INTERNAL | Ruta cron/worker; autenticació esperada via secret intern abans de DB. | FIXED (LOT3 INTERNAL GUARD) |
 | /api/demo-generate | PUBLIC_NON_TENANT | Endpoint demo públic (rate-limit + audit_runs), sense recursos d'un tenant concret. | CLASSIFIED |
 | /api/demo-seed | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (PRE-WAVE2) |
 | /api/enterprise/overview | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS explicit, LOT2-B1b READS A*) |
@@ -118,7 +119,7 @@ Comptadors de classificació:
 | /api/integrations/google/locations | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/integrations/google/status | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/integrations/test | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
-| /api/jobs | INTERNAL | Runner de jobs/cron amb `x-cron-secret` o context admin. | CLASSIFIED |
+| /api/jobs | INTERNAL | Runner de jobs/cron amb `x-cron-secret` o context admin. | FIXED (LOT3 INTERNAL GUARD) |
 | /api/lito/action-cards | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/lito/action-drafts | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS) |
 | /api/lito/action-drafts/[id] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
@@ -172,7 +173,7 @@ Comptadors de classificació:
 | /api/social/schedules/[id]/snooze | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
 | /api/social/stats/weekly | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS explicit, LOT2-B1b READS A*) |
 | /api/status | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1a READS explicit, LOT2-B1b READS A*) |
-| /api/stripe/webhook | INTERNAL | Webhook Stripe signat (server-to-server), fora de flux UI. | CLASSIFIED |
+| /api/stripe/webhook | INTERNAL | Webhook Stripe signat (server-to-server), fora de flux UI. | FIXED (LOT3 INTERNAL GUARD) |
 | /api/team | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT2-B1b READS A*) |
 | /api/team/invite | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B4 WRITES) |
 | /api/team/member | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B1 RESOURCE WRITES) |
@@ -189,16 +190,16 @@ Comptadors de classificació:
 
 | Route | Mètodes | Inputs (query/body/params) | Gate abans 1a query | Risc | Nota |
 |---|---|---|---|---|---|
-| /api/_internal/bootstrap | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/gbp/reviews/sync | POST | b:business,reviews,bizId \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/insights/rollup | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/lito/rebuild-cards | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/rules/run | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/signals/backfill | POST | b:biz_id,provider \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/signals/run | POST | b:biz_id,provider \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/signals/to-weekly | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/social/reminders/run | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/_internal/voice/purge | POST | biz/resource:NO | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
+| /api/_internal/bootstrap | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/gbp/reviews/sync | POST | b:business,reviews,bizId \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/insights/rollup | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/lito/rebuild-cards | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/rules/run | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/signals/backfill | POST | b:biz_id,provider \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/signals/run | POST | b:biz_id,provider \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/signals/to-weekly | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/social/reminders/run | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/_internal/voice/purge | POST | biz/resource:NO | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
 | /api/admin/business-memberships | GET,PATCH | b:org_id,membership_id,business_ids,role_override \| biz/resource:SI | SI | High | FIXED LOT1-B2/LOT2-B1b: GET+PATCH amb gate Pattern B abans de DB (`requireImplicitBizAccessPatternB`/`requireBizAccessPatternB`) + RBAC via `access.role` (404). |
 | /api/admin/businesses | GET,POST,PUT,PATCH | b:org_id,slug,business_id \| biz/resource:SI | SI | High | FIXED LOT1-B2/LOT2-B1b: GET+POST+PUT+PATCH amb gate Pattern B abans de DB + RBAC via `access.role` (404). |
 | /api/admin/org-settings/lito | GET,PATCH | b:userId,orgId,org_id,ai_provider \| biz/resource:SI | SI | High | FIXED LOT1-B2/LOT2-B1b: GET+PATCH amb gate Pattern B abans de DB + RBAC owner/manager (404). |
@@ -218,11 +219,11 @@ Comptadors de classificació:
 | /api/content-studio/assets/[id]/signed-url | GET | p:id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT2-B2: `requireResourceAccessPatternB(ResourceTable.ContentAssets)` abans de DB i lookup scoped per `access.bizId`. |
 | /api/content-studio/render | POST | h:x-biz-id \| b:suggestionId,sourceAssetId,templateId \| biz/resource:SI | NO | Critical | Usa admin/service-role sense `requireBizAccess*`. |
 | /api/content-studio/x-generate | POST | h:x-biz-id \| b:suggestionId \| biz/resource:SI | SI | High | FIXED LOT1-B4: gate `requireBizAccessPatternB` abans del lookup de `content_suggestions` + query scoped. |
-| /api/cron/audit-cleanup | POST | h:authorization \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/cron/audit-probe | POST | h:authorization \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/cron/gbp-reviews-sync | POST,GET | h:x-cron-secret,authorization \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/cron/signals-run | POST,GET | h:x-cron-secret,authorization \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/cron/worker/google/publish | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
+| /api/cron/audit-cleanup | POST | h:authorization \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/cron/audit-probe | POST | h:authorization \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/cron/gbp-reviews-sync | POST,GET | h:x-cron-secret,authorization \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/cron/signals-run | POST,GET | h:x-cron-secret,authorization \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
+| /api/cron/worker/google/publish | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
 | /api/demo-generate | POST | biz/resource:SI | NO | Medium | Sense gate estàndard; depèn de RLS/lògica manual. |
 | /api/demo-seed | POST | q:biz_id \| biz/resource:SI | SI | Medium | FIXED pre-Wave2: gate `requireBizAccess*` ja estava abans de la query principal. |
 | /api/dlq | GET,POST | q:status,biz_id \| b:failed_job_id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
@@ -245,7 +246,7 @@ Comptadors de classificació:
 | /api/integrations/google/locations | GET | b:seed_biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: gate `requireBizAccessPatternB` abans de DB + RBAC amb `access.role` (404). |
 | /api/integrations/google/status | GET | b:biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: gate `requireBizAccessPatternB` abans de DB + RBAC amb `access.role` (404). |
 | /api/integrations/test | POST | h:x-biz-id \| b:connectorId \| biz/resource:SI | SI | High | FIXED LOT1-B4: gate `requireBizAccessPatternB` + RBAC amb `access.role` (denegació 404). |
-| /api/jobs | POST | h:x-cron-secret \| b:job,org_id,biz_id \| biz/resource:SI | NO | Medium | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
+| /api/jobs | POST | h:x-cron-secret \| biz/resource:SI | SI | High | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
 | /api/kb | GET,POST,PATCH,DELETE | q:biz_id,id \| b:biz_id,org_id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/lito/action-cards | GET | q:biz_id,refresh \| b:bizId,biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: migrat a `requireBizAccessPatternB` i query scoped per `access.bizId`. |
 | /api/lito/action-drafts | GET | b:biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a: migrat a `requireBizAccessPatternB` i query scoped per `access.bizId`. |
@@ -304,7 +305,7 @@ Comptadors de classificació:
 | /api/social/schedules/[id]/snooze | POST | p:id \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB, scoped per `gate.bizId`. |
 | /api/social/stats/weekly | GET | q:biz_id \| b:biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a/B1b: gate Pattern B abans de DB per camí explícit i implícit; 404 per context absent/cross-tenant. |
 | /api/status | GET | q:org_id,biz_id \| biz/resource:SI | SI | High | FIXED LOT2-B1a/B1b: gate Pattern B abans de DB en camí explícit i implícit; org mismatch/cross-tenant => 404. |
-| /api/stripe/webhook | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
+| /api/stripe/webhook | POST | biz/resource:SI | SI | Medium | FIXED LOT3: guard canònic `requireInternalGuard` (secret/HMAC + `x-timestamp` + anti-replay amb `x-nonce`) abans de DB/RPC. |
 | /api/team | GET | q:org_id \| biz/resource:SI | SI | High | FIXED LOT2-B1b: gate Pattern B implícit abans de DB; org mismatch/cross-tenant => 404. |
 | /api/team/invite | POST | b:org_id \| h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT1-B4: gate `requireBizAccessPatternB` abans de DB + RBAC via `access.role` (404) i scope de `org_id`. |
 | /api/team/member | DELETE | q:id \| biz/resource:SI | SI | High | FIXED LOT1-B1: `requireResourceAccessPatternB` abans de DB + scoped per `gate.bizId`. |
@@ -320,37 +321,10 @@ Comptadors de classificació:
 
 > Només rutes amb `Gate abans 1a query = NO`.
 
-- /api/_internal/bootstrap
-- /api/_internal/gbp/reviews/sync
-- /api/_internal/insights/rollup
-- /api/_internal/lito/rebuild-cards
-- /api/_internal/rules/run
-- /api/_internal/signals/backfill
-- /api/_internal/signals/run
-- /api/_internal/signals/to-weekly
-- /api/_internal/social/reminders/run
-- /api/_internal/voice/purge
-- /api/content-intel/generate
-- /api/content-intel/suggestions/[id]
-- /api/content-studio/render
-- /api/cron/audit-cleanup
-- /api/cron/audit-probe
-- /api/cron/gbp-reviews-sync
-- /api/cron/signals-run
-- /api/cron/worker/google/publish
 - /api/demo-generate
-- /api/dlq
 - /api/health
-- /api/jobs
-- /api/kb
-- /api/lito/copy/generate
-- /api/lito/copy/refine
 - /api/locale
-- /api/ops-actions
 - /api/review-audit
-- /api/reviews/[reviewId]/generate
-- /api/stripe/webhook
-- /api/triggers
 
 ## Metodologia (detecció automàtica + revisió manual)
 

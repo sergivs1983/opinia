@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const runtime = 'nodejs';
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
+import { requireInternalGuard } from '@/lib/internal-guard';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -15,11 +15,6 @@ import {
   type CanonicalPlanCode,
 } from '@/lib/billing/stripe-plans';
 import { trackEvent } from '@/lib/telemetry';
-
-type StripeSignatureParts = {
-  timestamp: string | null;
-  v1: string[];
-};
 
 type StripeEventEnvelope = {
   id: string;
@@ -33,43 +28,6 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   response.headers.set('x-request-id', requestId);
   response.headers.set('Cache-Control', 'no-store');
   return response;
-}
-
-function parseStripeSignature(headerValue: string | null): StripeSignatureParts {
-  if (!headerValue) return { timestamp: null, v1: [] };
-  const parts = headerValue.split(',').map((part) => part.trim()).filter(Boolean);
-  const out: StripeSignatureParts = { timestamp: null, v1: [] };
-  for (const part of parts) {
-    const [key, value] = part.split('=');
-    if (!key || !value) continue;
-    if (key === 't') out.timestamp = value;
-    if (key === 'v1') out.v1.push(value);
-  }
-  return out;
-}
-
-function safeTimingEqualHex(expectedHex: string, receivedHex: string): boolean {
-  try {
-    const expected = Buffer.from(expectedHex, 'hex');
-    const received = Buffer.from(receivedHex, 'hex');
-    if (expected.length !== received.length) return false;
-    return timingSafeEqual(expected, received);
-  } catch {
-    return false;
-  }
-}
-
-function isValidStripeSignature(args: {
-  rawBody: string;
-  signatureHeader: string | null;
-  secret: string;
-}): boolean {
-  const parts = parseStripeSignature(args.signatureHeader);
-  if (!parts.timestamp || parts.v1.length === 0) return false;
-
-  const signedPayload = `${parts.timestamp}.${args.rawBody}`;
-  const expected = createHmac('sha256', args.secret).update(signedPayload).digest('hex');
-  return parts.v1.some((candidate) => safeTimingEqualHex(expected, candidate));
 }
 
 function asString(value: unknown): string | null {
@@ -202,9 +160,8 @@ export async function POST(request: Request) {
   const requestId = getRequestIdFromHeaders(request.headers);
   const log = createLogger({ request_id: requestId, route: 'POST /api/stripe/webhook' });
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  if (!webhookSecret || !stripeSecretKey) {
+  if (!stripeSecretKey) {
     return withStandardHeaders(
       NextResponse.json(
         { ok: false, error: 'stripe_unavailable', message: 'Missing Stripe webhook configuration', request_id: requestId },
@@ -214,14 +171,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const signatureHeader = request.headers.get('stripe-signature');
   const rawBody = await request.text();
-  if (!isValidStripeSignature({ rawBody, signatureHeader, secret: webhookSecret })) {
-    return withStandardHeaders(
-      NextResponse.json({ ok: false, error: 'invalid_signature', request_id: requestId }, { status: 400 }),
-      requestId,
-    );
-  }
+  const guardBlocked = requireInternalGuard(request, {
+    requestId,
+    mode: 'stripe',
+    rawBody,
+  });
+  if (guardBlocked) return withStandardHeaders(guardBlocked, requestId);
 
   let event: StripeEventEnvelope;
   try {
