@@ -42,6 +42,7 @@ import {
   GbpPermanentError,
   GbpTransientError,
 } from '@/lib/integrations/google/publish';
+import { truncatePublishErrorDetail } from '@/lib/publish/domain';
 import { createLogger, type AppLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 
@@ -52,7 +53,7 @@ const BATCH       = 10;
 /** Max concurrent job processors */
 const CONCURRENCY = 5;
 /** Max chars for last_error_detail before truncation */
-const MAX_DETAIL  = 200;
+const MAX_DETAIL  = 300;
 
 function jsonNoStore(body: Record<string, unknown>, status = 200): NextResponse {
   const response = NextResponse.json(body, { status });
@@ -97,12 +98,15 @@ async function markFailed(
   code: string,
   detail: string,
 ): Promise<void> {
+  const now = new Date().toISOString();
   await admin.from('publish_jobs').update({
     status:            'failed',
-    finished_at:       new Date().toISOString(),
+    locked_until:      null,
+    finished_at:       now,
     last_error_code:   code,
-    last_error_detail: detail.slice(0, MAX_DETAIL),
-    updated_at:        new Date().toISOString(),
+    last_error_detail: truncatePublishErrorDetail(detail, MAX_DETAIL),
+    processing_started_at: null,
+    updated_at:        now,
   }).eq('id', jobId);
 }
 
@@ -112,13 +116,15 @@ async function markRetry(
   code: string,
   detail: string,
 ): Promise<void> {
+  const now = new Date().toISOString();
   await admin.from('publish_jobs').update({
     status:            'queued_retry',
     locked_until:      null,
     next_attempt_at:   nextAttemptAt(job.attempts).toISOString(),
     last_error_code:   code,
-    last_error_detail: detail.slice(0, MAX_DETAIL),
-    updated_at:        new Date().toISOString(),
+    last_error_detail: truncatePublishErrorDetail(detail, MAX_DETAIL),
+    processing_started_at: null,
+    updated_at:        now,
   }).eq('id', job.id);
 }
 
@@ -130,10 +136,13 @@ async function markSuccess(
   const now = new Date().toISOString();
   await admin.from('publish_jobs').update({
     status:              'success',
+    locked_until:        null,
     finished_at:         now,
+    published_at:        now,
     result_gbp_reply_id: gbpReplyId ?? null,
     last_error_code:     null,
     last_error_detail:   null,
+    processing_started_at: null,
     updated_at:          now,
   }).eq('id', jobId);
 }
@@ -147,6 +156,11 @@ async function processJob(
 ): Promise<JobOutcome> {
   const jl = log.child({ job_id: job.id, reply_id: job.reply_id });
   const last = job.attempts >= job.max_attempts;
+
+  await admin.from('publish_jobs').update({
+    processing_started_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', job.id).eq('status', 'running');
 
   // ── Load reply ─────────────────────────────────────────────────────────────
   const { data: reply } = await admin
