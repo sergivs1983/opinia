@@ -147,6 +147,56 @@ async function markSuccess(
   }).eq('id', jobId);
 }
 
+function isMissingRelationError(error: unknown): boolean {
+  const message = ((error as { message?: string })?.message || '').toLowerCase();
+  const code = String((error as { code?: string })?.code || '').toUpperCase();
+  return code === '42P01' || (message.includes('relation') && message.includes('does not exist'));
+}
+
+async function enqueuePublishFailureDlq(
+  admin: SupabaseClient,
+  job: PublishJobRow,
+  code: string,
+  detail: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const normalizedDetail = truncatePublishErrorDetail(detail, MAX_DETAIL);
+
+  const { error } = await admin.from('failed_jobs').insert({
+    org_id: job.org_id,
+    biz_id: job.biz_id,
+    job_type: 'publish_google_reply',
+    payload: {
+      publish_job_id: job.id,
+      reply_id: job.reply_id,
+      integration_id: job.integration_id ?? null,
+      idempotency_key: job.idempotency_key,
+    },
+    error_code: code,
+    error_message: normalizedDetail,
+    provider: 'google_business',
+    attempt_count: job.attempts,
+    max_attempts: job.max_attempts,
+    status: 'queued',
+    created_at: now,
+    updated_at: now,
+  });
+
+  if (error && !isMissingRelationError(error)) {
+    // Non-blocking: publish job is already marked failed.
+  }
+}
+
+async function markFailedAndDlq(
+  admin: SupabaseClient,
+  job: PublishJobRow,
+  code: string,
+  detail: string,
+): Promise<void> {
+  await markFailed(admin, job.id, code, detail);
+  await enqueuePublishFailureDlq(admin, job, code, detail);
+}
+
 // ─── Per-job processor ────────────────────────────────────────────────────────
 
 async function processJob(
@@ -170,13 +220,13 @@ async function processJob(
     .single();
 
   if (!reply) {
-    await markFailed(admin, job.id, 'reply_not_found', `reply ${job.reply_id} not found`);
+    await markFailedAndDlq(admin, job, 'reply_not_found', `reply ${job.reply_id} not found`);
     return 'failed';
   }
 
   // Ownership: reply.biz_id
   if (reply.biz_id !== job.biz_id) {
-    await markFailed(admin, job.id, 'ownership_mismatch_reply',
+    await markFailedAndDlq(admin, job, 'ownership_mismatch_reply',
       `reply.biz_id ${reply.biz_id} !== job.biz_id ${job.biz_id}`);
     return 'failed';
   }
@@ -184,7 +234,7 @@ async function processJob(
   // Human-in-the-loop: permanent failure, no retry
   if (!reply.is_edited) {
     jl.warn('publish_conflict: reply.is_edited=false');
-    await markFailed(admin, job.id, 'publish_conflict_not_human_edited', 'reply.is_edited is false');
+    await markFailedAndDlq(admin, job, 'publish_conflict_not_human_edited', 'reply.is_edited is false');
     return 'failed';
   }
 
@@ -196,25 +246,25 @@ async function processJob(
     .single();
 
   if (!review) {
-    await markFailed(admin, job.id, 'review_not_found', `review ${reply.review_id} not found`);
+    await markFailedAndDlq(admin, job, 'review_not_found', `review ${reply.review_id} not found`);
     return 'failed';
   }
 
   if (review.biz_id !== job.biz_id) {
-    await markFailed(admin, job.id, 'ownership_mismatch_review',
+    await markFailedAndDlq(admin, job, 'ownership_mismatch_review',
       `review.biz_id ${review.biz_id} !== job.biz_id ${job.biz_id}`);
     return 'failed';
   }
 
   if (!review.external_id) {
-    await markFailed(admin, job.id, 'review_external_id_missing', 'review has no external_id');
+    await markFailedAndDlq(admin, job, 'review_external_id_missing', 'review has no external_id');
     return 'failed';
   }
 
   // ── Load integration ───────────────────────────────────────────────────────
   const integrationId = job.integration_id;
   if (!integrationId) {
-    if (last) { await markFailed(admin, job.id, 'integration_id_missing', 'job.integration_id is null'); return 'failed'; }
+    if (last) { await markFailedAndDlq(admin, job, 'integration_id_missing', 'job.integration_id is null'); return 'failed'; }
     await markRetry(admin, job, 'integration_id_missing', 'job.integration_id is null');
     return 'retrying';
   }
@@ -228,19 +278,19 @@ async function processJob(
   if (!integration || !integration.is_active) {
     const code = !integration ? 'integration_not_found' : 'integration_inactive';
     const detail = !integration ? `integration ${integrationId} not found` : 'integration is inactive';
-    if (last) { await markFailed(admin, job.id, code, detail); return 'failed'; }
+    if (last) { await markFailedAndDlq(admin, job, code, detail); return 'failed'; }
     await markRetry(admin, job, code, detail);
     return 'retrying';
   }
 
   if (integration.biz_id !== job.biz_id) {
-    await markFailed(admin, job.id, 'ownership_mismatch_integration',
+    await markFailedAndDlq(admin, job, 'ownership_mismatch_integration',
       `integration.biz_id ${integration.biz_id} !== job.biz_id ${job.biz_id}`);
     return 'failed';
   }
 
   if (integration.provider !== 'google_business') {
-    await markFailed(admin, job.id, 'integration_provider_mismatch',
+    await markFailedAndDlq(admin, job, 'integration_provider_mismatch',
       `provider is ${integration.provider}, expected google_business`);
     return 'failed';
   }
@@ -270,7 +320,7 @@ async function processJob(
   // ── Get valid Google access token ──────────────────────────────────────────
   const tokenData = await getValidGoogleAccessToken(admin, job.biz_id);
   if (!tokenData) {
-    if (last) { await markFailed(admin, job.id, 'no_google_token', 'Could not retrieve valid Google access token'); return 'failed'; }
+    if (last) { await markFailedAndDlq(admin, job, 'no_google_token', 'Could not retrieve valid Google access token'); return 'failed'; }
     await markRetry(admin, job, 'no_google_token', 'No valid Google access token');
     return 'retrying';
   }
@@ -295,7 +345,7 @@ async function processJob(
   } catch (err) {
     if (err instanceof GbpPermanentError) {
       jl.warn('GBP permanent error — failing immediately', { code: err.code });
-      await markFailed(admin, job.id, err.code, err.message.slice(0, MAX_DETAIL));
+      await markFailedAndDlq(admin, job, err.code, err.message.slice(0, MAX_DETAIL));
       return 'failed';
     }
 
@@ -303,7 +353,7 @@ async function processJob(
     const detail = (err instanceof Error ? err.message : String(err)).slice(0, MAX_DETAIL);
     jl.warn('GBP error', { code, last_attempt: last });
 
-    if (last) { await markFailed(admin, job.id, code, detail); return 'failed'; }
+    if (last) { await markFailedAndDlq(admin, job, code, detail); return 'failed'; }
     await markRetry(admin, job, code, detail);
     return 'retrying';
   }

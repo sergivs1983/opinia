@@ -32,11 +32,14 @@ export const GET = withRequestContext(async function(request: Request) {
     queryBizId,
   });
   if (access instanceof NextResponse) return access;
+  const accessOrgId = access.membership.orgId;
+  if (!accessOrgId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   let query = supabase
     .from('failed_jobs')
     .select('id, org_id, biz_id, job_type, error_code, error_message, provider, model, attempt_count, max_attempts, next_retry_at, status, created_at, updated_at')
     .eq('status', status)
+    .eq('org_id', accessOrgId)
     .eq('biz_id', access.bizId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -74,6 +77,8 @@ export const POST = withRequestContext(async function(request: Request) {
     queryBizId,
   });
   if (access instanceof NextResponse) return access;
+  const accessOrgId = access.membership.orgId;
+  if (!accessOrgId) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   // ── RETRY SINGLE ──────────────────────────────────────────
   if (action === 'retry') {
@@ -81,13 +86,14 @@ export const POST = withRequestContext(async function(request: Request) {
       .from('failed_jobs')
       .select('*')
       .eq('id', body.failed_job_id)
+      .eq('org_id', accessOrgId)
       .eq('biz_id', access.bizId)
       .maybeSingle();
 
     if (!job) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
     if (job.attempt_count >= job.max_attempts) {
-      await admin.from('failed_jobs').update({ status: 'failed' }).eq('id', job.id).eq('biz_id', access.bizId);
+      await admin.from('failed_jobs').update({ status: 'failed' }).eq('id', job.id).eq('org_id', accessOrgId).eq('biz_id', access.bizId);
       log.warn('DLQ job max attempts reached', { job_id: job.id, attempts: job.attempt_count });
       return NextResponse.json(
         { error: 'max_attempts_reached', message: `Job exceeded ${job.max_attempts} retry attempts` },
@@ -103,7 +109,7 @@ export const POST = withRequestContext(async function(request: Request) {
       status: 'retrying',
       attempt_count: newAttempt,
       next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
-    }).eq('id', job.id).eq('biz_id', access.bizId);
+    }).eq('id', job.id).eq('org_id', accessOrgId).eq('biz_id', access.bizId);
 
     const { error: retryAuditError } = await admin.from('activity_log').insert({
       org_id: job.org_id,
@@ -130,6 +136,7 @@ export const POST = withRequestContext(async function(request: Request) {
       .from('failed_jobs')
       .select('id, attempt_count, max_attempts')
       .eq('status', 'queued')
+      .eq('org_id', accessOrgId)
       .eq('biz_id', access.bizId)
       .order('created_at', { ascending: true })
       .limit(batchLimit);
@@ -143,7 +150,7 @@ export const POST = withRequestContext(async function(request: Request) {
     await admin.from('failed_jobs').update({
       status: 'retrying',
       next_retry_at: new Date(Date.now() + 60_000).toISOString(),
-    }).eq('biz_id', access.bizId).in('id', ids);
+    }).eq('org_id', accessOrgId).eq('biz_id', access.bizId).in('id', ids);
 
     log.info('DLQ batch retry', { count: ids.length });
     return NextResponse.json({ retried: ids.length, job_ids: ids });
@@ -155,12 +162,13 @@ export const POST = withRequestContext(async function(request: Request) {
       .from('failed_jobs')
       .select('org_id, biz_id, job_type, status')
       .eq('id', body.failed_job_id)
+      .eq('org_id', accessOrgId)
       .eq('biz_id', access.bizId)
       .maybeSingle();
 
     if (!job) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
-    await admin.from('failed_jobs').update({ status: 'resolved' }).eq('id', body.failed_job_id).eq('biz_id', access.bizId);
+    await admin.from('failed_jobs').update({ status: 'resolved' }).eq('id', body.failed_job_id).eq('org_id', accessOrgId).eq('biz_id', access.bizId);
 
     const { error: resolveAuditError } = await admin.from('activity_log').insert({
       org_id: job.org_id,
