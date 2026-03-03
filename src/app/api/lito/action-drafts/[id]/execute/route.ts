@@ -6,6 +6,8 @@ import { z } from 'zod';
 
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { normalizeReplyContent } from '@/lib/publish/domain';
+import { enqueuePublishJob, PublishEnqueueError } from '@/lib/publish/enqueue';
 import { upsertGbpReplyFromDraft } from '@/lib/publish/execute-bridge';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { validateParams } from '@/lib/validations';
@@ -76,6 +78,53 @@ export async function POST(
       }
     }
 
+    let enqueueResult: {
+      jobId: string;
+      status: string;
+      idempotencyKey: string;
+      reused: boolean;
+    } | null = null;
+
+    if (ctx.draft.kind === 'gbp_update' && bridgeResult) {
+      const replyContent = normalizeReplyContent(String(payload.suggested_reply ?? '')) || '';
+      try {
+        enqueueResult = await enqueuePublishJob({
+          admin,
+          bizId: ctx.draft.biz_id,
+          orgId: ctx.draft.org_id,
+          replyId: bridgeResult.replyId,
+          replyUpdatedAtIso: bridgeResult.replyUpdatedAt,
+          draftId: ctx.draft.id,
+          reviewId: bridgeResult.reviewId,
+          replyContent,
+        });
+      } catch (enqueueError) {
+        if (enqueueError instanceof PublishEnqueueError) {
+          const status = enqueueError.status >= 400 && enqueueError.status < 600 ? enqueueError.status : 500;
+          return withStandardHeaders(
+            NextResponse.json(
+              {
+                error: enqueueError.code,
+                message: status === 422 ? 'No hi ha integració activa de Google' : 'Error intern del servidor',
+                request_id: requestId,
+              },
+              { status },
+            ),
+            requestId,
+          );
+        }
+
+        log.error('lito_action_draft_execute_enqueue_failed', {
+          draft_id: ctx.draft.id,
+          error: enqueueError instanceof Error ? enqueueError.message : String(enqueueError),
+        });
+        return withStandardHeaders(
+          NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
+          requestId,
+        );
+      }
+    }
+
     const nextPayload = {
       ...payload,
       execution: {
@@ -86,6 +135,10 @@ export async function POST(
         reply_updated_at: bridgeResult?.replyUpdatedAt ?? null,
         created_review: bridgeResult?.createdReview ?? false,
         created_reply: bridgeResult?.createdReply ?? false,
+        publish_job_id: enqueueResult?.jobId ?? null,
+        publish_job_status: enqueueResult?.status ?? null,
+        publish_job_reused: enqueueResult?.reused ?? false,
+        publish_idempotency_key: enqueueResult?.idempotencyKey ?? null,
       },
     };
 
