@@ -2,93 +2,114 @@
 -- - org-level AI provider + staff panic toggle
 -- - staff daily usage table
 -- - atomic RPC guards for staff + org quota wrapper
-
-alter table public.organizations
-  add column if not exists ai_provider text;
-
-update public.organizations
-set ai_provider = 'auto'
-where ai_provider is null or btrim(ai_provider) = '';
-
-alter table public.organizations
-  alter column ai_provider set default 'auto';
+-- Safe on partial restores.
 
 do $$
 begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'organizations_ai_provider_check'
-      and conrelid = 'public.organizations'::regclass
-  ) then
+  if to_regclass('public.organizations') is null then
+    raise notice 'Table public.organizations not found - skipping organization guardrail columns';
+  else
     alter table public.organizations
-      add constraint organizations_ai_provider_check
-      check (ai_provider in ('auto', 'openai', 'anthropic'));
+      add column if not exists ai_provider text;
+
+    update public.organizations
+    set ai_provider = 'auto'
+    where ai_provider is null or btrim(ai_provider) = '';
+
+    alter table public.organizations
+      alter column ai_provider set default 'auto';
+
+    if not exists (
+      select 1
+      from pg_constraint
+      where conname = 'organizations_ai_provider_check'
+        and conrelid = 'public.organizations'::regclass
+    ) then
+      alter table public.organizations
+        add constraint organizations_ai_provider_check
+        check (ai_provider in ('auto', 'openai', 'anthropic'));
+    end if;
+
+    alter table public.organizations
+      add column if not exists lito_staff_ai_paused boolean not null default false;
   end if;
 end $$;
-
-alter table public.organizations
-  add column if not exists lito_staff_ai_paused boolean not null default false;
-
-create table if not exists public.lito_user_daily_usage (
-  org_id uuid not null references public.organizations(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  day date not null,
-  used integer not null default 0,
-  updated_at timestamptz not null default now(),
-  primary key (org_id, user_id, day)
-);
 
 do $$
 begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'lito_user_daily_usage_used_non_negative'
-      and conrelid = 'public.lito_user_daily_usage'::regclass
-  ) then
-    alter table public.lito_user_daily_usage
-      add constraint lito_user_daily_usage_used_non_negative
-      check (used >= 0);
+  if to_regclass('public.organizations') is null
+     or to_regclass('auth.users') is null then
+    raise notice 'Missing organizations/auth.users - skipping lito_user_daily_usage DDL';
+  else
+    create table if not exists public.lito_user_daily_usage (
+      org_id uuid not null references public.organizations(id) on delete cascade,
+      user_id uuid not null references auth.users(id) on delete cascade,
+      day date not null,
+      used integer not null default 0,
+      updated_at timestamptz not null default now(),
+      primary key (org_id, user_id, day)
+    );
+
+    if not exists (
+      select 1
+      from pg_constraint
+      where conname = 'lito_user_daily_usage_used_non_negative'
+        and conrelid = 'public.lito_user_daily_usage'::regclass
+    ) then
+      alter table public.lito_user_daily_usage
+        add constraint lito_user_daily_usage_used_non_negative
+        check (used >= 0);
+    end if;
+
+    create index if not exists idx_lito_user_daily_usage_day
+      on public.lito_user_daily_usage (org_id, day desc);
   end if;
 end $$;
 
-create index if not exists idx_lito_user_daily_usage_day
-  on public.lito_user_daily_usage (org_id, day desc);
+do $$
+begin
+  if to_regclass('public.lito_user_daily_usage') is null then
+    raise notice 'Table public.lito_user_daily_usage not found - skipping RLS/policies';
+  else
+    alter table public.lito_user_daily_usage enable row level security;
 
-alter table public.lito_user_daily_usage enable row level security;
+    if to_regclass('public.memberships') is not null then
+      drop policy if exists "lito_user_daily_usage_select_self" on public.lito_user_daily_usage;
+      create policy "lito_user_daily_usage_select_self"
+        on public.lito_user_daily_usage
+        for select
+        to authenticated
+        using (
+          user_id = auth.uid()
+          and exists (
+            select 1
+            from public.memberships m
+            where m.org_id = lito_user_daily_usage.org_id
+              and m.user_id = auth.uid()
+              and m.accepted_at is not null
+          )
+        );
+    else
+      raise notice 'Table public.memberships not found - skipping select policy on lito_user_daily_usage';
+    end if;
 
-drop policy if exists "lito_user_daily_usage_select_self" on public.lito_user_daily_usage;
-create policy "lito_user_daily_usage_select_self"
-  on public.lito_user_daily_usage
-  for select
-  to authenticated
-  using (
-    user_id = auth.uid()
-    and exists (
-      select 1
-      from public.memberships m
-      where m.org_id = lito_user_daily_usage.org_id
-        and m.user_id = auth.uid()
-        and m.accepted_at is not null
-    )
-  );
+    drop policy if exists "lito_user_daily_usage_deny_write_authenticated" on public.lito_user_daily_usage;
+    create policy "lito_user_daily_usage_deny_write_authenticated"
+      on public.lito_user_daily_usage
+      for all
+      to authenticated
+      using (false)
+      with check (false);
 
-drop policy if exists "lito_user_daily_usage_deny_write_authenticated" on public.lito_user_daily_usage;
-create policy "lito_user_daily_usage_deny_write_authenticated"
-  on public.lito_user_daily_usage
-  for all
-  to authenticated
-  using (false)
-  with check (false);
-
-drop policy if exists "lito_user_daily_usage_service_role_all" on public.lito_user_daily_usage;
-create policy "lito_user_daily_usage_service_role_all"
-  on public.lito_user_daily_usage
-  for all
-  to service_role
-  using (true)
-  with check (true);
+    drop policy if exists "lito_user_daily_usage_service_role_all" on public.lito_user_daily_usage;
+    create policy "lito_user_daily_usage_service_role_all"
+      on public.lito_user_daily_usage
+      for all
+      to service_role
+      using (true)
+      with check (true);
+  end if;
+end $$;
 
 create or replace function public.consume_staff_daily(
   p_org_id uuid,
@@ -108,6 +129,11 @@ declare
   v_inc integer;
   v_limit integer;
 begin
+  if to_regclass('public.lito_user_daily_usage') is null
+     or to_regclass('public.memberships') is null then
+    return jsonb_build_object('ok', false, 'reason', 'schema_not_ready', 'used', 0, 'limit', 0, 'remaining', 0);
+  end if;
+
   if p_org_id is null or p_user_id is null then
     return jsonb_build_object('ok', false, 'reason', 'invalid_input', 'used', 0, 'limit', 0, 'remaining', 0);
   end if;
@@ -198,6 +224,13 @@ declare
   v_plan text;
   v_inc integer;
 begin
+  if to_regclass('public.memberships') is null
+     or to_regclass('public.lito_user_daily_usage') is null
+     or to_regclass('public.ai_quotas_monthly') is null
+     or to_regclass('public.organizations') is null then
+    return jsonb_build_object('ok', false, 'reason', 'schema_not_ready', 'used', 0, 'limit', 0, 'remaining', 0);
+  end if;
+
   if p_org_id is null then
     return jsonb_build_object('ok', false, 'reason', 'invalid_input', 'used', 0, 'limit', 0, 'remaining', 0);
   end if;
@@ -287,6 +320,10 @@ security definer
 set search_path = public
 as $$
 begin
+  if to_regprocedure('public.consume_draft_quota(uuid,date,integer)') is null then
+    return jsonb_build_object('ok', false, 'reason', 'schema_not_ready', 'used', 0, 'limit', 0, 'remaining', 0);
+  end if;
+
   return public.consume_draft_quota(
     p_org_id,
     date_trunc('month', timezone('utc', now()))::date,
