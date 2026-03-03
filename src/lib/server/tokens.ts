@@ -8,10 +8,10 @@
  *
  * MIGRATION PHASES (TOKEN_MIGRATION_PHASE env var):
  *
- *   "dual_write"  (default during cutover)
+ *   "dual_write"  (explicit opt-in during legacy cutover)
  *     Write to integrations_secrets (encrypted) AND integrations legacy columns (plaintext).
- *     Read from integrations_secrets; fall back to legacy if secret row missing.
- *     Safe during backfill period — old code paths still work via legacy columns.
+ *     Read from integrations_secrets only.
+ *     Transitional mode for legacy writers only.
  *
  *   "new_only"  (after backfill + verification)
  *     Write to integrations_secrets only. Clears legacy columns on write (defense-in-depth).
@@ -33,9 +33,9 @@ type MigrationPhase = 'dual_write' | 'new_only';
 
 function getMigrationPhase(): MigrationPhase {
   const phase = process.env.TOKEN_MIGRATION_PHASE;
-  if (phase === 'new_only') return 'new_only';
-  // Default to dual_write — safe during transition; requires explicit opt-in to new_only
-  return 'dual_write';
+  if (phase === 'dual_write') return 'dual_write';
+  // Security default: never depend on plaintext legacy reads.
+  return 'new_only';
 }
 
 // ============================================================
@@ -128,8 +128,7 @@ export async function saveOAuthTokens(
 /**
  * getOAuthTokens — Read and decrypt OAuth tokens.
  *
- * Primary: reads from integrations_secrets, decrypts with correct key version.
- * Fallback (dual_write phase only): reads plaintext from legacy integrations columns.
+ * Reads from integrations_secrets only and decrypts with correct key version.
  *
  * @param adminClient   Supabase service_role client.
  * @param integrationId UUID of the integration row.
@@ -158,34 +157,10 @@ export async function getOAuthTokens(
     return { accessToken, refreshToken };
   }
 
-  // ── Fallback: legacy columns (dual_write compat only) ────────────────────
-  const phase = getMigrationPhase();
-  if (phase === 'new_only') {
-    // In new_only mode, absence from secrets table is always an error
-    throw new Error(
-      `[tokens] No secret found for integration ${integrationId} `
-      + `(secret lookup: ${secretError?.message ?? 'row not found'}).`,
-    );
-  }
-
-  // dual_write: tolerate missing secrets row — use legacy columns as bridge
-  const { data: legacy, error: legacyError } = await adminClient
-    .from('integrations')
-    .select('access_token, refresh_token')
-    .eq('id', integrationId)
-    .single();
-
-  if (legacyError || !legacy?.access_token) {
-    throw new Error(
-      `[tokens] No tokens found for integration ${integrationId}. `
-      + 'Run the backfill script to migrate plaintext tokens to integrations_secrets.',
-    );
-  }
-
-  return {
-    accessToken:  legacy.access_token,
-    refreshToken: legacy.refresh_token ?? null,
-  };
+  throw new Error(
+    `[tokens] No secret found for integration ${integrationId} `
+    + `(secret lookup: ${secretError?.message ?? 'row not found'}).`,
+  );
 }
 
 // ============================================================

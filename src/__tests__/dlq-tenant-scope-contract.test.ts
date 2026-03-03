@@ -19,6 +19,10 @@ function includes(label: string, haystack: string, needle: string) {
   assert(label, haystack.includes(needle));
 }
 
+function notIncludes(label: string, haystack: string, needle: string) {
+  assert(label, !haystack.includes(needle));
+}
+
 const root = path.resolve(__dirname, '..', '..');
 const read = (filePath: string) => fs.readFileSync(path.join(root, filePath), 'utf8');
 
@@ -30,6 +34,9 @@ includes('derive access org id', route, 'const accessOrgId = access.membership.o
 includes('GET query scoped by org_id', route, ".eq('org_id', accessOrgId)");
 includes('POST retry scoped by org_id', route, ".eq('org_id', accessOrgId)");
 includes('POST resolve scoped by org_id', route, ".eq('org_id', accessOrgId)");
+notIncludes('does not trust client org_id filters', route, "searchParams.get('org_id')");
+notIncludes('does not expose last_error_detail', route, 'last_error_detail');
+notIncludes('does not expose integration_id', route, 'integration_id');
 
 console.log(`\n=== RESULTS: ${pass}/${pass + fail} passed ===`);
 if (fail > 0) process.exit(1);

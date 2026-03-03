@@ -42,12 +42,12 @@ create policy "biz_settings_select_authenticated_scope"
       where b.id = biz_settings.biz_id
         and m.user_id = auth.uid()
         and m.accepted_at is not null
-        and m.role in (
-          'owner'::public.member_role,
-          'manager'::public.member_role,
-          'staff'::public.member_role,
-          'admin'::public.member_role,
-          'responder'::public.member_role
+        and m.role::text in (
+          'owner',
+          'manager',
+          'staff',
+          'admin',
+          'responder'
         )
     )
   );

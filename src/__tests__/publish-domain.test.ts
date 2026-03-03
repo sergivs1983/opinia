@@ -41,6 +41,12 @@ function run() {
     'truncatePublishErrorDetail max len',
     (truncatePublishErrorDetail('x'.repeat(400), 300) || '').length === 300,
   );
+  assert(
+    'truncatePublishErrorDetail redacts Bearer token',
+    truncatePublishErrorDetail('Bearer abc.def.ghi', 300) === 'Bearer [REDACTED]',
+  );
+  const redactedTokens = truncatePublishErrorDetail('access_token=abc123 refresh_token=def456', 300) || '';
+  assert('truncatePublishErrorDetail redacts token key-value pairs', !redactedTokens.includes('abc123') && !redactedTokens.includes('def456'));
 
   const key = buildReplyPublishIdempotencyKey({
     replyId: 'r-1',

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getOAuthTokens } from '@/lib/server/tokens';
+import { IntegrationSecretError, resolveIntegrationSecret } from '@/lib/integrations/resolve-secret';
 
 export class GoogleAuthError extends Error {
   code: string;
@@ -43,7 +43,16 @@ export async function getValidGoogleAccessToken(
 
   if (integration.status === 'needs_reauth') throw new GoogleAuthError('Integration needs reauth', 'connector_auth_failed');
 
-  const tokens = await getOAuthTokens(admin, integration.id);
+  let tokens: { accessToken: string; refreshToken: string | null };
+  try {
+    tokens = await resolveIntegrationSecret(admin, integration.id);
+  } catch (error) {
+    if (error instanceof IntegrationSecretError) {
+      throw new GoogleAuthError(error.message, 'connector_auth_failed');
+    }
+    throw error;
+  }
+
   if (!tokens?.accessToken) throw new GoogleAuthError('Missing access token', 'connector_auth_failed');
 
   return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, integrationId: integration.id };

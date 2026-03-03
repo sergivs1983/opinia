@@ -327,7 +327,7 @@ async function upsertReviews(args: {
 
     const providerIds = Array.from(new Set(
       chunk
-        .map((review) => normalizeOptionalString(review.providerReviewId))
+        .map((review) => normalizeOptionalString(review.gbpReviewId))
         .filter((value): value is string => Boolean(value)),
     ));
 
@@ -352,16 +352,16 @@ async function upsertReviews(args: {
     const rows = chunk.map((review) => ({
       biz_id: args.bizId,
       provider: GBP_PROVIDER_STORAGE,
-      provider_review_id: review.providerReviewId,
+      provider_review_id: review.gbpReviewId,
       gbp_review_id: review.gbpReviewId,
-      rating: review.rating,
+      rating: review.starRating,
       star_rating: review.starRating,
-      text_snippet: review.textSnippet,
+      text_snippet: review.commentPreview,
       comment_preview: review.commentPreview,
-      author: review.author,
+      author: review.reviewerLabel,
       reviewer_label: review.reviewerLabel,
-      reply_status: review.replyStatus,
-      raw_ref: review.rawRef,
+      reply_status: review.hasReply ? 'replied' : 'pending',
+      raw_ref: `${GBP_PROVIDER_STORAGE}:${review.gbpReviewId}`,
       create_time: review.createTime,
       has_reply: review.hasReply,
       reply_time: review.replyTime,

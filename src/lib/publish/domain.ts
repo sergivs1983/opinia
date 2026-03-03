@@ -34,11 +34,25 @@ export function normalizeReplyContent(value: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-export function truncatePublishErrorDetail(detail: unknown, maxLength = 300): string | null {
+function redactSensitiveErrorTokens(detail: string): string {
+  let sanitized = detail;
+
+  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9\-._~+/=]+/gi, 'Bearer [REDACTED]');
+  sanitized = sanitized.replace(/(\"?(?:access_token|refresh_token)\"?\s*[:=]\s*\")([^\"\s,;]+)(\")/gi, '$1[REDACTED]$3');
+  sanitized = sanitized.replace(/(\b(?:access_token|refresh_token)\b\s*[:=]\s*)([^\s,;]+)/gi, '$1[REDACTED]');
+
+  return sanitized;
+}
+
+export function sanitizePublishErrorDetail(detail: unknown, maxLength = 300): string | null {
   if (typeof detail !== 'string') return null;
-  const normalized = detail.replace(/\s+/g, ' ').trim();
+  const normalized = redactSensitiveErrorTokens(detail).replace(/\s+/g, ' ').trim();
   if (!normalized) return null;
   return normalized.slice(0, Math.max(1, maxLength));
+}
+
+export function truncatePublishErrorDetail(detail: unknown, maxLength = 300): string | null {
+  return sanitizePublishErrorDetail(detail, maxLength);
 }
 
 export function buildReplyPublishIdempotencyKey(input: {
