@@ -8,7 +8,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody } from '@/lib/validations';
 import { validateCsrf } from '@/lib/security/csrf';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { roleCanManageIntegrations } from '@/lib/roles';
 import { getGoogleLocalsLimit, normalizeGoogleLocationId, toSlugBase } from '@/lib/integrations/google/multilocal';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { getOAuthTokens, saveOAuthTokens } from '@/lib/server/tokens';
@@ -245,14 +246,13 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, ImportLocationsSchema);
     if (bodyErr) return withHeaders(bodyErr);
     const payload = body as z.infer<typeof ImportLocationsSchema>;
-
-    const access = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, payload.seed_biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.seed_biz_id,
-      allowedRoles: ['owner', 'admin'],
+      user,
+      bodyBizId: payload.seed_biz_id,
     });
-    if (!access.allowed) {
+    if (gate instanceof NextResponse) return withHeaders(gate);
+    if (!roleCanManageIntegrations(gate.role)) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -265,7 +265,7 @@ export async function POST(request: Request) {
       supabase
         .from('integrations')
         .select('id, biz_id, org_id, account_id, scopes, token_expires_at')
-        .eq('biz_id', payload.seed_biz_id)
+        .eq('biz_id', gate.bizId)
         .eq('provider', 'google_business')
         .order('updated_at', { ascending: false })
         .limit(1)
@@ -273,7 +273,7 @@ export async function POST(request: Request) {
       supabase
         .from('businesses')
         .select('id, org_id, default_language')
-        .eq('id', payload.seed_biz_id)
+        .eq('id', gate.bizId)
         .single(),
     ]);
 

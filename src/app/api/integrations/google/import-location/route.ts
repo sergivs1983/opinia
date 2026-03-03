@@ -5,11 +5,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody } from '@/lib/validations';
 import { validateCsrf } from '@/lib/security/csrf';
-import { ACTIVE_ORG_COOKIE, parseCookieValue, resolveActiveMembership } from '@/lib/workspace/active-org';
-import { normalizeMemberRole } from '@/lib/roles';
+import { roleCanManageIntegrations } from '@/lib/roles';
 import { getGoogleLocalsLimit, normalizeGoogleLocationId, toSlugBase } from '@/lib/integrations/google/multilocal';
 import { findGoogleLocationById, listGoogleBusinessLocations } from '@/lib/integrations/google/locations';
 import { getAdminClient } from '@/lib/supabase/admin';
@@ -19,15 +19,6 @@ const ImportLocationSchema = z.object({
   location_id: z.string().min(1),
   biz_id: z.string().uuid().optional(),
 });
-
-type MembershipRow = {
-  id: string;
-  org_id: string;
-  role: string;
-  is_default: boolean;
-  created_at: string | null;
-  accepted_at: string | null;
-};
 
 type OrgRow = {
   id: string;
@@ -145,65 +136,25 @@ export async function POST(request: Request) {
     if (bodyErr) return withHeaders(bodyErr);
     const payload = body as z.infer<typeof ImportLocationSchema>;
 
-    const cookieOrgId = parseCookieValue(request.headers.get('cookie'), ACTIVE_ORG_COOKIE);
-    const { data: memberships, error: membershipsError } = await supabase
-      .from('memberships')
-      .select('id, org_id, role, is_default, created_at, accepted_at')
-      .eq('user_id', user.id)
-      .not('accepted_at', 'is', null)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (membershipsError || !memberships || memberships.length === 0) {
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const targetBizId = payload.biz_id || workspaceBizId;
+    const access = await requireBizAccessPatternB(request, targetBizId, {
+      supabase,
+      user,
+      bodyBizId: payload.biz_id || null,
+      headerBizId: workspaceBizId,
+    });
+    if (access instanceof NextResponse) return withHeaders(access);
+    if (!roleCanManageIntegrations(access.role)) {
       return withHeaders(
         NextResponse.json(
-          { error: 'forbidden', message: 'No disponible', request_id: requestId },
-          { status: 403 },
+          { error: 'not_found', message: 'No disponible', request_id: requestId },
+          { status: 404 },
         ),
       );
     }
 
-    const activeMembership = resolveActiveMembership(
-      memberships as MembershipRow[],
-      cookieOrgId,
-    );
-    if (!activeMembership) {
-      return withHeaders(
-        NextResponse.json(
-          { error: 'forbidden', message: 'No disponible', request_id: requestId },
-          { status: 403 },
-        ),
-      );
-    }
-
-    const normalizedRole = normalizeMemberRole((activeMembership as MembershipRow).role);
-    if (normalizedRole !== 'owner' && normalizedRole !== 'admin') {
-      return withHeaders(
-        NextResponse.json(
-          { error: 'forbidden', message: 'No tens permisos per importar locals.', request_id: requestId },
-          { status: 403 },
-        ),
-      );
-    }
-
-    const orgId = activeMembership.org_id;
-
-    if (payload.biz_id) {
-      const { data: selectedBiz, error: selectedBizError } = await supabase
-        .from('businesses')
-        .select('id, org_id')
-        .eq('id', payload.biz_id)
-        .eq('org_id', orgId)
-        .maybeSingle();
-      if (selectedBizError || !selectedBiz) {
-        return withHeaders(
-          NextResponse.json(
-            { error: 'not_found', message: 'No disponible', request_id: requestId },
-            { status: 404 },
-          ),
-        );
-      }
-    }
+    const orgId = access.membership.orgId;
 
     const { data: orgRowRaw, error: orgError } = await supabase
       .from('organizations')
@@ -305,9 +256,9 @@ export async function POST(request: Request) {
 
     const seedRows = (integrations || []) as IntegrationSeedRow[];
     const preferredSeed =
-      (payload.biz_id
-        ? (seedRows.find((row) => row.biz_id === payload.biz_id && row.is_active)
-            || seedRows.find((row) => row.biz_id === payload.biz_id))
+      (access.bizId
+        ? (seedRows.find((row) => row.biz_id === access.bizId && row.is_active)
+            || seedRows.find((row) => row.biz_id === access.bizId))
         : null)
       || seedRows.find((row) => row.is_active)
       || seedRows[0]

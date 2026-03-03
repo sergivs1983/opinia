@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { getAcceptedOrgMembership } from '@/lib/authz';
 import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
 import { validateCsrf } from '@/lib/security/csrf';
@@ -138,12 +139,20 @@ export async function PATCH(request: Request) {
     const [body, bodyErr] = await validateBody(request, BodySchema);
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
 
-    const canManage = await ensureOrgManagerAccess({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireBizAccessPatternB(request, workspaceBizId, {
       supabase,
-      userId: user.id,
-      orgId: body.org_id,
+      user,
+      headerBizId: workspaceBizId,
     });
-    if (!canManage) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.membership.orgId !== body.org_id) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.role !== 'owner' && access.role !== 'manager') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,

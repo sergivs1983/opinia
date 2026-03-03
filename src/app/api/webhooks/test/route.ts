@@ -3,7 +3,9 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
+import { roleCanManageIntegrations } from '@/lib/roles';
 import { buildWebhookTestPayload, sendWebhook, toWebhookTestResponse } from '@/lib/webhooks';
 import { validateBody, WebhookTestSchema } from '@/lib/validations';
 import type { ContentPlannerChannel } from '@/types/database';
@@ -60,21 +62,27 @@ export async function POST(request: Request) {
     const payload = body as WebhookTestBody;
 
     const businessId = request.headers.get('x-biz-id')?.trim();
-    if (!businessId) {
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      headerBizId: businessId || null,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
+    if (!roleCanManageIntegrations(access.role)) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'validation_error', message: 'Missing x-biz-id workspace header', request_id: requestId }, { status: 400 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, org_id, name, default_language, webhook_enabled, webhook_url, webhook_secret, webhook_channels')
-      .eq('id', businessId)
+      .eq('id', access.bizId)
       .single();
 
     if (businessError || !businessData) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 

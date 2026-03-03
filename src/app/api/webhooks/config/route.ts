@@ -7,7 +7,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { assertServiceRoleAllowed } from '@/lib/security/service-role';
 import { createLogger, createRequestId } from '@/lib/logger';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { roleCanManageIntegrations } from '@/lib/roles';
 import {
   ensureLegacyWebhookConnector,
   normalizeConnectorChannels,
@@ -203,21 +205,22 @@ export async function PATCH(request: Request) {
     if (bodyErr) return withRequestId(bodyErr);
     const payload = body as WebhookConfigBody;
 
-    const business = await loadBusiness(supabase, businessId);
-    if (!business) {
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      headerBizId: businessId || null,
+    });
+    if (access instanceof NextResponse) return withRequestId(access);
+    if (!roleCanManageIntegrations(access.role)) {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
-    const canManageIntegrations = await hasAcceptedOrgMembership({
-      supabase,
-      userId: user.id,
-      orgId: business.org_id,
-      allowedRoles: ['owner', 'admin'],
-    });
-    if (!canManageIntegrations) {
+
+    const business = await loadBusiness(supabase, access.bizId);
+    if (!business) {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per gestionar integracions', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
@@ -230,7 +233,7 @@ export async function PATCH(request: Request) {
     }
 
     const channels = normalizeConnectorChannels(payload.channels, 'all');
-    const existing = await loadConnector(supabase, businessId);
+    const existing = await loadConnector(supabase, access.bizId);
     const secret = asText(existing?.secret) || asText(business.webhook_secret) || randomBytes(24).toString('hex');
 
     let saved: ConnectorRow | null = null;
@@ -248,7 +251,7 @@ export async function PATCH(request: Request) {
         .single();
 
       if (error || !data) {
-        log.error('Failed to update webhook connector', { error: error?.message || 'unknown', business_id: businessId });
+        log.error('Failed to update webhook connector', { error: error?.message || 'unknown', business_id: access.bizId });
         return withRequestId(
           NextResponse.json({ error: 'db_error', message: 'Failed to update webhook config', request_id: requestId }, { status: 500 }),
         );
@@ -258,7 +261,7 @@ export async function PATCH(request: Request) {
       const { data, error } = await supabase
         .from('connectors')
         .insert({
-          business_id: businessId,
+          business_id: access.bizId,
           type: 'webhook',
           enabled: payload.enabled,
           url,
@@ -269,7 +272,7 @@ export async function PATCH(request: Request) {
         .single();
 
       if (error || !data) {
-        log.error('Failed to create webhook connector', { error: error?.message || 'unknown', business_id: businessId });
+        log.error('Failed to create webhook connector', { error: error?.message || 'unknown', business_id: access.bizId });
         return withRequestId(
           NextResponse.json({ error: 'db_error', message: 'Failed to update webhook config', request_id: requestId }, { status: 500 }),
         );
@@ -277,7 +280,7 @@ export async function PATCH(request: Request) {
       saved = data as ConnectorRow;
     }
 
-    await syncBusinessLegacyWebhook(supabase, businessId, {
+    await syncBusinessLegacyWebhook(supabase, access.bizId, {
       enabled: saved.enabled,
       url: saved.url,
       secret: saved.secret,

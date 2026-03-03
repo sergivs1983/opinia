@@ -10,6 +10,7 @@ import { trackEvent } from '@/lib/telemetry';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { validateBody, BillingUpdateSchema } from '@/lib/validations';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import {
   normalizeOrgRolesForPlan,
 } from '@/lib/seats';
@@ -125,14 +126,18 @@ export async function POST(request: Request) {
   const canonicalPlanCode = canonicalPlanFromAny(body.plan_id);
   const canonicalEntitlements = getEntitlementsForPlan(canonicalPlanCode);
 
-  const hasMembership = await hasAcceptedOrgMembership({
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+  const access = await requireBizAccessPatternB(request, workspaceBizId, {
     supabase,
-    userId: user.id,
-    orgId: body.org_id,
-    allowedRoles: ['owner'],
+    user,
+    headerBizId: workspaceBizId,
   });
-  if (!hasMembership) {
-    return withStandardHeaders(NextResponse.json({ error: 'forbidden' }, { status: 403 }), requestId);
+  if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+  if (access.membership.orgId !== body.org_id || access.role !== 'owner') {
+    return withStandardHeaders(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
   }
 
   const emitBillingEvent = async (eventName: string, props: Record<string, unknown>) => {

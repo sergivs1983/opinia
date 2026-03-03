@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateBody } from '@/lib/validations';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { roleCanManageIntegrations } from '@/lib/roles';
 
 const ConnectGoogleSchema = z.object({
   biz_id: z.string().uuid(),
@@ -124,15 +125,13 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, ConnectGoogleSchema);
     if (bodyErr) return withRequestId(bodyErr);
     const payload = body as z.infer<typeof ConnectGoogleSchema>;
-
-    const access = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
-      allowedRoles: ['owner', 'admin'],
+      user,
+      bodyBizId: payload.biz_id,
     });
-
-    if (!access.allowed) {
+    if (gate instanceof NextResponse) return withRequestId(gate);
+    if (!roleCanManageIntegrations(gate.role)) {
       return withRequestId(
         NextResponse.json(
           {
@@ -163,7 +162,7 @@ export async function POST(request: Request) {
     const { data: stateRow, error: stateError } = await supabase
       .from('oauth_states')
       .insert({
-        biz_id: payload.biz_id,
+        biz_id: gate.bizId,
         user_id: user.id,
         code_verifier: verifier,
       })
@@ -204,7 +203,7 @@ export async function POST(request: Request) {
     if (process.env.NODE_ENV === 'development') {
       console.info('[google-oauth-connect] state-created', {
         request_id: requestId,
-        biz_id: payload.biz_id,
+        biz_id: gate.bizId,
         state: stateId,
         redirect_uri: redirectUri,
       });

@@ -4,8 +4,10 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { audit } from '@/lib/audit';
+import { roleCanPublish } from '@/lib/roles';
 import {
   validateBody,
   OnboardingSeedSchema,
@@ -141,24 +143,28 @@ export async function POST(request: Request) {
     const payload = body as OnboardingSeedBody;
 
     const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
-    if (workspaceBusinessId && workspaceBusinessId !== payload.businessId) {
+    const access = await requireBizAccessPatternB(request, payload.businessId, {
+      supabase,
+      user,
+      bodyBizId: payload.businessId,
+      headerBizId: workspaceBusinessId || null,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
+    if (!roleCanPublish(access.role)) {
       return withResponseRequestId(
-        NextResponse.json(
-          { error: 'forbidden', message: 'businessId does not match current workspace', request_id: requestId },
-          { status: 403 },
-        ),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('*')
-      .eq('id', payload.businessId)
+      .eq('id', access.bizId)
       .single();
 
     if (businessError || !businessData) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
@@ -180,13 +186,13 @@ export async function POST(request: Request) {
     const { data: existingRows, error: existingError } = await supabase
       .from('reviews')
       .select('id')
-      .eq('biz_id', payload.businessId)
+      .eq('biz_id', access.bizId)
       .limit(1);
 
     if (existingError) {
       log.error('Failed to verify existing reviews before onboarding seed', {
         error: existingError.message,
-        business_id: payload.businessId,
+        business_id: access.bizId,
       });
       return withResponseRequestId(
         NextResponse.json(
@@ -221,7 +227,7 @@ export async function POST(request: Request) {
     if (insertError) {
       log.error('Failed to insert onboarding demo reviews', {
         error: insertError.message,
-        business_id: payload.businessId,
+        business_id: access.bizId,
       });
       return withResponseRequestId(
         NextResponse.json(

@@ -65,13 +65,13 @@ Comptadors de classificació:
 | /api/_internal/signals/to-weekly | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
 | /api/_internal/social/reminders/run | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
 | /api/_internal/voice/purge | INTERNAL | Ruta interna de worker/orquestració; s'ha de blindar amb secret/HMAC. | CLASSIFIED |
-| /api/admin/business-memberships | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/admin/businesses | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/admin/org-settings/lito | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/admin/business-memberships | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/admin/businesses | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/admin/org-settings/lito | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
 | /api/audit | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/auth/google/callback | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/billing | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/billing/staff-ai-paused | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/billing | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/billing/staff-ai-paused | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
 | /api/billing/status | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/billing/trial | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/business-memory | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
@@ -100,9 +100,9 @@ Comptadors de classificació:
 | /api/integrations/connectors | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/integrations/connectors/[id] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/integrations/google/businesses | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/integrations/google/connect | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/integrations/google/import-location | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/integrations/google/import-locations | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/integrations/google/connect | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/integrations/google/import-location | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/integrations/google/import-locations | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
 | /api/integrations/google/list | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/integrations/google/locations | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/integrations/google/status | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
@@ -135,8 +135,8 @@ Comptadors de classificació:
 | /api/memory/voice | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/metrics/rebuild | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/metrics/summary | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/onboarding | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/onboarding/seed | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/onboarding | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/onboarding/seed | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
 | /api/orgs/[orgId]/set-plan | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/planner | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/planner/[id] | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
@@ -168,8 +168,8 @@ Comptadors de classificació:
 | /api/team/role | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/telemetry/summary | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 | /api/triggers/test | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/webhooks/config | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
-| /api/webhooks/test | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
+| /api/webhooks/config | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
+| /api/webhooks/test | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | FIXED (LOT1-B2 WRITES) |
 | /api/workspace/active-org | USER_FACING_TENANT | Crida de producte/UI amb dades tenant (biz/org/resource) via DB/RPC. | CLASSIFIED |
 <!-- WAVE2_CLASSIFIED_END -->
 
@@ -188,13 +188,13 @@ Comptadors de classificació:
 | /api/_internal/signals/to-weekly | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
 | /api/_internal/social/reminders/run | POST | biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
 | /api/_internal/voice/purge | POST | biz/resource:NO | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
-| /api/admin/business-memberships | GET,PATCH | b:org_id,membership_id,business_ids,role_override \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
-| /api/admin/businesses | GET,POST,PUT,PATCH | b:org_id,slug,business_id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
-| /api/admin/org-settings/lito | GET,PATCH | b:userId,orgId,org_id,ai_provider \| biz/resource:SI | NO | High | Control alternatiu (getAcceptedOrgMembership) però fora l'estàndard. |
+| /api/admin/business-memberships | GET,PATCH | b:org_id,membership_id,business_ids,role_override \| biz/resource:SI | PARTIAL | High | FIXED LOT1-B2 en PATCH amb `requireBizAccessPatternB` + RBAC per `access.role` (GET pendent). |
+| /api/admin/businesses | GET,POST,PUT,PATCH | b:org_id,slug,business_id \| biz/resource:SI | PARTIAL | High | FIXED LOT1-B2 en POST/PUT/PATCH amb `requireBizAccessPatternB` + RBAC per `access.role` (GET pendent). |
+| /api/admin/org-settings/lito | GET,PATCH | b:userId,orgId,org_id,ai_provider \| biz/resource:SI | PARTIAL | High | FIXED LOT1-B2 en PATCH amb `requireBizAccessPatternB` + RBAC per `access.role` (GET pendent). |
 | /api/audit | GET,POST | q:biz_id \| b:org_id,biz_id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/auth/google/callback | GET | q:error,code,state \| biz/resource:SI | NO | High | Usa admin/service-role sense `requireBizAccess*`. |
-| /api/billing | GET,POST | q:org_id \| b:plan_id,org_id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
-| /api/billing/staff-ai-paused | POST | b:org_id \| biz/resource:SI | NO | High | Control alternatiu (getAcceptedOrgMembership) però fora l'estàndard. |
+| /api/billing | GET,POST | q:org_id \| b:plan_id,org_id \| biz/resource:SI | PARTIAL | High | FIXED LOT1-B2 en POST amb `requireBizAccessPatternB` + owner-only via `access.role` (GET pendent). |
+| /api/billing/staff-ai-paused | POST | b:org_id \| biz/resource:SI | SI | High | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de DB + RBAC owner/manager via `access.role`. |
 | /api/billing/status | GET | biz/resource:SI | NO | High | Control alternatiu (getAcceptedOrgMembership) però fora l'estàndard. |
 | /api/billing/trial | GET | biz/resource:SI | NO | High | Control alternatiu (getAcceptedOrgMembership) però fora l'estàndard. |
 | /api/business-memory | GET,PUT,PATCH | q:biz_id \| b:bizId,userId \| biz/resource:SI | NO | High | Control alternatiu (getLitoBizAccess) però fora l'estàndard. |
@@ -227,9 +227,9 @@ Comptadors de classificació:
 | /api/integrations/connectors | GET,POST | h:x-biz-id \| biz/resource:SI | SI | Medium | `requireBizAccess*` abans de la query principal. |
 | /api/integrations/connectors/[id] | PATCH | p:id \| h:x-biz-id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
 | /api/integrations/google/businesses | GET | biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
-| /api/integrations/google/connect | POST | b:biz_id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
-| /api/integrations/google/import-location | POST | b:biz_id,location_id \| biz/resource:SI | NO | High | Usa admin/service-role sense `requireBizAccess*`. |
-| /api/integrations/google/import-locations | POST | b:seed_biz_id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
+| /api/integrations/google/connect | POST | b:biz_id \| biz/resource:SI | SI | High | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de DB + RBAC via `access.role`. |
+| /api/integrations/google/import-location | POST | b:biz_id,location_id \| biz/resource:SI | SI | High | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de qualsevol lookup/DB (Pattern B 404). |
+| /api/integrations/google/import-locations | POST | b:seed_biz_id \| biz/resource:SI | SI | High | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de DB + RBAC via `access.role`. |
 | /api/integrations/google/list | GET | biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
 | /api/integrations/google/locations | GET | b:seed_biz_id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
 | /api/integrations/google/status | GET | b:biz_id \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
@@ -265,8 +265,8 @@ Comptadors de classificació:
 | /api/memory/voice | PUT,PATCH | b:biz_id \| biz/resource:SI | NO | High | Control alternatiu (requireMemoryBizAccess) però fora l'estàndard. |
 | /api/metrics/rebuild | POST | h:x-biz-id \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
 | /api/metrics/summary | GET | h:x-biz-id \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
-| /api/onboarding | GET,PATCH | h:x-biz-id \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
-| /api/onboarding/seed | POST | h:x-biz-id \| b:businessId \| biz/resource:SI | NO | High | Sense gate estàndard; depèn de RLS/lògica manual. |
+| /api/onboarding | GET,PATCH | h:x-biz-id \| biz/resource:SI | SI | High | FIXED LOT1-B2: GET/PATCH amb `requireBizAccessPatternB` abans de DB. |
+| /api/onboarding/seed | POST | h:x-biz-id \| b:businessId \| biz/resource:SI | SI | High | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de DB + RBAC per `access.role`. |
 | /api/ops-actions | GET,POST,PATCH,DELETE | q:biz_id,status,id \| b:biz_id,org_id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/orgs/[orgId]/set-plan | POST | p:orgId \| h:x-admin-secret \| biz/resource:SI | NO | Medium | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
 | /api/planner | GET,POST | h:x-biz-id \| b:businessId,suggestionId,assetId,textPostId \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedBusinessMembership) però fora l'estàndard. |
@@ -301,8 +301,8 @@ Comptadors de classificació:
 | /api/telemetry/summary | GET | biz/resource:SI | NO | High | Control alternatiu (getAcceptedOrgMembership) però fora l'estàndard. |
 | /api/triggers | GET,POST,PUT,DELETE | q:biz_id,id \| b:biz_id,org_id \| biz/resource:SI | NO | High | `requireBizAccess*` existent però arriba tard (ordre/parcial Pattern B). |
 | /api/triggers/test | POST | q:biz_id \| b:biz_id \| biz/resource:SI | SI | Medium | `requireBizAccess*` abans de la query principal. |
-| /api/webhooks/config | GET,PATCH | h:x-biz-id \| biz/resource:SI | NO | Medium | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
-| /api/webhooks/test | POST | h:x-biz-id \| biz/resource:SI | NO | Medium | Ruta interna/cron/webhook amb secret/HMAC; sense gate estàndard de tenant. |
+| /api/webhooks/config | GET,PATCH | h:x-biz-id \| biz/resource:SI | PARTIAL | Medium | FIXED LOT1-B2 en PATCH amb `requireBizAccessPatternB` abans de DB + RBAC via `access.role` (GET pendent). |
+| /api/webhooks/test | POST | h:x-biz-id \| biz/resource:SI | SI | Medium | FIXED LOT1-B2: gate `requireBizAccessPatternB` abans de DB + RBAC via `access.role`. |
 | /api/workspace/active-org | POST | b:orgId \| biz/resource:SI | NO | High | Control alternatiu (hasAcceptedOrgMembership) però fora l'estàndard. |
 
 ## ENDPOINTS SENSE GATE
@@ -319,12 +319,7 @@ Comptadors de classificació:
 - /api/_internal/signals/to-weekly
 - /api/_internal/social/reminders/run
 - /api/_internal/voice/purge
-- /api/admin/business-memberships
-- /api/admin/businesses
-- /api/admin/org-settings/lito
 - /api/auth/google/callback
-- /api/billing
-- /api/billing/staff-ai-paused
 - /api/billing/status
 - /api/billing/trial
 - /api/business-memory
@@ -349,9 +344,6 @@ Comptadors de classificació:
 - /api/health
 - /api/integrations/connectors/[id]
 - /api/integrations/google/businesses
-- /api/integrations/google/connect
-- /api/integrations/google/import-location
-- /api/integrations/google/import-locations
 - /api/integrations/google/list
 - /api/integrations/google/locations
 - /api/integrations/google/status
@@ -386,8 +378,6 @@ Comptadors de classificació:
 - /api/memory/voice
 - /api/metrics/rebuild
 - /api/metrics/summary
-- /api/onboarding
-- /api/onboarding/seed
 - /api/orgs/[orgId]/set-plan
 - /api/planner
 - /api/planner/[id]
@@ -418,8 +408,6 @@ Comptadors de classificació:
 - /api/team/member
 - /api/team/role
 - /api/telemetry/summary
-- /api/webhooks/config
-- /api/webhooks/test
 - /api/workspace/active-org
 
 ## Metodologia (detecció automàtica + revisió manual)

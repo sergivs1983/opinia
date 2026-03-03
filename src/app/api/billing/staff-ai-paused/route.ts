@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -42,13 +42,14 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, BodySchema);
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
 
-    const membership = await getAcceptedOrgMembership({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireBizAccessPatternB(request, workspaceBizId, {
       supabase,
-      userId: user.id,
-      orgId: body.org_id,
+      user,
+      headerBizId: workspaceBizId,
     });
-
-    if (!membership || (membership.normalized_role !== 'owner' && membership.normalized_role !== 'manager')) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.membership.orgId !== body.org_id || (access.role !== 'owner' && access.role !== 'manager')) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,

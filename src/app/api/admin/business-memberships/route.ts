@@ -5,7 +5,13 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
-import { normalizeMemberRole, asMembershipRoleFilter, TEAM_MANAGEMENT_ROLES } from '@/lib/roles';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
+import {
+  normalizeMemberRole,
+  roleCanManageTeam,
+  asMembershipRoleFilter,
+  TEAM_MANAGEMENT_ROLES,
+} from '@/lib/roles';
 import { assertRoleAllowedForOrgPlan, OrgRoleNotAllowedForPlanError } from '@/lib/seats';
 import {
   validateBody,
@@ -92,14 +98,20 @@ export async function PATCH(request: Request) {
   const [body, bodyErr] = await validateBody(request, AdminBusinessAssignmentsUpdateSchema);
   if (bodyErr) return bodyErr;
 
-  const canManage = await hasAcceptedOrgMembership({
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+  const scopedBizId = body.business_ids[0] || workspaceBizId;
+  const access = await requireBizAccessPatternB(request, scopedBizId, {
     supabase,
-    userId: user.id,
-    orgId: body.org_id,
-    allowedRoles: asMembershipRoleFilter(TEAM_MANAGEMENT_ROLES),
+    user,
+    bodyBizId: body.business_ids[0] || null,
+    headerBizId: workspaceBizId,
   });
-  if (!canManage) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  if (access instanceof NextResponse) return access;
+  if (!roleCanManageTeam(access.role)) {
+    return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
+  }
+  if (access.membership.orgId !== body.org_id) {
+    return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
   }
 
   const { data: targetMembership, error: targetMembershipError } = await supabase

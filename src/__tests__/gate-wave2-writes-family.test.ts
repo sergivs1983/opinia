@@ -29,6 +29,23 @@ const root = path.resolve(__dirname, '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
 
 function run() {
+  const adminBusinessMemberships = read('src/app/api/admin/business-memberships/route.ts');
+  includes('admin/business-memberships PATCH: uses biz gate', adminBusinessMemberships, 'requireBizAccessPatternB(request, scopedBizId');
+  includes('admin/business-memberships PATCH: RBAC from access.role', adminBusinessMemberships, 'roleCanManageTeam(access.role)');
+
+  const adminBusinesses = read('src/app/api/admin/businesses/route.ts');
+  includes('admin/businesses POST: uses biz gate', adminBusinesses, 'requireBizAccessPatternB(request, workspaceBizId');
+  includes('admin/businesses PUT: uses biz gate with business_id', adminBusinesses, 'requireBizAccessPatternB(request, body.business_id');
+  includes('admin/businesses PATCH: uses biz gate with anchor biz', adminBusinesses, 'requireBizAccessPatternB(request, anchorBizId');
+
+  const billing = read('src/app/api/billing/route.ts');
+  includes('billing POST: uses biz gate', billing, 'requireBizAccessPatternB(request, workspaceBizId');
+  includes('billing POST: owner-only via access.role', billing, "access.role !== 'owner'");
+
+  const billingStaffPause = read('src/app/api/billing/staff-ai-paused/route.ts');
+  includes('billing/staff-ai-paused POST: uses biz gate', billingStaffPause, 'requireBizAccessPatternB(request, workspaceBizId');
+  includes('billing/staff-ai-paused POST: owner/manager role check', billingStaffPause, "(access.role !== 'owner' && access.role !== 'manager')");
+
   const connectors = read('src/app/api/integrations/connectors/[id]/route.ts');
   includes('connectors/[id]: uses resource helper', connectors, 'requireResourceAccessPatternB(request, routeParams.id, ResourceTable.Connectors');
   ordered('connectors/[id]: gate before connector query', connectors, 'requireResourceAccessPatternB(request, routeParams.id, ResourceTable.Connectors', ".from('connectors')");
