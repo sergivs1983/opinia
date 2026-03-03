@@ -8,6 +8,7 @@ import { buildGlobalProps } from '@/lib/analytics/properties';
 import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
+import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { trackEvent } from '@/lib/telemetry';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -48,14 +49,18 @@ export async function POST(
     user,
   });
   if (gate instanceof NextResponse) return withNoStore(gate, requestId);
+  const memberRole = toLitoMemberRole(gate.role);
+  if (!memberRole) {
+    return notFound(requestId);
+  }
 
   const schedule = await loadSchedule(parsedParams.data.id, gate.bizId);
   if (!schedule) {
     return notFound(requestId);
   }
 
-  const canManage = gate.role === 'owner' || gate.role === 'manager';
-  const canPublishAssigned = gate.role === 'staff'
+  const canManage = memberRole === 'owner' || memberRole === 'manager';
+  const canPublishAssigned = memberRole === 'staff'
     && schedule.assigned_user_id === gate.userId
     && ['scheduled', 'notified', 'snoozed', 'published'].includes(schedule.status);
 
@@ -112,7 +117,7 @@ export async function POST(
         userId: gate.userId,
         bizId: schedule.biz_id,
         orgId: gate.membership.orgId,
-        role: gate.role,
+        role: memberRole,
         mode: 'basic',
         platform: 'web',
       }),
