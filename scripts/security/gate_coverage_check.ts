@@ -10,6 +10,22 @@ type ClassifiedRow = {
 type FullTableRow = {
   route: string;
   gate: string;
+  note: string;
+};
+
+type GateCoverageRow = {
+  route: string;
+  cls: string;
+  status: string;
+  gate: string;
+  note: string;
+};
+
+type WarningRouteRow = {
+  route: string;
+  cls: string;
+  gate: 'NO';
+  note: string;
 };
 
 type Report = {
@@ -18,9 +34,9 @@ type Report = {
   classifiedTotal: number;
   pendingOrUnknown: ClassifiedRow[];
   classes: Record<string, number>;
-  fullTableRows: number;
-  noGateRows: FullTableRow[];
-  noGateNonPublic: FullTableRow[];
+  fullTableRows: number; // only rows reconciled to CLASSIFIED routes
+  noGateRows: GateCoverageRow[];
+  noGateNonPublic: WarningRouteRow[];
   warnings: string[];
 };
 
@@ -94,6 +110,7 @@ function parseFullTable(content: string): FullTableRow[] {
     rows.push({
       route: cols[0],
       gate: cols[3].toUpperCase(),
+      note: cols[5] || '',
     });
   }
   return rows;
@@ -103,7 +120,7 @@ function buildReport(docsPath: string, strictGuard = false): Report {
   const content = readDocs(docsPath);
   const classified = parseClassified(content);
   const fullRows = parseFullTable(content);
-  const classByRoute = new Map(classified.map((r) => [r.route, r.cls]));
+  const fullByRoute = new Map(fullRows.map((r) => [r.route, r]));
 
   const pendingOrUnknown = classified.filter((r) => /PENDING|UNKNOWN/i.test(r.status));
   const classes: Record<string, number> = {};
@@ -111,11 +128,28 @@ function buildReport(docsPath: string, strictGuard = false): Report {
     classes[row.cls] = (classes[row.cls] || 0) + 1;
   }
 
-  const noGateRows = fullRows.filter((r) => r.gate === 'NO');
-  const noGateNonPublic = noGateRows.filter((r) => {
-    const cls = classByRoute.get(r.route) || 'UNCLASSIFIED';
-    return cls !== 'PUBLIC_NON_TENANT';
+  // Strict parsing: evaluate gate coverage only for routes listed in CLASSIFIED table.
+  // This ignores legacy/unclassified rows from auxiliary sections.
+  const reconciledRows: GateCoverageRow[] = classified.map((row) => {
+    const full = fullByRoute.get(row.route);
+    return {
+      route: row.route,
+      cls: row.cls,
+      status: row.status,
+      gate: (full?.gate || 'UNKNOWN').toUpperCase(),
+      note: full?.note || '',
+    };
   });
+
+  const noGateRows = reconciledRows.filter((r) => r.gate === 'NO');
+  const noGateNonPublic: WarningRouteRow[] = noGateRows
+    .map((r) => ({
+      route: r.route,
+      cls: r.cls || 'UNCLASSIFIED',
+      gate: 'NO' as const,
+      note: r.note,
+    }))
+    .filter((r) => r.cls !== 'PUBLIC_NON_TENANT');
 
   const warnings: string[] = [];
   if (noGateNonPublic.length > 0) {
@@ -131,7 +165,7 @@ function buildReport(docsPath: string, strictGuard = false): Report {
     classifiedTotal: classified.length,
     pendingOrUnknown,
     classes,
-    fullTableRows: fullRows.length,
+    fullTableRows: reconciledRows.length,
     noGateRows,
     noGateNonPublic,
     warnings,
@@ -159,6 +193,11 @@ function printReport(report: Report): void {
     console.log('warnings:');
     for (const warning of report.warnings) {
       console.log(`- ${warning}`);
+    }
+    console.log('warning_routes:');
+    for (const row of report.noGateNonPublic) {
+      const note = row.note.trim().length > 0 ? row.note : '<none>';
+      console.log(`- route=${row.route} | class=${row.cls} | gate=${row.gate} | note=${note}`);
     }
   }
 }
