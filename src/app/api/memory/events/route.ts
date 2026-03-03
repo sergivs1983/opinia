@@ -4,12 +4,13 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sanitizeMemoryEventSummary, sanitizeMemoryObject } from '@/lib/memory/context';
-import { requireMemoryBizAccess, withStandardHeaders } from '@/app/api/memory/_shared';
+import { withStandardHeaders } from '@/app/api/memory/_shared';
 import { validateBody } from '@/lib/validations';
 
 const MemoryEventBodySchema = z.object({
@@ -43,13 +44,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof MemoryEventBodySchema>;
 
-    const access = await requireMemoryBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-
-    if (!access.ok) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -60,8 +61,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     const { data, error } = await admin
       .from('biz_memory_events')
       .insert({
-        biz_id: payload.biz_id,
-        org_id: access.orgId,
+        biz_id: access.bizId,
+        org_id: access.membership.orgId,
         type: payload.type,
         source: payload.source,
         summary: sanitizeMemoryEventSummary(payload.summary),
@@ -76,7 +77,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       log.error('memory_event_insert_failed', {
         error_code: error.code || null,
         error: error.message || null,
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),

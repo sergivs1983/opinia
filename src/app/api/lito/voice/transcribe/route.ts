@@ -4,9 +4,10 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { getLitoBizAccess, type LitoActionDraftRow } from '@/lib/lito/action-drafts';
+import type { LitoActionDraftRow } from '@/lib/lito/action-drafts';
 import {
   buildVoiceAssistantMessage,
   detectVoiceDraftSeeds,
@@ -91,12 +92,13 @@ export async function POST(request: Request) {
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof BodySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.orgId || !access.role) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
         .eq('id', payload.thread_id)
         .maybeSingle();
 
-      if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== payload.biz_id) {
+      if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== access.bizId) {
         return withStandardHeaders(
           NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
           requestId,
@@ -123,7 +125,7 @@ export async function POST(request: Request) {
     const { data: orgData } = await admin
       .from('organizations')
       .select('id, ai_provider')
-      .eq('id', access.orgId)
+      .eq('id', access.membership.orgId)
       .maybeSingle();
 
     const capabilities = resolveVoiceCapabilities((orgData as OrganizationRow | null)?.ai_provider ?? null);
@@ -147,7 +149,7 @@ export async function POST(request: Request) {
     const dayBucket = getVoiceDayBucket();
     const clipIdempotencyKey = buildVoiceIdempotencyKey({
       userId: user.id,
-      bizId: payload.biz_id,
+      bizId: access.bizId,
       threadId: payload.thread_id || null,
       transcriptText,
       dayBucket,
@@ -156,7 +158,7 @@ export async function POST(request: Request) {
     const { data: existingClipByIdempotency, error: existingClipByIdempotencyErr } = await admin
       .from('lito_voice_clips')
       .select('id, transcript, transcript_lang, idempotency_key')
-      .eq('org_id', access.orgId)
+      .eq('org_id', access.membership.orgId)
       .eq('idempotency_key', clipIdempotencyKey)
       .maybeSingle();
 
@@ -164,7 +166,7 @@ export async function POST(request: Request) {
       log.error('lito_voice_clip_idempotency_lookup_failed', {
         error_code: existingClipByIdempotencyErr.code || null,
         error: existingClipByIdempotencyErr.message || null,
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
       });
     }
 
@@ -197,8 +199,8 @@ export async function POST(request: Request) {
     const { data: clipData, error: clipErr } = await admin
       .from('lito_voice_clips')
       .insert({
-        org_id: access.orgId,
-        biz_id: payload.biz_id,
+        org_id: access.membership.orgId,
+        biz_id: access.bizId,
         thread_id: payload.thread_id ?? null,
         user_id: user.id,
         status: 'transcribed',
@@ -220,8 +222,8 @@ export async function POST(request: Request) {
       const fallbackClip = await admin
         .from('lito_voice_clips')
         .insert({
-          org_id: access.orgId,
-          biz_id: payload.biz_id,
+          org_id: access.membership.orgId,
+          biz_id: access.bizId,
           thread_id: payload.thread_id ?? null,
           user_id: user.id,
           status: 'transcribed',
@@ -243,7 +245,7 @@ export async function POST(request: Request) {
       const { data: existingClipAfterConflict } = await admin
         .from('lito_voice_clips')
         .select('id, transcript, transcript_lang, idempotency_key')
-        .eq('org_id', access.orgId)
+        .eq('org_id', access.membership.orgId)
         .eq('idempotency_key', clipIdempotencyKey)
         .maybeSingle();
 
@@ -278,7 +280,7 @@ export async function POST(request: Request) {
       log.error('lito_voice_clip_insert_failed', {
         error_code: finalClipErr?.code || null,
         error: finalClipErr?.message || null,
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
@@ -293,7 +295,7 @@ export async function POST(request: Request) {
     for (const seed of draftSeeds) {
       const nowIso = new Date().toISOString();
       const draftFingerprint = buildVoiceDraftFingerprint({
-        bizId: payload.biz_id,
+        bizId: access.bizId,
         kind: seed.kind,
         payload: seed.payload as Record<string, unknown>,
       });
@@ -301,7 +303,7 @@ export async function POST(request: Request) {
       const existingByFingerprint = await admin
         .from('lito_action_drafts')
         .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
-        .eq('biz_id', payload.biz_id)
+        .eq('biz_id', access.bizId)
         .eq('kind', seed.kind)
         .eq('idempotency_key', draftFingerprint)
         .order('updated_at', { ascending: false })
@@ -317,7 +319,7 @@ export async function POST(request: Request) {
         const existingByPayload = await admin
           .from('lito_action_drafts')
           .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
-          .eq('biz_id', payload.biz_id)
+          .eq('biz_id', access.bizId)
           .eq('kind', seed.kind)
           .eq('payload', seed.payload)
           .order('updated_at', { ascending: false })
@@ -333,8 +335,8 @@ export async function POST(request: Request) {
       const insertDraft = await admin
         .from('lito_action_drafts')
         .insert({
-          org_id: access.orgId,
-          biz_id: payload.biz_id,
+          org_id: access.membership.orgId,
+          biz_id: access.bizId,
           thread_id: payload.thread_id ?? null,
           source_voice_clip_id: clipId,
           idempotency_key: draftFingerprint,
@@ -354,8 +356,8 @@ export async function POST(request: Request) {
         const fallbackDraft = await admin
           .from('lito_action_drafts')
           .insert({
-            org_id: access.orgId,
-            biz_id: payload.biz_id,
+            org_id: access.membership.orgId,
+            biz_id: access.bizId,
             thread_id: payload.thread_id ?? null,
             source_voice_clip_id: clipId,
             kind: seed.kind,
@@ -380,7 +382,7 @@ export async function POST(request: Request) {
         const { data: existingDataByIdempotency } = await admin
           .from('lito_action_drafts')
           .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
-          .eq('org_id', access.orgId)
+          .eq('org_id', access.membership.orgId)
           .eq('idempotency_key', draftFingerprint)
           .maybeSingle();
         if (existingDataByIdempotency) {

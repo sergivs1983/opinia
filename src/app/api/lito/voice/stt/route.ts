@@ -6,10 +6,10 @@ import crypto from 'node:crypto';
 
 import { NextResponse } from 'next/server';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { getVoiceDayBucket } from '@/lib/lito/voice-idempotency';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import {
@@ -108,12 +108,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, bizId, {
       supabase,
-      userId: user.id,
-      bizId,
+      user,
+      bodyBizId: bizId,
     });
-    if (!access.allowed || !access.orgId) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
         .eq('id', threadId)
         .maybeSingle();
 
-      if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== bizId) {
+      if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== access.bizId) {
         return withStandardHeaders(
           NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
           requestId,
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
     const { data: existingClip, error: existingClipErr } = await admin
       .from('lito_voice_clips')
       .select('id, transcript, transcript_lang')
-      .eq('org_id', access.orgId)
+      .eq('org_id', access.membership.orgId)
       .eq('idempotency_key', idempotencyKey)
       .maybeSingle();
 
@@ -198,8 +199,8 @@ export async function POST(request: Request) {
 
     const nowIso = new Date().toISOString();
     const insertPayload = {
-      org_id: access.orgId,
-      biz_id: bizId,
+      org_id: access.membership.orgId,
+      biz_id: access.bizId,
       thread_id: threadId,
       user_id: user.id,
       status: 'transcribed',
@@ -233,8 +234,8 @@ export async function POST(request: Request) {
       const fallbackInsert = await admin
         .from('lito_voice_clips')
         .insert({
-          org_id: access.orgId,
-          biz_id: bizId,
+          org_id: access.membership.orgId,
+          biz_id: access.bizId,
           thread_id: threadId,
           user_id: user.id,
           status: 'transcribed',
@@ -259,7 +260,7 @@ export async function POST(request: Request) {
       const { data: existingClipAfterConflict } = await admin
         .from('lito_voice_clips')
         .select('id, transcript, transcript_lang')
-        .eq('org_id', access.orgId)
+        .eq('org_id', access.membership.orgId)
         .eq('idempotency_key', idempotencyKey)
         .maybeSingle();
 
@@ -283,7 +284,7 @@ export async function POST(request: Request) {
       log.error('voice_stt_clip_insert_failed', {
         error_code: clipError?.code || null,
         error: clipError?.message || null,
-        biz_id: bizId,
+        biz_id: access.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),

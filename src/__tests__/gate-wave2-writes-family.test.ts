@@ -46,6 +46,19 @@ function run() {
   includes('billing/staff-ai-paused POST: uses biz gate', billingStaffPause, 'requireBizAccessPatternB(request, workspaceBizId');
   includes('billing/staff-ai-paused POST: owner/manager role check', billingStaffPause, "(access.role !== 'owner' && access.role !== 'manager')");
 
+  const businessMemory = read('src/app/api/business-memory/route.ts');
+  includes('business-memory PUT/PATCH: uses biz gate', businessMemory, 'requireBizAccessPatternB(request, bizId');
+  includes('business-memory PUT/PATCH: owner/manager role check', businessMemory, "(access.role !== 'owner' && access.role !== 'manager')");
+
+  const voiceStt = read('src/app/api/lito/voice/stt/route.ts');
+  ordered('lito/voice/stt: gate before lito_voice_clips query', voiceStt, 'requireBizAccessPatternB(request, bizId', ".from('lito_voice_clips')");
+
+  const voiceTranscribe = read('src/app/api/lito/voice/transcribe/route.ts');
+  ordered('lito/voice/transcribe: gate before lito_voice_clips query', voiceTranscribe, 'requireBizAccessPatternB(request, payload.biz_id', ".from('lito_voice_clips')");
+
+  const schedulesRoute = read('src/app/api/social/schedules/route.ts');
+  ordered('social/schedules POST: gate before draft lookup', schedulesRoute, 'requireBizAccessPatternB(request, payload.biz_id', 'loadSocialDraftSnapshot(payload.draft_id)');
+
   const connectors = read('src/app/api/integrations/connectors/[id]/route.ts');
   includes('connectors/[id]: uses resource helper', connectors, 'requireResourceAccessPatternB(request, routeParams.id, ResourceTable.Connectors');
   ordered('connectors/[id]: gate before connector query', connectors, 'requireResourceAccessPatternB(request, routeParams.id, ResourceTable.Connectors', ".from('connectors')");

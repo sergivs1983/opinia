@@ -7,8 +7,7 @@ import { NextResponse } from 'next/server';
 import { audit, type AuditAction } from '@/lib/audit';
 import { validateBody, AuditLogSchema } from '@/lib/validations';
 import type { JsonObject } from '@/types/json';
-import { requireBizAccess, withRequestContext } from '@/lib/api-handler';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccess, requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
 import { parseLimitParam } from '@/lib/security/query-limits';
 
 /**
@@ -58,30 +57,30 @@ export const POST = withRequestContext(async function(request: Request) {
   const [body, err] = await validateBody(request, AuditLogSchema);
   if (err) return err;
 
-  // ── Org-level guard: valida org_id del body (untrusted input del client) ─
-  // Qualsevol usuari autenticat podria enviar org_id d'un altre tenant.
-  // Validem que l'usuari és membre acceptat de l'org abans de persistir.
-  const isOrgMember = await hasAcceptedOrgMembership({
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+  const gate = await requireBizAccessPatternB(request, body.biz_id || workspaceBizId, {
     supabase,
-    userId: user.id,
-    orgId: body.org_id,
+    user,
+    bodyBizId: body.biz_id || null,
+    headerBizId: workspaceBizId,
   });
-  if (!isOrgMember) {
+  if (gate instanceof NextResponse) return gate;
+  if (!gate.role) {
     return NextResponse.json(
-      { error: 'forbidden', code: 'ORG_FORBIDDEN', message: 'No tens accés a aquesta organització' },
-      { status: 403 },
+      { error: 'not_found', code: 'RESOURCE_NOT_FOUND', message: 'Recurs no trobat' },
+      { status: 404 },
+    );
+  }
+  if (gate.membership.orgId !== body.org_id) {
+    return NextResponse.json(
+      { error: 'not_found', code: 'RESOURCE_NOT_FOUND', message: 'Recurs no trobat' },
+      { status: 404 },
     );
   }
 
-  // ── Biz-level guard addicional (si biz_id present) ──────────────────────
-  if (body.biz_id) {
-    const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: body.biz_id });
-    if (bizGuard) return bizGuard;
-  }
-
   await audit(supabase, {
-    orgId: body.org_id,
-    bizId: body.biz_id ?? null,
+    orgId: gate.membership.orgId,
+    bizId: gate.bizId,
     userId: user.id,
     action: body.action as AuditAction,
     metadata: (body.metadata || {}) as JsonObject,

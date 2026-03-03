@@ -4,7 +4,6 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
 import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -48,8 +47,6 @@ type MessageRow = {
   meta: unknown;
   created_at: string;
 };
-
-const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -105,13 +102,7 @@ export async function GET(
 
     const thread = threadData as ThreadRow;
 
-    const access = await hasAcceptedBusinessMembership({
-      supabase,
-      userId: user.id,
-      businessId: gate.bizId,
-      allowedRoles: [...LITO_ALLOWED_ROLES],
-    });
-    if (!access.allowed) {
+    if (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -205,13 +196,7 @@ export async function PATCH(
 
     const thread = threadData as ThreadRow;
 
-    const access = await hasAcceptedBusinessMembership({
-      supabase,
-      userId: user.id,
-      businessId: gate.bizId,
-      allowedRoles: [...LITO_ALLOWED_ROLES],
-    });
-    if (!access.allowed) {
+    if (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,

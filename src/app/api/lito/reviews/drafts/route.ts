@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -68,21 +68,16 @@ export async function POST(request: Request) {
     if (bodyErr) return withNoStore(bodyErr, requestId);
     const payload = body as z.infer<typeof BodySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.orgId || !access.role) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
+    if (access instanceof NextResponse) return withNoStore(access, requestId);
 
     if (access.role !== 'owner' && access.role !== 'manager') {
       return withNoStore(
-        NextResponse.json({ error: 'forbidden', message: 'Cal owner o manager', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
@@ -92,7 +87,7 @@ export async function POST(request: Request) {
       .from('gbp_reviews')
       .select('id, gbp_review_id, star_rating, comment_preview, create_time')
       .eq('id', payload.review_id)
-      .eq('biz_id', payload.biz_id)
+      .eq('biz_id', access.bizId)
       .maybeSingle();
 
     if (reviewError || !reviewData) {
@@ -104,7 +99,7 @@ export async function POST(request: Request) {
     const review = reviewData as GbpReviewRow;
     const normalizedText = normalizeDraftText(payload.response_text);
     const fingerprint = buildDraftFingerprint({
-      bizId: payload.biz_id,
+      bizId: access.bizId,
       gbpReviewId: review.gbp_review_id,
       normalizedText,
     });
@@ -112,8 +107,8 @@ export async function POST(request: Request) {
     const { data: existingDraftData, error: existingDraftError } = await admin
       .from('lito_action_drafts')
       .select('id, org_id, biz_id, kind, status, payload, created_by, created_at, updated_at')
-      .eq('org_id', access.orgId)
-      .eq('biz_id', payload.biz_id)
+      .eq('org_id', access.membership.orgId)
+      .eq('biz_id', access.bizId)
       .eq('kind', 'gbp_update')
       .eq('idempotency_key', fingerprint)
       .order('updated_at', { ascending: false })
@@ -122,7 +117,7 @@ export async function POST(request: Request) {
 
     if (existingDraftError) {
       log.error('lito_review_draft_lookup_failed', {
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
         review_id: payload.review_id,
         error_code: existingDraftError.code || null,
         error: existingDraftError.message || null,
@@ -143,8 +138,8 @@ export async function POST(request: Request) {
     const { data: inserted, error: insertError } = await admin
       .from('lito_action_drafts')
       .insert({
-        org_id: access.orgId,
-        biz_id: payload.biz_id,
+        org_id: access.membership.orgId,
+        biz_id: access.bizId,
         idempotency_key: fingerprint,
         kind: 'gbp_update',
         status: 'draft',
@@ -168,8 +163,8 @@ export async function POST(request: Request) {
         const { data: racedDraftData } = await admin
           .from('lito_action_drafts')
           .select('id, org_id, biz_id, kind, status, payload, created_by, created_at, updated_at')
-          .eq('org_id', access.orgId)
-          .eq('biz_id', payload.biz_id)
+          .eq('org_id', access.membership.orgId)
+          .eq('biz_id', access.bizId)
           .eq('kind', 'gbp_update')
           .eq('idempotency_key', fingerprint)
           .order('updated_at', { ascending: false })
@@ -185,7 +180,7 @@ export async function POST(request: Request) {
       }
 
       log.error('lito_review_draft_insert_failed', {
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
         review_id: payload.review_id,
         error_code: insertError?.code || null,
         error: insertError?.message || null,

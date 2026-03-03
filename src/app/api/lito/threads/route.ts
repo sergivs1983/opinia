@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -61,8 +61,6 @@ type RecommendationSeedRow = {
   /** D1.4: RecommendationSignalMeta jsonb — keyword, neg_reviews, avg_rating, … */
   signal?: unknown;
 };
-
-const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -335,14 +333,14 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, LitoThreadsBodySchema);
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof LitoThreadsBodySchema>;
-
-    const access = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
-      allowedRoles: [...LITO_ALLOWED_ROLES],
+      user,
+      bodyBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.orgId) {
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+
+    if (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -358,7 +356,7 @@ export async function POST(request: Request) {
         .from('recommendation_log')
         .select('id, generated_copy, format')
         .eq('id', recommendationId)
-        .eq('biz_id', payload.biz_id)
+        .eq('biz_id', gate.bizId)
         .maybeSingle();
       if (recommendationErr || !recommendationData) {
         return withStandardHeaders(
@@ -373,7 +371,7 @@ export async function POST(request: Request) {
       const { data: existingOpenData } = await admin
         .from('lito_threads')
         .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
-        .eq('biz_id', payload.biz_id)
+        .eq('biz_id', gate.bizId)
         .eq('recommendation_id', recommendationId)
         .eq('status', 'open')
         .maybeSingle();
@@ -381,7 +379,7 @@ export async function POST(request: Request) {
       if (existingOpenData) {
         await ensureRecommendationKickoffMessage({
           admin,
-          bizId: payload.biz_id,
+          bizId: gate.bizId,
           recommendationId,
           threadId: (existingOpenData as LitoThreadRow).id,
           requestId,
@@ -400,13 +398,13 @@ export async function POST(request: Request) {
       const { data: existingAnyData } = await admin
         .from('lito_threads')
         .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
-        .eq('biz_id', payload.biz_id)
+        .eq('biz_id', gate.bizId)
         .eq('recommendation_id', recommendationId)
         .maybeSingle();
       if (existingAnyData) {
         await ensureRecommendationKickoffMessage({
           admin,
-          bizId: payload.biz_id,
+          bizId: gate.bizId,
           recommendationId,
           threadId: (existingAnyData as LitoThreadRow).id,
           requestId,
@@ -449,8 +447,8 @@ export async function POST(request: Request) {
     const { data: insertedData, error: insertErr } = await admin
       .from('lito_threads')
       .insert({
-        org_id: access.orgId,
-        biz_id: payload.biz_id,
+        org_id: gate.membership.orgId,
+        biz_id: gate.bizId,
         recommendation_id: recommendationId,
         title,
       })
@@ -462,14 +460,14 @@ export async function POST(request: Request) {
         const { data: conflictData } = await admin
           .from('lito_threads')
           .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
-          .eq('biz_id', payload.biz_id)
+          .eq('biz_id', gate.bizId)
           .eq('recommendation_id', recommendationId)
           .maybeSingle();
 
         if (conflictData) {
           await ensureRecommendationKickoffMessage({
             admin,
-            bizId: payload.biz_id,
+            bizId: gate.bizId,
             recommendationId,
             threadId: (conflictData as LitoThreadRow).id,
             requestId,
@@ -489,7 +487,7 @@ export async function POST(request: Request) {
       log.error('lito_threads_insert_failed', {
         error_code: insertErr?.code || null,
         error: insertErr?.message || null,
-        biz_id: payload.biz_id,
+        biz_id: gate.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
@@ -500,7 +498,7 @@ export async function POST(request: Request) {
     if (recommendationId) {
       await ensureRecommendationKickoffMessage({
         admin,
-        bizId: payload.biz_id,
+        bizId: gate.bizId,
         recommendationId,
         threadId: (insertedData as LitoThreadRow).id,
         requestId,
@@ -551,14 +549,14 @@ export async function GET(request: Request) {
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const payload = query as z.infer<typeof LitoThreadsQuerySchema>;
     const limit = payload.limit ?? 20;
-
-    const access = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
-      allowedRoles: [...LITO_ALLOWED_ROLES],
+      user,
+      queryBizId: payload.biz_id,
     });
-    if (!access.allowed) {
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+
+    if (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -569,7 +567,7 @@ export async function GET(request: Request) {
     const { data, error } = await admin
       .from('lito_threads')
       .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
-      .eq('biz_id', payload.biz_id)
+      .eq('biz_id', gate.bizId)
       .order('updated_at', { ascending: false })
       .limit(limit);
 

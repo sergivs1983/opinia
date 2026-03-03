@@ -4,10 +4,12 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { toIsoStringUtc, parseDateRange } from '@/lib/social/schedules';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import {
   badRequest,
   conflict,
@@ -15,7 +17,6 @@ import {
   listDraftSnapshotsByIds,
   loadSocialDraftSnapshot,
   notFound,
-  requireUserAndBizAccess,
   type SocialScheduleRow,
   withNoStore,
 } from '@/app/api/social/schedules/_shared';
@@ -64,8 +65,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const payload = parsed.data;
-  const access = await requireUserAndBizAccess({ bizId: payload.biz_id, requestId });
-  if (!access.ok) return access.response;
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return withNoStore(
+      NextResponse.json({ error: 'unauthorized', message: 'Auth required', request_id: requestId }, { status: 401 }),
+      requestId,
+    );
+  }
+  const access = await requireBizAccessPatternB(request, payload.biz_id, {
+    supabase,
+    user,
+    queryBizId: payload.biz_id,
+  });
+  if (access instanceof NextResponse) return withNoStore(access, requestId);
+  if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
+    return notFound(requestId);
+  }
 
   const fromIso = parseDateRange(payload.from || null);
   const toIso = parseDateRange(payload.to || null);
@@ -75,7 +93,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let query = admin
     .from('social_schedules')
     .select('id, org_id, biz_id, draft_id, assigned_user_id, platform, scheduled_at, status, notified_at, published_at, snoozed_from, created_at, updated_at')
-    .eq('biz_id', payload.biz_id)
+    .eq('biz_id', access.bizId)
     .order('scheduled_at', { ascending: true })
     .limit(payload.limit ?? 120);
 
@@ -89,10 +107,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (error) {
     log.error('social_schedules_list_failed', {
-      error_code: error.code || null,
-      error: error.message || null,
-      biz_id: payload.biz_id,
-    });
+        error_code: error.code || null,
+        error: error.message || null,
+        biz_id: access.bizId,
+      });
     return withNoStore(
       NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
       requestId,
@@ -130,8 +148,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const payload = parsed.data;
-  const access = await requireUserAndBizAccess({ bizId: payload.biz_id, requestId });
-  if (!access.ok) return access.response;
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return withNoStore(
+      NextResponse.json({ error: 'unauthorized', message: 'Auth required', request_id: requestId }, { status: 401 }),
+      requestId,
+    );
+  }
+
+  const access = await requireBizAccessPatternB(request, payload.biz_id, {
+    supabase,
+    user,
+    bodyBizId: payload.biz_id,
+  });
+  if (access instanceof NextResponse) return withNoStore(access, requestId);
+  if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
+    return notFound(requestId);
+  }
 
   if (access.role !== 'owner' && access.role !== 'manager') {
     return notFound(requestId);
@@ -145,7 +181,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const draft = await loadSocialDraftSnapshot(payload.draft_id);
-  if (!draft || draft.biz_id !== payload.biz_id || draft.org_id !== access.orgId) {
+  if (!draft || draft.biz_id !== access.bizId || draft.org_id !== access.membership.orgId) {
     return notFound(requestId);
   }
 
@@ -158,8 +194,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { data: assignedBusinessMembership, error: assignedBmError } = await admin
     .from('business_memberships')
     .select('user_id')
-    .eq('org_id', access.orgId)
-    .eq('business_id', payload.biz_id)
+    .eq('org_id', access.membership.orgId)
+    .eq('business_id', access.bizId)
     .eq('user_id', payload.assigned_user_id)
     .eq('is_active', true)
     .maybeSingle();
@@ -167,7 +203,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { data: assignedMembership, error: assignedMembershipError } = await admin
     .from('memberships')
     .select('role')
-    .eq('org_id', access.orgId)
+    .eq('org_id', access.membership.orgId)
     .eq('user_id', payload.assigned_user_id)
     .not('accepted_at', 'is', null)
     .maybeSingle();
@@ -202,8 +238,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const nowIso = new Date().toISOString();
   const insertPayload = {
-    org_id: access.orgId,
-    biz_id: payload.biz_id,
+    org_id: access.membership.orgId,
+    biz_id: access.bizId,
     draft_id: payload.draft_id,
     assigned_user_id: payload.assigned_user_id,
     platform: payload.platform,
@@ -249,7 +285,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     log.error('social_schedules_create_failed', {
       error_code: insertError?.code || null,
       error: insertError?.message || null,
-      biz_id: payload.biz_id,
+      biz_id: access.bizId,
       draft_id: payload.draft_id,
     });
 

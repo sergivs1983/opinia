@@ -4,9 +4,9 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody, validateQuery } from '@/lib/validations';
@@ -68,13 +68,13 @@ export async function GET(request: Request) {
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const payload = query as z.infer<typeof QuerySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      queryBizId: payload.biz_id,
     });
-
-    if (!access.allowed || !access.role) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
     let queryBuilder = admin
       .from('social_drafts')
       .select(SOCIAL_DRAFT_SELECT)
-      .eq('biz_id', payload.biz_id)
+      .eq('biz_id', access.bizId)
       .order('updated_at', { ascending: false })
       .limit(payload.limit ?? 20);
 
@@ -107,7 +107,7 @@ export async function GET(request: Request) {
       log.error('social_drafts_list_failed', {
         error_code: error.code || null,
         error: error.message || null,
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),
@@ -156,13 +156,13 @@ export async function POST(request: Request) {
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof BodySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-
-    if (!access.allowed || !access.role || !access.orgId) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -173,8 +173,8 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
 
     const insertPayload = {
-      org_id: access.orgId,
-      biz_id: payload.biz_id,
+      org_id: access.membership.orgId,
+      biz_id: access.bizId,
       source: payload.source,
       recommendation_id: payload.recommendation_id || null,
       thread_id: payload.thread_id || null,
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
       log.error('social_draft_create_failed', {
         error_code: error?.code || null,
         error: error?.message || null,
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),

@@ -5,9 +5,9 @@ export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateBody } from '@/lib/validations';
@@ -87,12 +87,13 @@ export async function POST(request: Request) {
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof BodySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.orgId) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
       .eq('id', message.thread_id)
       .maybeSingle();
 
-    if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== payload.biz_id) {
+    if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== access.bizId) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -149,8 +150,8 @@ export async function POST(request: Request) {
     const { data: cachedClipData, error: cachedClipErr } = await admin
       .from('lito_voice_clips')
       .select('id, audio_url, transcript_lang, meta')
-      .eq('org_id', access.orgId)
-      .eq('biz_id', payload.biz_id)
+      .eq('org_id', access.membership.orgId)
+      .eq('biz_id', access.bizId)
       .eq('thread_id', message.thread_id)
       .contains('meta', { type: 'tts', fingerprint })
       .is('deleted_at', null)
@@ -164,8 +165,8 @@ export async function POST(request: Request) {
       const fallbackCached = await admin
         .from('lito_voice_clips')
         .select('id, audio_url, transcript_lang, meta')
-        .eq('org_id', access.orgId)
-        .eq('biz_id', payload.biz_id)
+        .eq('org_id', access.membership.orgId)
+        .eq('biz_id', access.bizId)
         .eq('thread_id', message.thread_id)
         .contains('meta', { type: 'tts', fingerprint })
         .order('created_at', { ascending: false })
@@ -218,8 +219,8 @@ export async function POST(request: Request) {
     const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
 
     const insertPayload = {
-      org_id: access.orgId,
-      biz_id: payload.biz_id,
+      org_id: access.membership.orgId,
+      biz_id: access.bizId,
       thread_id: message.thread_id,
       user_id: user.id,
       status: 'uploaded',
@@ -254,8 +255,8 @@ export async function POST(request: Request) {
       const fallbackInsert = await admin
         .from('lito_voice_clips')
         .insert({
-          org_id: access.orgId,
-          biz_id: payload.biz_id,
+          org_id: access.membership.orgId,
+          biz_id: access.bizId,
           thread_id: message.thread_id,
           user_id: user.id,
           status: 'uploaded',
@@ -284,7 +285,7 @@ export async function POST(request: Request) {
       const existingAfterConflict = await admin
         .from('lito_voice_clips')
         .select('id, audio_url, transcript_lang, meta')
-        .eq('org_id', access.orgId)
+        .eq('org_id', access.membership.orgId)
         .eq('idempotency_key', fingerprint)
         .maybeSingle();
       clipData = (existingAfterConflict.data as VoiceClipRow | null) || null;

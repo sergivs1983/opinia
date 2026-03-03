@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import {
   DEFAULT_BUSINESS_MEMORY,
   sanitizeBusinessMemoryInput,
@@ -133,22 +133,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const access = await getLitoBizAccess({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireBizAccessPatternB(request, bizId, {
       supabase,
-      userId: user.id,
-      bizId,
+      user,
+      queryBizId: bizId,
+      headerBizId: workspaceBizId,
     });
-    if (!access.allowed || !access.role) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
+    if (access instanceof NextResponse) return withNoStore(access, requestId);
 
     const admin = createAdminClient();
     const row = await ensureBusinessMemoryRow({
       admin,
-      bizId,
+      bizId: access.bizId,
       userId: user.id,
     });
 
@@ -164,7 +161,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ok: true,
         memory: {
           id: row.id,
-          biz_id: row.biz_id,
+          biz_id: access.bizId,
           ...memory,
           updated_at: row.updated_at,
           updated_by: row.updated_by,
@@ -228,21 +225,18 @@ async function upsertBusinessMemory(request: NextRequest): Promise<NextResponse>
       );
     }
 
-    const access = await getLitoBizAccess({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireBizAccessPatternB(request, bizId, {
       supabase,
-      userId: user.id,
-      bizId,
+      user,
+      queryBizId: bizId,
+      headerBizId: workspaceBizId,
     });
-    if (!access.allowed || !access.role) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
+    if (access instanceof NextResponse) return withNoStore(access, requestId);
 
     if (access.role !== 'owner' && access.role !== 'manager') {
       return withNoStore(
-        NextResponse.json({ error: 'forbidden', message: 'Només gestors poden editar', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
@@ -250,7 +244,7 @@ async function upsertBusinessMemory(request: NextRequest): Promise<NextResponse>
     const admin = createAdminClient();
     const current = await ensureBusinessMemoryRow({
       admin,
-      bizId,
+      bizId: access.bizId,
       userId: user.id,
     });
     const currentMemory = mergeMemoryWithDefaults({
@@ -265,7 +259,7 @@ async function upsertBusinessMemory(request: NextRequest): Promise<NextResponse>
       .from('business_memory')
       .upsert(
         {
-          biz_id: bizId,
+          biz_id: access.bizId,
           brand_voice: nextMemory.brand_voice,
           policies: nextMemory.policies,
           business_facts: nextMemory.business_facts,

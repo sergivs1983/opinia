@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { enqueueRebuildCards } from '@/lib/lito/cards-cache';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -58,24 +58,28 @@ export async function POST(request: Request) {
     if (bodyErr) return withNoStore(bodyErr, requestId);
     const payload = body as z.infer<typeof BodySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.orgId || !access.role) {
+    if (access instanceof NextResponse) return withNoStore(access, requestId);
+
+    const canManage = access.role === 'owner' || access.role === 'manager' || access.role === 'admin';
+    const isStaff = access.role === 'staff' || access.role === 'responder';
+    if (!canManage && !isStaff) {
       return withNoStore(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
 
-    const allowedActions: AllowedAction[] = access.role === 'staff'
+    const allowedActions: AllowedAction[] = isStaff
       ? ['done']
       : ['done', 'snooze', 'dismiss'];
     if (!allowedActions.includes(payload.action)) {
       return withNoStore(
-        NextResponse.json({ error: 'forbidden', message: 'Acció no permesa per aquest rol', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
@@ -94,7 +98,7 @@ export async function POST(request: Request) {
       .from('lito_card_states')
       .upsert(
         {
-          biz_id: payload.biz_id,
+          biz_id: access.bizId,
           card_id: payload.card_id,
           state,
           snoozed_until: snoozedUntil,
@@ -107,7 +111,7 @@ export async function POST(request: Request) {
 
     if (upsertError || !stateRow) {
       log.error('lito_card_state_upsert_failed', {
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
         card_id: payload.card_id,
         action: payload.action,
         error_code: upsertError?.code || null,
@@ -122,11 +126,11 @@ export async function POST(request: Request) {
     if (payload.action === 'done' && payload.card_id.startsWith('review_unanswered:')) {
       await trackEvent({
         supabase,
-        orgId: access.orgId,
+        orgId: access.membership.orgId,
         userId: user.id,
         name: 'review_marked_done',
         props: {
-          biz_id: payload.biz_id,
+          biz_id: access.bizId,
           card_id: payload.card_id,
           action: payload.action,
           source: 'lito_cards_state',
@@ -139,11 +143,11 @@ export async function POST(request: Request) {
     try {
       await enqueueRebuildCards({
         supabase,
-        bizId: payload.biz_id,
+        bizId: access.bizId,
       });
     } catch (error) {
       log.warn('lito_card_state_enqueue_failed', {
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
         card_id: payload.card_id,
         error: error instanceof Error ? error.message : String(error),
       });

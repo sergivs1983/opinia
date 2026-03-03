@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { bumpDailyMetric } from '@/lib/metrics';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import {
   validateBody,
   validateQuery,
@@ -159,12 +159,19 @@ export async function GET(request: Request) {
 
     if (workspaceBusinessId && payload.businessId && payload.businessId !== workspaceBusinessId) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'businessId does not match current workspace', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
+    const gate = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      queryBizId: payload.businessId || null,
+      headerBizId: workspaceBusinessId || null,
+    });
+    if (gate instanceof NextResponse) return withResponseRequestId(gate);
 
     // ── Bloc 8: Standard rate limit ──
-    const rlKey = `${businessId}:${user.id}`;
+    const rlKey = `${gate.bizId}:${user.id}`;
     const rl = await rateLimitStandard(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
 
@@ -177,12 +184,7 @@ export async function GET(request: Request) {
       });
     }
     const dataClient = admin ?? supabase;
-    const access = await hasAcceptedBusinessMembership({
-      supabase: dataClient,
-      userId: user.id,
-      businessId,
-    });
-    if (!access.allowed) {
+    if (!gate.role) {
       return withResponseRequestId(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
@@ -191,7 +193,7 @@ export async function GET(request: Request) {
     let plannerQuery = dataClient
       .from('content_planner_items')
       .select('id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
-      .eq('business_id', businessId)
+      .eq('business_id', gate.bizId)
       .eq('week_start', normalizeWeekStartMonday(payload.weekStart))
       .order('scheduled_at', { ascending: true })
       .limit(payload.limit);
@@ -206,7 +208,7 @@ export async function GET(request: Request) {
         log.warn('Planner GET degraded due schema scope mismatch', {
           error: plannerError.message,
           error_code: plannerError.code || null,
-          business_id: businessId,
+          business_id: gate.bizId,
         });
         return withResponseRequestId(
           NextResponse.json({
@@ -217,7 +219,7 @@ export async function GET(request: Request) {
           }),
         );
       }
-      log.error('Failed to load planner items', { error: plannerError.message, business_id: businessId });
+      log.error('Failed to load planner items', { error: plannerError.message, business_id: gate.bizId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to load planner items', request_id: requestId }, { status: 500 }),
       );
@@ -266,21 +268,24 @@ export async function POST(request: Request) {
 
     if (workspaceBusinessId && workspaceBusinessId !== payload.businessId) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'businessId does not match current workspace', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
-
-    const admin = createAdminClient();
-    const access = await hasAcceptedBusinessMembership({
-      supabase: admin,
-      userId: user.id,
-      businessId: payload.businessId,
+    const gate = await requireBizAccessPatternB(request, payload.businessId, {
+      supabase,
+      user,
+      bodyBizId: payload.businessId,
+      headerBizId: workspaceBusinessId || null,
     });
-    if (!access.allowed) {
+    if (gate instanceof NextResponse) return withResponseRequestId(gate);
+
+    if (!gate.role) {
       return withResponseRequestId(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
+
+    const admin = createAdminClient();
 
     const linkedStatus = await validateLinkedEntity({
       supabase: admin,
@@ -288,7 +293,7 @@ export async function POST(request: Request) {
       suggestionId: payload.suggestionId,
       assetId: payload.assetId,
       textPostId: payload.textPostId,
-      businessId: payload.businessId,
+      businessId: gate.bizId,
     });
 
     if (linkedStatus === 'not_found') {
@@ -299,7 +304,7 @@ export async function POST(request: Request) {
 
     if (linkedStatus === 'forbidden') {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Linked item does not belong to current workspace', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
@@ -311,7 +316,7 @@ export async function POST(request: Request) {
     const { data: existingRows, error: existingError } = await admin
       .from('content_planner_items')
       .select('id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
-      .eq('business_id', payload.businessId)
+      .eq('business_id', gate.bizId)
       .eq('scheduled_at', scheduledAt)
       .eq('channel', payload.channel)
       .eq('title', title)
@@ -324,7 +329,7 @@ export async function POST(request: Request) {
           NextResponse.json({ error: 'schema_scope_unavailable', message: 'No disponible', request_id: requestId }, { status: 409 }),
         );
       }
-      log.error('Failed to check planner dedup', { error: existingError.message, business_id: payload.businessId });
+      log.error('Failed to check planner dedup', { error: existingError.message, business_id: gate.bizId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to save planner item', request_id: requestId }, { status: 500 }),
       );
@@ -344,7 +349,7 @@ export async function POST(request: Request) {
     const { data: insertedData, error: insertError } = await admin
       .from('content_planner_items')
       .insert({
-        business_id: payload.businessId,
+        business_id: gate.bizId,
         week_start: normalizedWeekStart,
         scheduled_at: scheduledAt,
         channel: payload.channel,
@@ -365,7 +370,7 @@ export async function POST(request: Request) {
           NextResponse.json({ error: 'schema_scope_unavailable', message: 'No disponible', request_id: requestId }, { status: 409 }),
         );
       }
-      log.error('Failed to insert planner item', { error: insertError?.message || 'unknown', business_id: payload.businessId });
+      log.error('Failed to insert planner item', { error: insertError?.message || 'unknown', business_id: gate.bizId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to save planner item', request_id: requestId }, { status: 500 }),
       );
@@ -374,7 +379,7 @@ export async function POST(request: Request) {
     const item = insertedData as PlannerListItemRow;
 
     await bumpDailyMetric(
-      payload.businessId,
+      gate.bizId,
       new Date().toISOString().slice(0, 10),
       { planner_items_added: 1 },
       { log },

@@ -4,9 +4,9 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { resolveVoiceCapabilities, type LitoVoicePrepareMode } from '@/lib/lito/voice';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -54,12 +54,13 @@ export async function POST(request: Request) {
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof BodySchema>;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      bodyBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.orgId) {
+    if (access instanceof NextResponse) return withStandardHeaders(access, requestId);
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
         .eq('id', payload.thread_id)
         .maybeSingle();
 
-      if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== payload.biz_id) {
+      if (threadErr || !threadData || (threadData as ThreadRow).biz_id !== access.bizId) {
         return withStandardHeaders(
           NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
           requestId,
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     const { data: orgData } = await admin
       .from('organizations')
       .select('id, ai_provider')
-      .eq('id', access.orgId)
+      .eq('id', access.membership.orgId)
       .maybeSingle();
 
     const capabilities = resolveVoiceCapabilities((orgData as OrganizationRow | null)?.ai_provider ?? null);
