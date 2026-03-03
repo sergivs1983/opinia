@@ -89,6 +89,16 @@ function run() {
   includes('social/stats/weekly GET: uses implicit biz gate helper', socialWeekly, 'requireImplicitBizAccessPatternB(request');
   includes('social/stats/weekly GET: missing context returns 404', socialWeekly, "{ status: 404 }");
 
+  const socialNotifications = read('src/app/api/social/notifications/route.ts');
+  includes('social/notifications GET: uses implicit biz gate helper', socialNotifications, 'requireImplicitBizAccessPatternB(request');
+  ordered('social/notifications GET: gate before notifications query', socialNotifications, 'requireImplicitBizAccessPatternB(request', ".from('in_app_notifications')");
+  includes('social/notifications GET: role denied returns 404', socialNotifications, "{ status: 404 }");
+  includes('social/notifications GET: list scoped by access.bizId', socialNotifications, ".eq('biz_id', access.bizId)");
+  includes('social/notifications GET: unread count scoped by access.bizId', socialNotifications, ".eq('biz_id', access.bizId)\n    .is('read_at', null)");
+  includes('social/notifications GET: supports page-based pagination', socialNotifications, 'const page = payload.page ?? 1;');
+  includes('social/notifications GET: page 1/page 2 uses range window', socialNotifications, '.range(rangeFrom, rangeTo);');
+  includes('social/notifications GET: response items are scoped to BIZ_A context', socialNotifications, 'const scopedItems = (items || []).filter((item) => item.biz_id === access.bizId);');
+
   const statusRoute = read('src/app/api/status/route.ts');
   includes('status GET: uses implicit biz gate helper', statusRoute, 'requireImplicitBizAccessPatternB(request');
   includes('status GET: missing context returns 404', statusRoute, "if (gate instanceof NextResponse) return NextResponse.json({ error: 'not_found' }, { status: 404 });");

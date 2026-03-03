@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -18,6 +18,13 @@ const QuerySchema = z.object({
       const parsed = Number.parseInt(value, 10);
       return Number.isFinite(parsed) ? parsed : undefined;
     }, z.number().int().min(1).max(50).optional())
+    .optional(),
+  page: z
+    .preprocess((value) => {
+      if (typeof value !== 'string') return undefined;
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }, z.number().int().min(1).max(1_000).optional())
     .optional(),
 });
 
@@ -34,6 +41,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const parsed = QuerySchema.safeParse({
     biz_id: request.nextUrl.searchParams.get('biz_id') || undefined,
     limit: request.nextUrl.searchParams.get('limit') || undefined,
+    page: request.nextUrl.searchParams.get('page') || undefined,
   });
 
   if (!parsed.success) {
@@ -56,36 +64,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       requestId,
     );
   }
-
-  if (payload.biz_id) {
-    const access = await hasAcceptedBusinessMembership({
-      supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
-      allowedRoles: ['owner', 'manager', 'staff'],
-    });
-
-    if (!access.allowed) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
+  const access = await requireImplicitBizAccessPatternB(request, {
+    supabase,
+    user,
+    queryBizId: payload.biz_id,
+  });
+  if (access instanceof NextResponse) {
+    return withNoStore(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
+  }
+  if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff' && access.role !== 'admin') {
+    return withNoStore(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
   }
 
+  const page = payload.page ?? 1;
+  const pageSize = payload.limit ?? 20;
+  const rangeFrom = (page - 1) * pageSize;
+  const rangeTo = rangeFrom + pageSize - 1;
+
   const admin = createAdminClient();
-  let query = admin
+  const { data: items, error: listError } = await admin
     .from('in_app_notifications')
     .select('id, org_id, biz_id, user_id, type, payload, read_at, created_at')
     .eq('user_id', user.id)
+    .eq('org_id', access.membership.orgId)
+    .eq('biz_id', access.bizId)
     .order('created_at', { ascending: false })
-    .limit(payload.limit ?? 20);
-
-  if (payload.biz_id) {
-    query = query.eq('biz_id', payload.biz_id);
-  }
-
-  const { data: items, error: listError } = await query;
+    .range(rangeFrom, rangeTo);
 
   if (listError) {
     log.error('social_notifications_list_failed', {
@@ -99,17 +109,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let unreadQuery = admin
+  const { count: unreadCount, error: countError } = await admin
     .from('in_app_notifications')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
+    .eq('org_id', access.membership.orgId)
+    .eq('biz_id', access.bizId)
     .is('read_at', null);
-
-  if (payload.biz_id) {
-    unreadQuery = unreadQuery.eq('biz_id', payload.biz_id);
-  }
-
-  const { count: unreadCount, error: countError } = await unreadQuery;
 
   if (countError) {
     log.warn('social_notifications_count_failed', {
@@ -119,11 +125,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
   }
 
+  const scopedItems = (items || []).filter((item) => item.biz_id === access.bizId);
+
   return withNoStore(
     NextResponse.json({
       ok: true,
-      items: items || [],
+      items: scopedItems,
       unread_count: typeof unreadCount === 'number' ? unreadCount : 0,
+      page,
+      page_size: pageSize,
       request_id: requestId,
     }),
     requestId,
