@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { audit, type AuditAction } from '@/lib/audit';
 import { validateBody, AuditLogSchema } from '@/lib/validations';
 import type { JsonObject } from '@/types/json';
-import { requireBizAccess, requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
+import { requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
 import { parseLimitParam } from '@/lib/security/query-limits';
 
 /**
@@ -27,14 +27,17 @@ export const GET = withRequestContext(async function(request: Request) {
 
   if (!bizId) return NextResponse.json({ error: 'bad_request', code: 'BIZ_ID_REQUIRED', message: 'biz_id és requerit' }, { status: 400 });
 
-  // ── Biz-level guard ──────────────────────────────────────────────────────
-  const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, bizId, {
+    supabase,
+    user,
+    queryBizId: bizId,
+  });
+  if (access instanceof NextResponse) return access;
 
   const { data, error } = await supabase
     .from('activity_log')
     .select('id, action, target_type, target_id, metadata, created_at, user_id')
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .order('created_at', { ascending: false })
     .limit(limit);
 

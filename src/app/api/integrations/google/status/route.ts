@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateQuery } from '@/lib/validations';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 
 const GoogleStatusQuerySchema = z.object({
   biz_id: z.string().uuid(),
@@ -86,13 +86,14 @@ export async function GET(request: Request) {
     const [query, queryErr] = validateQuery(request, GoogleStatusQuerySchema);
     if (queryErr) return withHeaders(queryErr);
     const payload = query as z.infer<typeof GoogleStatusQuerySchema>;
-
-    const access = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
+      user,
+      queryBizId: payload.biz_id,
     });
-    if (!access.allowed) {
+    if (gate instanceof NextResponse) return withHeaders(gate);
+
+    if (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff') {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
     const { data: integration, error } = await supabase
       .from('integrations')
       .select('id, is_active, refresh_token, updated_at')
-      .eq('biz_id', payload.biz_id)
+      .eq('biz_id', gate.bizId)
       .eq('provider', 'google_business')
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
         log.warn('missing_dependency integrations status table/column', {
           error_code: error.code,
           error: error.message,
-          business_id: payload.biz_id,
+          business_id: gate.bizId,
         });
         return withHeaders(
           NextResponse.json({
@@ -128,7 +129,7 @@ export async function GET(request: Request) {
       log.error('google status query failed', {
         error_code: error.code,
         error: error.message,
-        business_id: payload.biz_id,
+        business_id: gate.bizId,
       });
       return withHeaders(
         NextResponse.json(

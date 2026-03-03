@@ -7,10 +7,11 @@ import { z } from 'zod';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { validateQuery } from '@/lib/validations';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { getOAuthTokens } from '@/lib/server/tokens';
 import { listGoogleBusinessLocations } from '@/lib/integrations/google/locations';
+import { roleCanManageIntegrations } from '@/lib/roles';
 
 const LocationsQuerySchema = z.object({
   seed_biz_id: z.string().uuid(),
@@ -36,10 +37,9 @@ function isAuthFailure(httpStatus: number, errorCode: string | null): boolean {
 
 async function resolveSeedIntegration(args: {
   supabase: ReturnType<typeof createServerSupabaseClient>;
-  userId: string;
   seedBusinessId: string;
 }): Promise<SeedIntegration | null> {
-  const { supabase, userId, seedBusinessId } = args;
+  const { supabase, seedBusinessId } = args;
   const { data } = await supabase
     .from('integrations')
     .select('id, biz_id, org_id, provider, is_active, updated_at')
@@ -51,14 +51,6 @@ async function resolveSeedIntegration(args: {
   const row = (data || null) as SeedIntegration | null;
 
   if (!row) return null;
-
-  const access = await hasAcceptedBusinessMembership({
-    supabase,
-    userId,
-    businessId: seedBusinessId,
-    allowedRoles: ['owner', 'admin'],
-  });
-  if (!access.allowed) return null;
   return row;
 }
 
@@ -90,11 +82,24 @@ export async function GET(request: Request) {
     const [query, queryErr] = validateQuery(request, LocationsQuerySchema);
     if (queryErr) return withHeaders(queryErr);
     const payload = query as z.infer<typeof LocationsQuerySchema>;
+    const gate = await requireBizAccessPatternB(request, payload.seed_biz_id, {
+      supabase,
+      user,
+      queryBizId: payload.seed_biz_id,
+    });
+    if (gate instanceof NextResponse) return withHeaders(gate);
+    if (!roleCanManageIntegrations(gate.role)) {
+      return withHeaders(
+        NextResponse.json(
+          { error: 'not_found', message: 'No disponible', request_id: requestId },
+          { status: 404 },
+        ),
+      );
+    }
 
     const seed = await resolveSeedIntegration({
       supabase,
-      userId: user.id,
-      seedBusinessId: payload.seed_biz_id,
+      seedBusinessId: gate.bizId,
     });
 
     if (!seed) {

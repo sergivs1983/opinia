@@ -39,6 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     bizId,
     requestId,
     route: 'GET /api/push/status',
+    request,
   });
 
   if (!access.ok) return access.response;
@@ -49,14 +50,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .select('id', { head: true, count: 'exact' })
     .eq('user_id', access.userId)
     .eq('org_id', access.orgId)
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .is('revoked_at', null);
 
   if (error) {
     log.error('push_status_count_failed', {
       error_code: error.code || null,
       error: error.message || null,
-      biz_id: bizId,
+      biz_id: access.bizId,
       user_id: access.userId,
     });
     return withNoStore(

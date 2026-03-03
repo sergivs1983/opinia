@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { OpsIssue, HeatmapCell, ReputationScorecard } from '@/types/database';
-import { requireBizAccess, withRequestContext } from '@/lib/api-handler';
+import { requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
 
 /**
  * GET /api/insights/ops?biz_id=xxx&range=30
@@ -25,9 +25,12 @@ export const GET = withRequestContext(async function(request: Request) {
   const range = parseInt(searchParams.get('range') || '30');
   if (!bizId) return NextResponse.json({ error: 'bad_request', code: 'BIZ_ID_REQUIRED', message: 'biz_id és requerit' }, { status: 400 });
 
-  // ── Biz-level guard ──────────────────────────────────────────────────────
-  const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, bizId, {
+    supabase,
+    user,
+    queryBizId: bizId,
+  });
+  if (access instanceof NextResponse) return access;
 
   const now = new Date();
   const since = new Date(now); since.setDate(since.getDate() - range);
@@ -37,7 +40,7 @@ export const GET = withRequestContext(async function(request: Request) {
   const { data: reviews } = await supabase
     .from('reviews')
     .select('id, rating, created_at, review_date, is_replied, needs_attention')
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .gte('created_at', prevSince.toISOString())
     .order('created_at', { ascending: true });
 
@@ -52,7 +55,7 @@ export const GET = withRequestContext(async function(request: Request) {
   const { data: allTopics } = await supabase
     .from('review_topics')
     .select('topic, polarity, urgency, review_id, created_at')
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .gte('created_at', prevSince.toISOString());
 
   const topics = allTopics || [];
@@ -134,7 +137,7 @@ export const GET = withRequestContext(async function(request: Request) {
     const { data: repliesData } = await supabase
       .from('replies')
       .select('review_id, published_at')
-      .eq('biz_id', bizId)
+      .eq('biz_id', access.bizId)
       .eq('status', 'published')
       .in('review_id', repliedReviews.map(r => r.id));
 
@@ -185,7 +188,7 @@ export const GET = withRequestContext(async function(request: Request) {
   const { data: bizData } = await supabase
     .from('businesses')
     .select('type')
-    .eq('id', bizId)
+    .eq('id', access.bizId)
     .single();
 
   const bizType = bizData?.type || 'hotel';

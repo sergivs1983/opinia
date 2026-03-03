@@ -4,9 +4,9 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateQuery } from '@/lib/validations';
@@ -50,12 +50,18 @@ export async function GET(request: Request) {
     const payload = query as z.infer<typeof QuerySchema>;
     const limit = payload.limit ?? 20;
 
-    const access = await getLitoBizAccess({
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      bizId: payload.biz_id,
+      user,
+      queryBizId: payload.biz_id,
     });
-    if (!access.allowed || !access.role) {
+    if (access instanceof NextResponse) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -66,7 +72,7 @@ export async function GET(request: Request) {
     const { data, error } = await admin
       .from('lito_action_drafts')
       .select('id, org_id, biz_id, thread_id, source_voice_clip_id, kind, status, payload, created_by, reviewed_by, created_at, updated_at')
-      .eq('biz_id', payload.biz_id)
+      .eq('biz_id', access.bizId)
       .order('updated_at', { ascending: false })
       .limit(limit);
 
@@ -74,7 +80,7 @@ export async function GET(request: Request) {
       log.error('lito_action_drafts_list_failed', {
         error_code: error.code || null,
         error: error.message || null,
-        biz_id: payload.biz_id,
+        biz_id: access.bizId,
       });
       return withStandardHeaders(
         NextResponse.json({ error: 'internal', message: 'Error intern del servidor', request_id: requestId }, { status: 500 }),

@@ -8,7 +8,6 @@ import { getAdminClient } from '@/lib/supabase/admin';
 import { assertServiceRoleAllowed } from '@/lib/security/service-role';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { requireBizAccessPatternB } from '@/lib/api-handler';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
 import { roleCanManageIntegrations } from '@/lib/roles';
 import {
   ensureLegacyWebhookConnector,
@@ -113,29 +112,30 @@ export async function GET(request: Request) {
       );
     }
 
-    const business = await loadBusiness(supabase, businessId);
-    if (!business) {
-      return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
-      );
-    }
-    const canManageIntegrations = await hasAcceptedOrgMembership({
+    const access = await requireBizAccessPatternB(request, businessId, {
       supabase,
-      userId: user.id,
-      orgId: business.org_id,
-      allowedRoles: ['owner', 'admin'],
+      user,
+      headerBizId: businessId || null,
     });
-    if (!canManageIntegrations) {
+    if (access instanceof NextResponse) return withRequestId(access);
+    if (!roleCanManageIntegrations(access.role)) {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per gestionar integracions', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
-    let connector = await loadConnector(supabase, businessId);
+    const business = await loadBusiness(supabase, access.bizId);
+    if (!business) {
+      return withRequestId(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      );
+    }
+
+    let connector = await loadConnector(supabase, access.bizId);
     if (!connector) {
       connector = await ensureLegacyWebhookConnector({
         admin,
-        businessId,
+        businessId: access.bizId,
         legacy: {
           webhook_enabled: business.webhook_enabled,
           webhook_url: business.webhook_url,

@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
 import { resolveLitoCopyStatus } from '@/lib/ai/copy-status';
 import { resolveProvider } from '@/lib/ai/provider';
@@ -96,14 +96,15 @@ export async function GET(request: Request) {
     const [query, queryErr] = validateQuery(request, QuerySchema);
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const payload = query as z.infer<typeof QuerySchema>;
-
-    const access = await getAcceptedBusinessMembershipContext({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
+      user,
+      queryBizId: payload.biz_id,
     });
-    const memberRole = toLitoMemberRole(access.role);
-    if (!access.allowed || !memberRole) {
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+
+    const memberRole = toLitoMemberRole(gate.role);
+    if (!memberRole) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
       .from('recommendation_log')
       .select('id, biz_id, org_id, generated_copy, copy_short, copy_long, hashtags, format, assets_needed, steps')
       .eq('id', payload.recommendation_id)
-      .eq('biz_id', payload.biz_id)
+      .eq('biz_id', gate.bizId)
       .maybeSingle();
 
     if (recommendationErr || !recommendationData) {

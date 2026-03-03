@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -227,6 +228,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  let guardedBizId: string | null = null;
+  if (payload.biz_id) {
+    const access = await requireBizAccessPatternB(request, payload.biz_id, {
+      supabase,
+      user,
+      queryBizId: payload.biz_id,
+    });
+    if (access instanceof NextResponse) {
+      return jsonNoStore(
+        { error: 'not_found', message: 'No disponible', request_id: requestId },
+        requestId,
+        404,
+      );
+    }
+    guardedBizId = access.bizId;
+  }
+
   const { data: membershipRows, error: membershipError } = await supabase
     .from('memberships')
     .select('id, org_id, role, accepted_at, created_at, is_default')
@@ -343,8 +361,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (payload.biz_id) {
-    const exists = accessibleBusinesses.some((biz) => biz.id === payload.biz_id);
+  if (guardedBizId) {
+    const exists = accessibleBusinesses.some((biz) => biz.id === guardedBizId);
     if (!exists) {
       return jsonNoStore(
         { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -352,7 +370,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         404,
       );
     }
-    accessibleBusinesses = accessibleBusinesses.filter((biz) => biz.id === payload.biz_id);
+    accessibleBusinesses = accessibleBusinesses.filter((biz) => biz.id === guardedBizId);
   }
 
   if (accessibleBusinesses.length === 0) {
@@ -360,7 +378,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       {
         ok: true,
         org_id: resolvedOrgId,
-        biz_id: payload.biz_id || null,
+        biz_id: guardedBizId || null,
         range_days: payload.range,
         channel: payload.channel,
         org_rollup: {
@@ -585,7 +603,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     {
       ok: true,
       org_id: resolvedOrgId,
-      biz_id: payload.biz_id || null,
+      biz_id: guardedBizId || null,
       range_days: payload.range,
       channel: payload.channel,
       from_day: fromDay,

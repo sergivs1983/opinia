@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateQuery,
@@ -39,27 +40,17 @@ export async function GET(request: Request) {
 
     const payload = query as ExportsListQuery;
     const businessId = request.headers.get('x-biz-id')?.trim();
-
-    if (!businessId) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'validation_error', message: 'Missing x-biz-id workspace header', request_id: requestId }, { status: 400 }),
-      );
-    }
-
-    const { data: businessAccess, error: businessAccessError } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', businessId)
-      .single();
-
-    if (businessAccessError || !businessAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }));
-    }
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      headerBizId: businessId || null,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
 
     let exportsQuery = supabase
       .from('exports')
       .select('id, week_start, language, kind, bytes, items_count, status, created_at')
-      .eq('business_id', businessId)
+      .eq('business_id', access.bizId)
       .order('created_at', { ascending: false })
       .limit(payload.limit);
 
@@ -68,7 +59,7 @@ export async function GET(request: Request) {
 
     const { data: exportsData, error: exportsError } = await exportsQuery;
     if (exportsError) {
-      log.error('Failed to list exports', { error: exportsError.message, business_id: businessId });
+      log.error('Failed to list exports', { error: exportsError.message, business_id: access.bizId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to list exports', request_id: requestId }, { status: 500 }),
       );

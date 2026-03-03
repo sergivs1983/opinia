@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -60,16 +60,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   let scope: 'org' | 'biz' = 'org';
   let orgId: string | null = null;
+  let scopedBizId: string | null = null;
 
   if (payload.biz_id) {
-    const access = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
-      allowedRoles: ['owner', 'manager', 'staff'],
+      user,
+      queryBizId: payload.biz_id,
     });
+    if (gate instanceof NextResponse) {
+      return withNoStore(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
 
-    if (!access.allowed || !access.orgId) {
+    if (!gate.membership.orgId || (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff')) {
       return withNoStore(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -77,7 +83,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     scope = 'biz';
-    orgId = access.orgId;
+    orgId = gate.membership.orgId;
+    scopedBizId = gate.bizId;
   } else {
     const membership = await resolveServerActiveMembership({
       supabase,
@@ -109,8 +116,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .gte('published_at', weekStartIso)
     .lt('published_at', weekEndIso);
 
-  if (scope === 'biz' && payload.biz_id) {
-    countQuery = countQuery.eq('biz_id', payload.biz_id);
+  if (scope === 'biz' && scopedBizId) {
+    countQuery = countQuery.eq('biz_id', scopedBizId);
   }
 
   const { count, error } = await countQuery;
@@ -120,7 +127,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       error_code: error.code || null,
       error: error.message || null,
       org_id: orgId,
-      biz_id: payload.biz_id || null,
+      biz_id: scopedBizId,
       scope,
     });
     return withNoStore(

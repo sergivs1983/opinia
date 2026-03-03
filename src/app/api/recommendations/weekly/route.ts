@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   ensureAndGetWeeklyRecommendations,
@@ -51,13 +51,14 @@ export async function GET(request: Request) {
         NextResponse.json({ error: 'unauthorized', message: 'Auth required', request_id: requestId }, { status: 401 }),
       );
     }
-
-    const access = await getAcceptedBusinessMembershipContext({
+    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
       supabase,
-      userId: user.id,
-      businessId: payload.biz_id,
+      user,
+      queryBizId: payload.biz_id,
     });
-    if (!access.allowed) {
+    if (gate instanceof NextResponse) return withHeaders(gate);
+
+    if (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff') {
       return withHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, org_id, type, default_language')
-      .eq('id', payload.biz_id)
+      .eq('id', gate.bizId)
       .single();
 
     if (businessError || !businessData) {
@@ -94,7 +95,7 @@ export async function GET(request: Request) {
       NextResponse.json({
         week_start: weekStart,
         items,
-        viewer_role: access.role || null,
+        viewer_role: gate.role || null,
         request_id: requestId,
       }),
     );

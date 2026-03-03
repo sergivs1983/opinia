@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 
 type ColumnProbeResult = {
@@ -53,34 +54,24 @@ export async function GET(request: Request) {
     }
 
     const businessId = request.headers.get('x-biz-id')?.trim();
-    if (!businessId) {
-      return withRequestId(
-        NextResponse.json({ error: 'validation_error', message: 'Missing x-biz-id workspace header', request_id: requestId }, { status: 400 }),
-      );
-    }
-
-    const { data: business, error: businessError } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', businessId)
-      .maybeSingle();
-
-    if (businessError || !business) {
-      return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
-      );
-    }
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      headerBizId: businessId || null,
+    });
+    if (access instanceof NextResponse) return withRequestId(access);
 
     const [seoEnabled, seoKeywords, seoAggressivity, seoAggressiveness] = await Promise.all([
-      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_enabled' }),
-      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_keywords' }),
-      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_aggressivity' }),
-      probeBusinessColumn({ admin: supabase, businessId, column: 'seo_aggressiveness' }),
+      probeBusinessColumn({ admin: supabase, businessId: access.bizId, column: 'seo_enabled' }),
+      probeBusinessColumn({ admin: supabase, businessId: access.bizId, column: 'seo_keywords' }),
+      probeBusinessColumn({ admin: supabase, businessId: access.bizId, column: 'seo_aggressivity' }),
+      probeBusinessColumn({ admin: supabase, businessId: access.bizId, column: 'seo_aggressiveness' }),
     ]);
 
     if (seoEnabled.error || seoKeywords.error || seoAggressivity.error || seoAggressiveness.error) {
       log.warn('SEO capabilities probe completed with non-schema probe errors', {
         business_id: businessId,
+        guarded_business_id: access.bizId,
         seo_enabled_error: seoEnabled.error,
         seo_keywords_error: seoKeywords.error,
         seo_aggressivity_error: seoAggressivity.error,
@@ -120,4 +111,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

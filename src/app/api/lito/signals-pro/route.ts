@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { getOrgEntitlements, getSignalsLevel } from '@/lib/billing/entitlements';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -89,22 +89,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const payload = parsed.data;
-
-  const access = await hasAcceptedBusinessMembership({
+  const gate = await requireBizAccessPatternB(request, payload.biz_id, {
     supabase,
-    userId: user.id,
-    businessId: payload.biz_id,
-    allowedRoles: [...LITO_ALLOWED_ROLES],
+    user,
+    queryBizId: payload.biz_id,
   });
+  if (gate instanceof NextResponse) {
+    return jsonNoStore({ error: 'not_found', request_id: requestId }, requestId, 404);
+  }
 
-  if (!access.allowed) {
+  if (!LITO_ALLOWED_ROLES.includes(gate.role as (typeof LITO_ALLOWED_ROLES)[number])) {
     return jsonNoStore({ error: 'not_found', request_id: requestId }, requestId, 404);
   }
 
   const { data: businessData, error: businessErr } = await supabase
     .from('businesses')
     .select('id, org_id, type')
-    .eq('id', payload.biz_id)
+    .eq('id', gate.bizId)
     .eq('is_active', true)
     .maybeSingle();
 
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const signal = await getSignalById({
         admin: supabase,
         signalId: payload.signal_id,
-        bizId: payload.biz_id,
+        bizId: gate.bizId,
       });
 
       if (!signal || !signal.is_active) {
@@ -150,13 +151,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       cards = toSignalCards({
         rows: [signal],
-        bizId: payload.biz_id,
+        bizId: gate.bizId,
         level: signalsLevel,
       });
     } else {
       const rows = await listSignalsForBusiness({
         admin: supabase,
-        bizId: payload.biz_id,
+        bizId: gate.bizId,
         provider: 'google_business',
         sinceDay,
         limit: 12,
@@ -164,7 +165,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       cards = toSignalCards({
         rows,
-        bizId: payload.biz_id,
+        bizId: gate.bizId,
         level: signalsLevel,
       });
     }
@@ -174,7 +175,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (!payload.signal_id && normalized.length < signalsLimit) {
       const evergreen = buildEvergreenSignals({
-        bizId: payload.biz_id,
+        bizId: gate.bizId,
         orgId: business.org_id,
         provider: 'google_business',
         vertical: resolveVertical(business.type),
@@ -191,7 +192,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (normalized.length === 0) {
       normalized.push(
         ...buildEvergreenSignals({
-          bizId: payload.biz_id,
+          bizId: gate.bizId,
           orgId: business.org_id,
           provider: 'google_business',
           vertical: resolveVertical(business.type),
@@ -204,7 +205,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return jsonNoStore(
       {
         ok: true,
-        biz_id: payload.biz_id,
+        biz_id: gate.bizId,
         signals_level: signalsLevel,
         source: normalized.some((card) => card.source === 'signal') ? 'signal' : 'evergreen',
         signals: normalized,
@@ -216,7 +217,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   } catch (error) {
     log.error('signals_pro_fetch_failed', {
-      biz_id: payload.biz_id,
+      biz_id: gate.bizId,
       error: error instanceof Error ? error.message : String(error),
     });
     return jsonNoStore({ error: 'internal', request_id: requestId }, requestId, 500);

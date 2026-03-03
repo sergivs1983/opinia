@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { isAdminViewer } from '@/lib/authz';
 import {
@@ -202,27 +203,25 @@ export async function GET(request: Request) {
     const rangeDays = Number(payload.range || '30');
 
     const businessId = request.headers.get('x-biz-id')?.trim();
-    if (!businessId) {
-      return withResponseRequestId(
-        NextResponse.json(
-          { error: 'validation_error', message: 'Missing x-biz-id workspace header', request_id: requestId },
-          { status: 400 },
-        ),
-      );
-    }
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      headerBizId: businessId || null,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
 
     // ── Bloc 8: Standard rate limit ──
-    const rlKey = `${businessId}:${user.id}`;
+    const rlKey = `${access.bizId}:${user.id}`;
     const rl = await rateLimitStandard(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
 
-    const business = await loadBusinessAccess(supabase, businessId);
+    const business = await loadBusinessAccess(supabase, access.bizId);
     if (!business) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
-    const admin = isAdminViewer({ user, orgId: business.org_id, businessId });
+    const admin = isAdminViewer({ user, orgId: business.org_id, businessId: access.bizId });
 
     const days = dayWindow(rangeDays);
     const startDay = days[0];
@@ -231,7 +230,7 @@ export async function GET(request: Request) {
     const { data: summaryRowsData, error: summaryRowsError } = await supabase
       .from('metrics_daily')
       .select('day, replies_generated, replies_approved, planner_items_published, assets_created, ai_cost_cents')
-      .eq('business_id', businessId)
+      .eq('business_id', access.bizId)
       .gte('day', startDay)
       .lte('day', endDay)
       .order('day', { ascending: true });
@@ -241,7 +240,7 @@ export async function GET(request: Request) {
         log.warn('missing_dependency metrics summary source', {
           error_code: summaryRowsError.code || null,
           error: summaryRowsError.message || null,
-          business_id: businessId,
+          business_id: access.bizId,
           request_id: requestId,
         });
         const stubSummary = filterMetricsSummaryForViewer(
@@ -250,7 +249,7 @@ export async function GET(request: Request) {
         );
         return withResponseRequestId(NextResponse.json(stubSummary));
       }
-      log.error('Failed to load metrics summary rows', { error: summaryRowsError.message, business_id: businessId });
+      log.error('Failed to load metrics summary rows', { error: summaryRowsError.message, business_id: access.bizId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to load metrics summary', request_id: requestId }, { status: 500 }),
       );
@@ -263,11 +262,11 @@ export async function GET(request: Request) {
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
       .select('created_at, rating, sentiment')
-      .eq('biz_id', businessId)
+      .eq('biz_id', access.bizId)
       .gte('created_at', startIso);
 
     if (reviewsError) {
-      log.warn('Failed to load reviews for rating proxy (non-blocking)', { error: reviewsError.message, business_id: businessId });
+      log.warn('Failed to load reviews for rating proxy (non-blocking)', { error: reviewsError.message, business_id: access.bizId });
     }
 
     const ratingsMap = new Map<string, { count: number; sum: number; negative: number }>();
@@ -334,7 +333,7 @@ export async function GET(request: Request) {
     const { data: previousRowsData } = await supabase
       .from('metrics_daily')
       .select('replies_generated, planner_items_published, assets_created')
-      .eq('business_id', businessId)
+      .eq('business_id', access.bizId)
       .gte('day', toIsoDay(previousStart))
       .lte('day', toIsoDay(previousEnd));
 
@@ -388,7 +387,7 @@ export async function GET(request: Request) {
     );
 
     const benchmark = await computeBenchmarks({
-      businessId,
+      businessId: access.bizId,
       rangeDays,
       metricKey: 'planner_items_published',
       admin: supabase,

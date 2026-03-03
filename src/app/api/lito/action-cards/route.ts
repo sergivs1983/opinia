@@ -4,8 +4,8 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import {
   enqueueRebuildCards,
   getLitoCardsCacheByBiz,
@@ -109,14 +109,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const access = await getLitoBizAccess({
+  const access = await requireBizAccessPatternB(request, payload.biz_id, {
     supabase,
-    userId: user.id,
-    bizId: payload.biz_id,
+    user,
+    queryBizId: payload.biz_id,
   });
+  if (access instanceof NextResponse) {
+    return withNoStore(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
+  }
 
   const role = parseRole(access.role);
-  if (!access.allowed || !access.orgId || !role) {
+  if (!role) {
     return withNoStore(
       NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       requestId,
@@ -126,12 +132,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const admin = createAdminClient();
     if (forceRefresh) {
-      enqueueInBackground({ supabase, bizId: payload.biz_id, log });
+      enqueueInBackground({ supabase, bizId: access.bizId, log });
     }
-    const cached = await getLitoCardsCacheByBiz({ admin, bizId: payload.biz_id });
+    const cached = await getLitoCardsCacheByBiz({ admin, bizId: access.bizId });
 
     if (!cached) {
-      enqueueInBackground({ supabase, bizId: payload.biz_id, log });
+      enqueueInBackground({ supabase, bizId: access.bizId, log });
       return withNoStore(
         NextResponse.json({
           ok: true,
@@ -156,7 +162,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const { data: stateRowsData, error: stateRowsError } = await admin
         .from('lito_card_states')
         .select('card_id, state, snoozed_until')
-        .eq('biz_id', payload.biz_id)
+        .eq('biz_id', access.bizId)
         .in('card_id', sortedCards.map((card) => card.id));
 
       if (stateRowsError) {
@@ -171,7 +177,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     if (cached.stale) {
-      enqueueInBackground({ supabase, bizId: payload.biz_id, log });
+      enqueueInBackground({ supabase, bizId: access.bizId, log });
     }
 
     return withNoStore(
@@ -188,7 +194,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   } catch (error) {
     log.error('lito_action_cards_failed', {
-      biz_id: payload.biz_id,
+      biz_id: access.bizId,
       user_id: user.id,
       error: error instanceof Error ? error.message : String(error),
     });

@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateQuery,
@@ -70,32 +71,18 @@ export async function GET(request: Request) {
     const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
     const businessId = payload.businessId || workspaceBusinessId;
 
-    if (!businessId) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'validation_error', message: 'businessId is required' }, { status: 400 }),
-      );
-    }
-
-    if (workspaceBusinessId && payload.businessId && payload.businessId !== workspaceBusinessId) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'businessId does not match current workspace' }, { status: 403 }),
-      );
-    }
-
-    const { data: businessAccess, error: businessAccessError } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', businessId)
-      .single();
-
-    if (businessAccessError || !businessAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business' }, { status: 403 }));
-    }
+    const access = await requireBizAccessPatternB(request, businessId, {
+      supabase,
+      user,
+      queryBizId: payload.businessId || null,
+      headerBizId: workspaceBusinessId || null,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
 
     let assetsQuery = supabase
       .from('content_assets')
       .select('id, suggestion_id, created_at, format, template_id, language, status')
-      .eq('business_id', businessId)
+      .eq('business_id', access.bizId)
       .order('created_at', { ascending: false })
       .limit(payload.limit + 1);
 
@@ -117,7 +104,7 @@ export async function GET(request: Request) {
     const { data: assetsData, error: assetsError } = await assetsQuery;
 
     if (assetsError) {
-      log.error('Failed to list content assets', { error: assetsError.message, business_id: businessId });
+      log.error('Failed to list content assets', { error: assetsError.message, business_id: access.bizId });
       return withResponseRequestId(
         NextResponse.json({ error: 'db_error', message: 'Failed to list content assets', request_id: requestId }, { status: 500 }),
       );

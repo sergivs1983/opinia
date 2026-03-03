@@ -6,7 +6,8 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
-import { requireBizAccess } from '@/lib/api-handler';
+import { requireBizAccess, requireBizAccessPatternB } from '@/lib/api-handler';
+import { roleCanManageIntegrations } from '@/lib/roles';
 import {
   ensureLegacyWebhookConnector,
   generateConnectorSecret,
@@ -97,36 +98,30 @@ export async function GET(request: Request) {
       );
     }
 
-    // ── Layer 1: biz-level membership guard ──────────────────────────────────
-    // 400 UUID invàlid | 404 biz no existeix | 403 BIZ_FORBIDDEN sense accés
-    const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: businessId });
-    if (bizGuard) return withRequestId(bizGuard);
-
-    // ── Layer 2: role check (integrations management requires owner/admin) ───
-    const business = await loadBusiness(supabase, businessId);
-    if (!business) {
-      // Defensiu: no hauria de passar si el guard ha passat, però protegim el race
-      return withRequestId(
-        NextResponse.json({ error: 'not_found', message: 'Negoci no trobat', request_id: requestId }, { status: 404 }),
-      );
-    }
-    const canManageIntegrations = await hasAcceptedOrgMembership({
+    const access = await requireBizAccessPatternB(request, businessId, {
       supabase,
-      userId: user.id,
-      orgId: business.org_id,
-      allowedRoles: ['owner', 'admin'],
+      user,
+      headerBizId: businessId,
     });
-    if (!canManageIntegrations) {
+    if (access instanceof NextResponse) return withRequestId(access);
+    if (!roleCanManageIntegrations(access.role)) {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', code: 'ROLE_INSUFFICIENT', message: 'Calen permisos owner/admin per gestionar integracions', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
-    let connectors = await loadWebhookConnectorRows(supabase, businessId);
+    const business = await loadBusiness(supabase, access.bizId);
+    if (!business) {
+      return withRequestId(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      );
+    }
+
+    let connectors = await loadWebhookConnectorRows(supabase, access.bizId);
     if (connectors.length === 0) {
       const created = await ensureLegacyWebhookConnector({
         admin: supabase,
-        businessId,
+        businessId: access.bizId,
         legacy: {
           webhook_enabled: business.webhook_enabled,
           webhook_url: business.webhook_url,

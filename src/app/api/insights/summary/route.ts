@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { requireBizAccess, withRequestContext } from '@/lib/api-handler';
+import { requireBizAccessPatternB, withRequestContext } from '@/lib/api-handler';
 
 /**
  * GET /api/insights/summary?biz_id=xxx&range=30&source=google&rating=4
@@ -25,9 +25,12 @@ export const GET = withRequestContext(async function(request: Request) {
 
   if (!bizId) return NextResponse.json({ error: 'bad_request', code: 'BIZ_ID_REQUIRED', message: 'biz_id és requerit' }, { status: 400 });
 
-  // ── Biz-level guard ──────────────────────────────────────────────────────
-  const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, bizId, {
+    supabase,
+    user,
+    queryBizId: bizId,
+  });
+  if (access instanceof NextResponse) return access;
 
   const since = new Date();
   since.setDate(since.getDate() - range);
@@ -37,15 +40,15 @@ export const GET = withRequestContext(async function(request: Request) {
   const { data: aggregated } = await supabase
     .from('insights_daily')
     .select('*')
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .gte('date', sinceDate);
 
   if (aggregated && aggregated.length > 0) {
-    return NextResponse.json(buildFromAggregated(aggregated, bizId, range));
+    return NextResponse.json(buildFromAggregated(aggregated, access.bizId, range));
   }
 
   // Fallback: live calculation from review_topics
-  return NextResponse.json(await buildLive(supabase, bizId, range, source, ratingFilter));
+  return NextResponse.json(await buildLive(supabase, access.bizId, range, source, ratingFilter));
 });
 
 function buildFromAggregated(rows: any[], bizId: string, range: number) {

@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 
 /**
  * GET /api/status?org_id=xxx&biz_id=xxx
@@ -19,21 +20,28 @@ export async function GET(request: Request) {
   const bizId = searchParams.get('biz_id');
   if (!orgId) return NextResponse.json({ error: 'org_id required' }, { status: 400 });
 
-  const hasMembership = await hasAcceptedOrgMembership({
-    supabase,
-    userId: user.id,
-    orgId,
-  });
-  if (!hasMembership) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  let scopedOrgId = orgId;
+  let scopedBizId: string | null = null;
 
   if (bizId) {
-    const { data: business } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('id', bizId)
-      .eq('org_id', orgId)
-      .maybeSingle();
-    if (!business) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    const gate = await requireBizAccessPatternB(request, bizId, {
+      supabase,
+      user,
+      queryBizId: bizId,
+    });
+    if (gate instanceof NextResponse) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    if (gate.membership.orgId !== orgId) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    }
+    scopedOrgId = gate.membership.orgId;
+    scopedBizId = gate.bizId;
+  } else {
+    const hasMembership = await hasAcceptedOrgMembership({
+      supabase,
+      userId: user.id,
+      orgId,
+    });
+    if (!hasMembership) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
   // Usage this month
@@ -41,7 +49,7 @@ export async function GET(request: Request) {
   const { data: usage } = await supabase
     .from('usage_monthly')
     .select('*')
-    .eq('org_id', orgId)
+    .eq('org_id', scopedOrgId)
     .eq('month', monthKey)
     .maybeSingle();
 
@@ -49,20 +57,20 @@ export async function GET(request: Request) {
   const jobsQuery = supabase
     .from('job_runs')
     .select('id, job_type, status, started_at, finished_at, duration_ms, error')
-    .eq('org_id', orgId)
+    .eq('org_id', scopedOrgId)
     .order('created_at', { ascending: false })
     .limit(5);
 
-  if (bizId) jobsQuery.eq('biz_id', bizId);
+  if (scopedBizId) jobsQuery.eq('biz_id', scopedBizId);
   const { data: recentJobs } = await jobsQuery;
 
   // Recent audit entries (for this biz)
   let recentActivity: any[] = [];
-  if (bizId) {
+  if (scopedBizId) {
     const { data } = await supabase
       .from('activity_log')
       .select('action, created_at, metadata')
-      .eq('biz_id', bizId)
+      .eq('biz_id', scopedBizId)
       .order('created_at', { ascending: false })
       .limit(10);
     recentActivity = data || [];
@@ -72,7 +80,7 @@ export async function GET(request: Request) {
   const { data: org } = await supabase
     .from('organizations')
     .select('plan, name')
-    .eq('id', orgId)
+    .eq('id', scopedOrgId)
     .maybeSingle();
 
   return NextResponse.json({
