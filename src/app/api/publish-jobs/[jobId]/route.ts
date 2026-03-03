@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
+import { parsePublishJobStatus } from '@/lib/publish/domain';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,10 +71,13 @@ export async function GET(
       attempts,
       max_attempts,
       next_attempt_at,
+      locked_until,
+      processing_started_at,
       last_error_code,
       last_error_detail,
       result_gbp_reply_id,
       finished_at,
+      published_at,
       created_at,
       updated_at
     `)
@@ -90,14 +94,17 @@ export async function GET(
     id:                  job.id,
     reply_id:            job.reply_id,
     integration_id:      job.integration_id,
-    status:              job.status,
+    status:              parsePublishJobStatus(job.status) || job.status,
     attempts:            job.attempts,
     max_attempts:        job.max_attempts,
     next_attempt_at:     job.next_attempt_at,
+    locked_until:        job.locked_until,
+    processing_started_at: job.processing_started_at,
     last_error_code:     job.last_error_code,
     last_error_detail:   job.last_error_detail,
     result_gbp_reply_id: job.result_gbp_reply_id,
     finished_at:         job.finished_at,
+    published_at:        job.published_at,
     created_at:          job.created_at,
     updated_at:          job.updated_at,
   });
