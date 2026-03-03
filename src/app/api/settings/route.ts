@@ -26,6 +26,15 @@ type BizSettingsSelectRow = {
   keywords_avoid: string[] | null;
   ai_engine: string | null;
   seo_enabled: boolean | null;
+  brand_description: string | null;
+  brand_tone: string | null;
+  brand_dos: string[] | null;
+  brand_donts: string[] | null;
+  brand_examples_good: unknown;
+  brand_examples_bad: unknown;
+  default_locale: string | null;
+  autopublish_enabled: boolean | null;
+  wizard_completed_at: string | null;
   updated_at: string;
   updated_by: string | null;
 };
@@ -37,6 +46,24 @@ function withNoStore(response: NextResponse, requestId: string): NextResponse {
 }
 
 function asBizSettingsRow(row: BizSettingsSelectRow): BizSettingsRow {
+  const normalizeJsonExamples = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
+  const defaultLocale = row.default_locale === 'es' || row.default_locale === 'en'
+    ? row.default_locale
+    : DEFAULT_BIZ_SETTINGS.default_locale;
+  const brandTone = row.brand_tone === 'premium'
+    || row.brand_tone === 'proper'
+    || row.brand_tone === 'formal'
+    || row.brand_tone === 'neutre'
+    ? row.brand_tone
+    : null;
+
   return {
     biz_id: row.biz_id,
     signature: row.signature ?? null,
@@ -45,6 +72,15 @@ function asBizSettingsRow(row: BizSettingsSelectRow): BizSettingsRow {
     keywords_avoid: Array.isArray(row.keywords_avoid) ? row.keywords_avoid : [],
     ai_engine: row.ai_engine || DEFAULT_BIZ_SETTINGS.ai_engine,
     seo_enabled: row.seo_enabled ?? false,
+    brand_description: row.brand_description ?? null,
+    brand_tone: brandTone,
+    brand_dos: Array.isArray(row.brand_dos) ? row.brand_dos : [],
+    brand_donts: Array.isArray(row.brand_donts) ? row.brand_donts : [],
+    brand_examples_good: normalizeJsonExamples(row.brand_examples_good),
+    brand_examples_bad: normalizeJsonExamples(row.brand_examples_bad),
+    default_locale: defaultLocale,
+    autopublish_enabled: row.autopublish_enabled ?? false,
+    wizard_completed_at: row.wizard_completed_at ?? null,
     updated_at: row.updated_at,
     updated_by: row.updated_by ?? null,
   };
@@ -56,7 +92,7 @@ async function loadBizSettings(input: {
 }): Promise<BizSettingsRow | null> {
   const { data, error } = await input.supabase
     .from('biz_settings')
-    .select('biz_id, signature, ai_instructions, keywords_use, keywords_avoid, ai_engine, seo_enabled, updated_at, updated_by')
+    .select('biz_id, signature, ai_instructions, keywords_use, keywords_avoid, ai_engine, seo_enabled, brand_description, brand_tone, brand_dos, brand_donts, brand_examples_good, brand_examples_bad, default_locale, autopublish_enabled, wizard_completed_at, updated_at, updated_by')
     .eq('biz_id', input.bizId)
     .maybeSingle();
 
@@ -84,6 +120,15 @@ async function ensureBizSettings(input: {
       keywords_avoid: DEFAULT_BIZ_SETTINGS.keywords_avoid,
       ai_engine: DEFAULT_BIZ_SETTINGS.ai_engine,
       seo_enabled: DEFAULT_BIZ_SETTINGS.seo_enabled,
+      brand_description: DEFAULT_BIZ_SETTINGS.brand_description,
+      brand_tone: DEFAULT_BIZ_SETTINGS.brand_tone,
+      brand_dos: DEFAULT_BIZ_SETTINGS.brand_dos,
+      brand_donts: DEFAULT_BIZ_SETTINGS.brand_donts,
+      brand_examples_good: DEFAULT_BIZ_SETTINGS.brand_examples_good,
+      brand_examples_bad: DEFAULT_BIZ_SETTINGS.brand_examples_bad,
+      default_locale: DEFAULT_BIZ_SETTINGS.default_locale,
+      autopublish_enabled: DEFAULT_BIZ_SETTINGS.autopublish_enabled,
+      wizard_completed_at: DEFAULT_BIZ_SETTINGS.wizard_completed_at,
       updated_at: nowIso,
       updated_by: input.userId,
     }, {
@@ -292,7 +337,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
         updated_by: user.id,
       })
       .eq('biz_id', access.bizId)
-      .select('biz_id, signature, ai_instructions, keywords_use, keywords_avoid, ai_engine, seo_enabled, updated_at, updated_by')
+      .select('biz_id, signature, ai_instructions, keywords_use, keywords_avoid, ai_engine, seo_enabled, brand_description, brand_tone, brand_dos, brand_donts, brand_examples_good, brand_examples_bad, default_locale, autopublish_enabled, wizard_completed_at, updated_at, updated_by')
       .single();
 
     if (updateError || !updatedData) {

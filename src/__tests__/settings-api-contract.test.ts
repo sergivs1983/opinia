@@ -8,10 +8,13 @@ import * as path from 'path';
 import { NextResponse } from 'next/server';
 
 import {
+  BIZ_SETTINGS_MAX_BRAND_EXAMPLE_LENGTH,
+  BIZ_SETTINGS_MAX_BRAND_EXAMPLES,
   BIZ_SETTINGS_MAX_INSTRUCTIONS,
   SettingsPatchSchema,
   canEditBizSettingsRole,
   sanitizeAiInstructions,
+  sanitizeBrandExamples,
   sanitizeKeywordList,
   sanitizeSettingsPatch,
 } from '../lib/settings';
@@ -110,13 +113,60 @@ async function run() {
       signature: 'hotel',
       ai_instructions: 'Context correcte',
       keywords_use: 'hospitalitat, excel·lència',
+      brand_description: 'Boutique hotel al centre',
+      brand_tone: 'premium',
+      brand_dos: 'proximitat, detall',
+      brand_donts: 'fred, robòtic',
+      brand_examples_good: ['Gràcies per compartir la teva experiència amb nosaltres.'],
+      brand_examples_bad: ['Resposta massa curta.'],
+      default_locale: 'ca',
       seo_enabled: true,
     });
     assert('PATCH payload schema happy path', parsed.success);
     if (parsed.success) {
       const sanitized = sanitizeSettingsPatch(parsed.data);
       assert('PATCH payload sanitization happy path', sanitized.ok);
+      if (sanitized.ok) {
+        assert('brand_dos sanitized and deduped', sanitized.value.brand_dos?.join('|') === 'proximitat|detall');
+      }
     }
+  }
+
+  {
+    const localeInvalid = SettingsPatchSchema.safeParse({
+      biz_id: BIZ_A,
+      default_locale: 'fr',
+    });
+    assert('default_locale invalid => schema error', !localeInvalid.success);
+  }
+
+  {
+    const tooMany = sanitizeBrandExamples(Array.from({ length: BIZ_SETTINGS_MAX_BRAND_EXAMPLES + 1 }, (_, i) => `item-${i}`));
+    assert('brand examples > 5 => invalid', !tooMany.ok && tooMany.error === 'too_many_brand_examples');
+  }
+
+  {
+    const tooLong = sanitizeBrandExamples(['a'.repeat(BIZ_SETTINGS_MAX_BRAND_EXAMPLE_LENGTH + 1)]);
+    assert('brand example > 400 chars => invalid', !tooLong.ok && tooLong.error === 'brand_example_too_long');
+  }
+
+  {
+    const readOnlyAutoPublish = sanitizeSettingsPatch({
+      biz_id: BIZ_A,
+      autopublish_enabled: true,
+    });
+    assert('autopublish_enabled read-only => invalid', !readOnlyAutoPublish.ok && readOnlyAutoPublish.error === 'autopublish_read_only');
+  }
+
+  {
+    const readOnlyWizardCompletedAt = sanitizeSettingsPatch({
+      biz_id: BIZ_A,
+      wizard_completed_at: new Date().toISOString(),
+    });
+    assert(
+      'wizard_completed_at read-only => invalid',
+      !readOnlyWizardCompletedAt.ok && readOnlyWizardCompletedAt.error === 'wizard_completed_at_read_only',
+    );
   }
 
   console.log('\n=== SETTINGS RBAC ===');
@@ -197,6 +247,7 @@ async function run() {
   const root = path.resolve(__dirname, '..', '..');
   const route = fs.readFileSync(path.join(root, 'src/app/api/settings/route.ts'), 'utf8');
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20260323000000_biz_settings.sql'), 'utf8');
+  const migrationD12 = fs.readFileSync(path.join(root, 'supabase/migrations/20260323010000_biz_settings_d12_extensions.sql'), 'utf8');
 
   gateBeforeFirstQuery('GET: gate before first DB query', route, 'export async function GET');
   gateBeforeFirstQuery('PATCH: gate before first DB query', route, 'export async function PATCH');
@@ -205,12 +256,18 @@ async function run() {
   includes('PATCH: sanitization hook', route, 'sanitizeSettingsPatch(parsed.data)');
   includes('PATCH: staff denied with 404', route, 'status: 404');
   includes('PATCH: writes audit settings_updated', route, "action: 'settings_updated'");
+  includes('PATCH: autopublish read-only surfaced as validation_error', route, 'validation_error');
   includes('GET: creates default row via upsert when missing', route, ".upsert({");
+  includes('GET/PATCH: selects brand and locale fields', route, 'brand_description, brand_tone, brand_dos, brand_donts, brand_examples_good, brand_examples_bad, default_locale, autopublish_enabled, wizard_completed_at');
 
   includes('migration: creates biz_settings table', migration, 'create table if not exists public.biz_settings');
   includes('migration: ai_instructions <= 500 check', migration, 'char_length(ai_instructions) <= 500');
   includes('migration: SELECT policy exists', migration, 'for select');
   includes('migration: UPDATE owner/manager policy exists', migration, 'biz_settings_update_owner_manager');
+  includes('migration d1.2: adds brand_description', migrationD12, 'add column if not exists brand_description text');
+  includes('migration d1.2: adds default_locale', migrationD12, 'add column if not exists default_locale text not null default');
+  includes('migration d1.2: adds autopublish_enabled', migrationD12, 'add column if not exists autopublish_enabled boolean not null default false');
+  includes('migration d1.2: adds wizard_completed_at', migrationD12, 'add column if not exists wizard_completed_at timestamptz null');
 
   console.log(`\n=== RESULTS: ${pass}/${pass + fail} passed ===`);
   if (fail > 0) process.exit(1);
@@ -220,4 +277,3 @@ run().catch((error: unknown) => {
   console.error(error);
   process.exit(1);
 });
-
