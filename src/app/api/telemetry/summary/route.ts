@@ -4,9 +4,8 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedOrgMembership } from '@/lib/authz';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
-import { normalizeMemberRole } from '@/lib/roles';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -115,21 +114,31 @@ export async function GET(request: Request) {
 
     const [query, queryErr] = validateQuery(request, QuerySchema);
     if (queryErr) return withStandardHeaders(queryErr, requestId);
-    const orgId = query.org_id;
-
-    const membership = await getAcceptedOrgMembership({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireImplicitBizAccessPatternB(request, {
       supabase,
-      userId: user.id,
-      orgId,
+      user,
+      headerBizId: workspaceBizId,
     });
-
-    const role = membership ? normalizeMemberRole(membership.role) : null;
-    if (!membership || (role !== 'owner' && role !== 'manager')) {
+    if (access instanceof NextResponse) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
+    if (access.membership.orgId !== query.org_id) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin') {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    const orgId = access.membership.orgId;
 
     const now = new Date();
     const since24hIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();

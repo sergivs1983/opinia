@@ -9,8 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { trackEvent } from '@/lib/telemetry';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { validateBody, BillingUpdateSchema } from '@/lib/validations';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
-import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { requireBizAccessPatternB, requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import {
   normalizeOrgRolesForPlan,
 } from '@/lib/seats';
@@ -60,16 +59,32 @@ export async function GET(request: Request) {
     return withStandardHeaders(NextResponse.json({ error: 'org_id required' }, { status: 400 }), requestId);
   }
 
-  const hasMembership = await hasAcceptedOrgMembership({
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+  const access = await requireImplicitBizAccessPatternB(request, {
     supabase,
-    userId: user.id,
-    orgId,
+    user,
+    headerBizId: workspaceBizId,
   });
-  if (!hasMembership) {
-    return withStandardHeaders(NextResponse.json({ error: 'forbidden' }, { status: 403 }), requestId);
+  if (access instanceof NextResponse) {
+    return withStandardHeaders(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
+  }
+  if (access.membership.orgId !== orgId) {
+    return withStandardHeaders(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
+  }
+  if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin') {
+    return withStandardHeaders(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
   }
 
-  const summary = await getUsageSummary(supabase, orgId);
+  const summary = await getUsageSummary(supabase, access.membership.orgId);
 
   return withStandardHeaders(
     NextResponse.json({

@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { getOrgSeatSnapshot } from '@/lib/seats';
 
 /**
@@ -21,6 +22,16 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const orgId = searchParams.get('org_id');
   if (!orgId) return NextResponse.json({ error: 'org_id required' }, { status: 400 });
+
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+  const access = await requireImplicitBizAccessPatternB(request, {
+    supabase,
+    user,
+    headerBizId: workspaceBizId,
+  });
+  if (access instanceof NextResponse || access.membership.orgId !== orgId) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
 
   let members: Array<Record<string, unknown>> | null = null;
 

@@ -4,12 +4,11 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getServerActiveOrgCookieValue, resolveServerActiveMembership } from '@/lib/workspace/server-active-org';
 
 const QuerySchema = z.object({
   biz_id: z.string().uuid().optional(),
@@ -62,45 +61,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let orgId: string | null = null;
   let scopedBizId: string | null = null;
 
-  if (payload.biz_id) {
-    const gate = await requireBizAccessPatternB(request, payload.biz_id, {
-      supabase,
-      user,
-      queryBizId: payload.biz_id,
-    });
-    if (gate instanceof NextResponse) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
-
-    if (!gate.membership.orgId || (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff')) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
-
-    scope = 'biz';
-    orgId = gate.membership.orgId;
-    scopedBizId = gate.bizId;
-  } else {
-    const membership = await resolveServerActiveMembership({
-      supabase,
-      userId: user.id,
-      cookieOrgId: getServerActiveOrgCookieValue(),
-    });
-
-    if (!membership?.org_id) {
-      return withNoStore(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
-
-    orgId = membership.org_id;
+  const gate = await requireImplicitBizAccessPatternB(request, {
+    supabase,
+    user,
+    queryBizId: payload.biz_id,
+  });
+  if (gate instanceof NextResponse) {
+    return withNoStore(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
   }
+
+  if (!gate.membership.orgId || (gate.role !== 'owner' && gate.role !== 'manager' && gate.role !== 'staff' && gate.role !== 'admin')) {
+    return withNoStore(
+      NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+      requestId,
+    );
+  }
+
+  scope = payload.biz_id ? 'biz' : 'org';
+  orgId = gate.membership.orgId;
+  scopedBizId = payload.biz_id ? gate.bizId : null;
 
   const weekStart = startOfUtcWeek(new Date());
   const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);

@@ -75,6 +75,61 @@ function run() {
   includes('push/status GET: uses push biz access helper', pushStatus, 'requirePushBizAccess({');
   includes('push/status GET: subscriptions scoped by access.bizId', pushStatus, ".eq('biz_id', access.bizId)");
 
+  const enterpriseOverview = read('src/app/api/enterprise/overview/route.ts');
+  includes('enterprise/overview GET: uses implicit biz gate helper', enterpriseOverview, 'requireImplicitBizAccessPatternB(request');
+  includes('enterprise/overview GET: explicit biz forwarded to helper', enterpriseOverview, 'queryBizId: payload.biz_id');
+  includes('enterprise/overview GET: missing context/cross-tenant returns 404', enterpriseOverview, 'requestId,\n      404,');
+
+  const socialInbox = read('src/app/api/social/drafts/inbox/route.ts');
+  includes('social/drafts/inbox GET: uses implicit biz gate helper', socialInbox, 'requireImplicitBizAccessPatternB(request');
+  includes('social/drafts/inbox GET: missing context returns 404', socialInbox, "{ status: 404 }");
+  includes('social/drafts/inbox GET: cross-tenant org mismatch returns 404', socialInbox, 'access.membership.orgId !== payload.org_id');
+
+  const socialWeekly = read('src/app/api/social/stats/weekly/route.ts');
+  includes('social/stats/weekly GET: uses implicit biz gate helper', socialWeekly, 'requireImplicitBizAccessPatternB(request');
+  includes('social/stats/weekly GET: missing context returns 404', socialWeekly, "{ status: 404 }");
+
+  const statusRoute = read('src/app/api/status/route.ts');
+  includes('status GET: uses implicit biz gate helper', statusRoute, 'requireImplicitBizAccessPatternB(request');
+  includes('status GET: missing context returns 404', statusRoute, "if (gate instanceof NextResponse) return NextResponse.json({ error: 'not_found' }, { status: 404 });");
+
+  const adminBusinesses = read('src/app/api/admin/businesses/route.ts');
+  includes('admin/businesses GET: uses implicit biz gate helper', adminBusinesses, 'requireImplicitBizAccessPatternB(request');
+  includes('admin/businesses GET: staff role denied with 404', adminBusinesses, "!roleCanManageBusinesses(access.role)");
+  includes('admin/businesses GET: cross-tenant org mismatch returns 404', adminBusinesses, 'access.membership.orgId !== query.org_id');
+
+  const adminMemberships = read('src/app/api/admin/business-memberships/route.ts');
+  includes('admin/business-memberships GET: uses implicit biz gate helper', adminMemberships, 'requireImplicitBizAccessPatternB(request');
+  includes('admin/business-memberships GET: staff role denied with 404', adminMemberships, '!roleCanManageTeam(access.role)');
+
+  const adminLito = read('src/app/api/admin/org-settings/lito/route.ts');
+  includes('admin/org-settings/lito GET: uses implicit biz gate helper', adminLito, 'requireImplicitBizAccessPatternB(request');
+  includes('admin/org-settings/lito GET: role denied with 404', adminLito, "access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin'");
+
+  const billing = read('src/app/api/billing/route.ts');
+  includes('billing GET: uses implicit biz gate helper', billing, 'requireImplicitBizAccessPatternB(request');
+  includes('billing GET: staff role denied with 404', billing, "access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin'");
+
+  const billingStatus = read('src/app/api/billing/status/route.ts');
+  includes('billing/status GET: uses implicit biz gate helper', billingStatus, 'requireImplicitBizAccessPatternB(request');
+  includes('billing/status GET: staff role denied with 404', billingStatus, "access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin'");
+
+  const billingTrial = read('src/app/api/billing/trial/route.ts');
+  includes('billing/trial GET: uses implicit biz gate helper', billingTrial, 'requireImplicitBizAccessPatternB(request');
+  includes('billing/trial GET: staff role denied with 404', billingTrial, "access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin'");
+
+  const telemetrySummary = read('src/app/api/telemetry/summary/route.ts');
+  includes('telemetry/summary GET: uses implicit biz gate helper', telemetrySummary, 'requireImplicitBizAccessPatternB(request');
+  includes('telemetry/summary GET: staff role denied with 404', telemetrySummary, "access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin'");
+
+  const integrationsGoogleList = read('src/app/api/integrations/google/list/route.ts');
+  includes('integrations/google/list GET: uses implicit biz gate helper', integrationsGoogleList, 'requireImplicitBizAccessPatternB(request');
+  includes('integrations/google/list GET: missing context returns 404', integrationsGoogleList, "{ status: 404 },");
+
+  const integrationsGoogleBusinesses = read('src/app/api/integrations/google/businesses/route.ts');
+  includes('integrations/google/businesses GET: uses implicit biz gate helper', integrationsGoogleBusinesses, 'requireImplicitBizAccessPatternB(request');
+  includes('integrations/google/businesses GET: missing context returns 404', integrationsGoogleBusinesses, "{ status: 404 },");
+
   console.log(`\n=== RESULTS: ${pass}/${pass + fail} passed ===`);
   if (fail > 0) process.exit(1);
 }

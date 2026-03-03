@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedOrgMembership } from '@/lib/authz';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createLogger } from '@/lib/logger';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -54,15 +54,25 @@ export async function GET(request: Request) {
 
     const [query, queryErr] = validateQuery(request, QuerySchema);
     if (queryErr) return withStandardHeaders(queryErr, requestId);
-    const orgId = query.org_id;
-
-    const membership = await getAcceptedOrgMembership({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireImplicitBizAccessPatternB(request, {
       supabase,
-      userId: user.id,
-      orgId,
+      user,
+      headerBizId: workspaceBizId,
     });
-
-    if (!membership) {
+    if (access instanceof NextResponse) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.membership.orgId !== query.org_id) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -72,7 +82,7 @@ export async function GET(request: Request) {
     const { data: orgData, error: orgErr } = await supabase
       .from('organizations')
       .select('id, trial_started_at, trial_ends_at, trial_state, trial_plan_code')
-      .eq('id', orgId)
+      .eq('id', access.membership.orgId)
       .maybeSingle();
 
     if (orgErr || !orgData) {
@@ -87,12 +97,12 @@ export async function GET(request: Request) {
     const cap = getTrialDraftCap(trial);
     const usedEstimate = await getTrialUsedEstimate({
       supabase,
-      orgId,
+      orgId: access.membership.orgId,
     });
 
     const capCheck = await enforceTrialQuota({
       supabase,
-      orgId,
+      orgId: access.membership.orgId,
       trial,
       inc: 1,
     });
@@ -100,7 +110,7 @@ export async function GET(request: Request) {
     return withStandardHeaders(
       NextResponse.json({
         ok: true,
-        org_id: orgId,
+        org_id: access.membership.orgId,
         trial_state: trial.state,
         trial_started_at: trial.started_at,
         trial_ends_at: trial.ends_at,

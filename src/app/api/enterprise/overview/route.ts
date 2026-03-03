@@ -4,12 +4,11 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getServerActiveOrgCookieValue } from '@/lib/workspace/server-active-org';
 
 const QuerySchema = z.object({
   biz_id: z.string().uuid().optional(),
@@ -31,15 +30,6 @@ type BusinessRow = {
   type: string | null;
   default_language: string | null;
   is_active: boolean;
-};
-
-type MembershipRow = {
-  id: string;
-  org_id: string;
-  role: 'owner' | 'manager' | 'staff' | string;
-  accepted_at: string | null;
-  created_at: string;
-  is_default: boolean | null;
 };
 
 type InsightRow = {
@@ -229,84 +219,46 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   let guardedBizId: string | null = null;
-  if (payload.biz_id) {
-    const access = await requireBizAccessPatternB(request, payload.biz_id, {
-      supabase,
-      user,
-      queryBizId: payload.biz_id,
-    });
-    if (access instanceof NextResponse) {
-      return jsonNoStore(
-        { error: 'not_found', message: 'No disponible', request_id: requestId },
-        requestId,
-        404,
-      );
-    }
-    guardedBizId = access.bizId;
-  }
-
-  const { data: membershipRows, error: membershipError } = await supabase
-    .from('memberships')
-    .select('id, org_id, role, accepted_at, created_at, is_default')
-    .eq('user_id', user.id)
-    .not('accepted_at', 'is', null)
-    .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-
-  if (membershipError) {
-    log.error('enterprise_memberships_query_failed', {
-      user_id: user.id,
-      error_code: membershipError.code || null,
-      error: membershipError.message || null,
-    });
-    return jsonNoStore(
-      { error: 'internal', message: 'Error intern del servidor', request_id: requestId },
-      requestId,
-      500,
-    );
-  }
-
-  const memberships = ((membershipRows || []) as MembershipRow[])
-    .filter((row) => row.accepted_at !== null)
-    .filter((row) => {
-      const role = row.role;
-      return role === 'owner' || role === 'manager' || role === 'staff';
-    });
-
-  if (memberships.length === 0) {
+  const access = await requireImplicitBizAccessPatternB(request, {
+    supabase,
+    user,
+    queryBizId: payload.biz_id,
+  });
+  if (access instanceof NextResponse) {
     return jsonNoStore(
       { error: 'not_found', message: 'No disponible', request_id: requestId },
       requestId,
       404,
     );
   }
-
-  const activeOrgId = getServerActiveOrgCookieValue();
-  let resolvedMembership: MembershipRow | null = null;
-
-  if (memberships.length === 1) {
-    resolvedMembership = memberships[0];
-  } else if (activeOrgId) {
-    resolvedMembership = memberships.find((row) => row.org_id === activeOrgId) || null;
-  }
-
-  if (!resolvedMembership) {
+  if (!access.membership.orgId) {
     return jsonNoStore(
       {
-        error: 'bad_request',
-        code: 'org_required',
-        message: 'Selecciona una organització activa',
+        error: 'not_found',
+        message: 'No disponible',
         request_id: requestId,
       },
       requestId,
-      400,
+      404,
+    );
+  }
+  if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'staff' && access.role !== 'admin') {
+    return jsonNoStore(
+      {
+        error: 'not_found',
+        message: 'No disponible',
+        request_id: requestId,
+      },
+      requestId,
+      404,
     );
   }
 
-  const resolvedOrgId = resolvedMembership.org_id;
-  const role = resolvedMembership.role;
+  const resolvedOrgId = access.membership.orgId;
+  const role = access.role;
+  guardedBizId = payload.biz_id ? access.bizId : null;
   const admin = createAdminClient();
-  const isManagerScope = role === 'owner' || role === 'manager';
+  const isManagerScope = role === 'owner' || role === 'manager' || role === 'admin';
 
   let accessibleBusinesses: BusinessRow[] = [];
 

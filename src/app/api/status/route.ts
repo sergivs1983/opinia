@@ -3,8 +3,7 @@ export const revalidate = 0;
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
-import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 
 /**
  * GET /api/status?org_id=xxx&biz_id=xxx
@@ -20,29 +19,18 @@ export async function GET(request: Request) {
   const bizId = searchParams.get('biz_id');
   if (!orgId) return NextResponse.json({ error: 'org_id required' }, { status: 400 });
 
-  let scopedOrgId = orgId;
-  let scopedBizId: string | null = null;
-
-  if (bizId) {
-    const gate = await requireBizAccessPatternB(request, bizId, {
-      supabase,
-      user,
-      queryBizId: bizId,
-    });
-    if (gate instanceof NextResponse) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-    if (gate.membership.orgId !== orgId) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 });
-    }
-    scopedOrgId = gate.membership.orgId;
-    scopedBizId = gate.bizId;
-  } else {
-    const hasMembership = await hasAcceptedOrgMembership({
-      supabase,
-      userId: user.id,
-      orgId,
-    });
-    if (!hasMembership) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  const gate = await requireImplicitBizAccessPatternB(request, {
+    supabase,
+    user,
+    queryBizId: bizId,
+  });
+  if (gate instanceof NextResponse) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (!gate.membership.orgId || gate.membership.orgId !== orgId) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
+
+  const scopedOrgId = gate.membership.orgId;
+  const scopedBizId = bizId ? gate.bizId : null;
 
   // Usage this month
   const monthKey = new Date().toISOString().slice(0, 7) + '-01';

@@ -4,11 +4,8 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
-import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { requireBizAccessPatternB, requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import {
-  asMembershipRoleFilter,
-  TEAM_MANAGEMENT_ROLES,
   roleCanManageBusinesses,
 } from '@/lib/roles';
 import { getGoogleLocalsLimit } from '@/lib/integrations/google/multilocal';
@@ -29,26 +26,6 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 120);
-}
-
-async function ensureOrgManagerPermission(args: {
-  orgId: string;
-}) {
-  const supabase = createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, response: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
-
-  const allowed = await hasAcceptedOrgMembership({
-    supabase,
-    userId: user.id,
-    orgId: args.orgId,
-    allowedRoles: asMembershipRoleFilter(TEAM_MANAGEMENT_ROLES),
-  });
-  if (!allowed) {
-    return { supabase, user, response: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
-  }
-
-  return { supabase, user, response: null as NextResponse | null };
 }
 
 async function assertOrgBusinessPlanCapacity(args: {
@@ -91,21 +68,33 @@ export async function GET(request: Request) {
   const [query, queryErr] = validateQuery(request, AdminBusinessesListQuerySchema);
   if (queryErr) return queryErr;
 
-  const access = await ensureOrgManagerPermission({ orgId: query.org_id });
-  if (access.response) return access.response;
+  const supabase = createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const { data, error } = await access.supabase
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+  const access = await requireImplicitBizAccessPatternB(request, {
+    supabase,
+    user,
+    headerBizId: workspaceBizId,
+  });
+  if (access instanceof NextResponse) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  if (access.membership.orgId !== query.org_id || !roleCanManageBusinesses(access.role)) {
+    return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
+  }
+
+  const { data, error } = await supabase
     .from('businesses')
     .select('id, org_id, name, slug, type, city, url, is_active, sort_order, created_at, updated_at')
-    .eq('org_id', query.org_id)
+    .eq('org_id', access.membership.orgId)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
   if (error) {
-    const fallback = await access.supabase
+    const fallback = await supabase
       .from('businesses')
       .select('id, org_id, name, slug, type, city, url, is_active, created_at, updated_at')
-      .eq('org_id', query.org_id)
+      .eq('org_id', access.membership.orgId)
       .order('name', { ascending: true });
 
     if (fallback.error) {

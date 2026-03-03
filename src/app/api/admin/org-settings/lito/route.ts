@@ -4,9 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireBizAccessPatternB } from '@/lib/api-handler';
-import { getAcceptedOrgMembership } from '@/lib/authz';
-import { toLitoMemberRole } from '@/lib/ai/lito-rbac';
+import { requireBizAccessPatternB, requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { validateCsrf } from '@/lib/security/csrf';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -35,21 +33,6 @@ function withStandardHeaders(response: NextResponse, requestId: string): NextRes
   return response;
 }
 
-async function ensureOrgManagerAccess(input: {
-  supabase: ReturnType<typeof createServerSupabaseClient>;
-  userId: string;
-  orgId: string;
-}): Promise<boolean> {
-  const membership = await getAcceptedOrgMembership({
-    supabase: input.supabase,
-    userId: input.userId,
-    orgId: input.orgId,
-  });
-
-  const role = toLitoMemberRole(membership?.role);
-  return role === 'owner' || role === 'manager';
-}
-
 export async function GET(request: Request) {
   const requestId = getRequestIdFromHeaders(request.headers);
   const log = createLogger({ route: 'GET /api/admin/org-settings/lito', request_id: requestId });
@@ -69,12 +52,25 @@ export async function GET(request: Request) {
     const [query, queryErr] = validateQuery(request, QuerySchema);
     if (queryErr) return withStandardHeaders(queryErr, requestId);
 
-    const canManage = await ensureOrgManagerAccess({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireImplicitBizAccessPatternB(request, {
       supabase,
-      userId: user.id,
-      orgId: query.org_id,
+      user,
+      headerBizId: workspaceBizId,
     });
-    if (!canManage) {
+    if (access instanceof NextResponse) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.membership.orgId !== query.org_id) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,

@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -46,57 +46,29 @@ export async function GET(request: Request) {
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const payload = query as z.infer<typeof QuerySchema>;
 
-    let scopedBizId: string | null = null;
-
-    if (payload.biz_id) {
-      const access = await requireBizAccessPatternB(request, payload.biz_id, {
-        supabase,
-        user,
-        queryBizId: payload.biz_id,
-      });
-      if (access instanceof NextResponse) {
-        return withStandardHeaders(access, requestId);
-      }
-      if (access.membership.orgId !== payload.org_id) {
-        return withStandardHeaders(
-          NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-          requestId,
-        );
-      }
-      const isManager = access.role === 'owner' || access.role === 'manager';
-      if (!isManager) {
-        return withStandardHeaders(
-          NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-          requestId,
-        );
-      }
-      scopedBizId = access.bizId;
-    } else {
-      const { data: orgMembership, error: membershipError } = await supabase
-        .from('memberships')
-        .select('role')
-        .eq('org_id', payload.org_id)
-        .eq('user_id', user.id)
-        .not('accepted_at', 'is', null)
-        .limit(1)
-        .maybeSingle();
-
-      if (membershipError || !orgMembership) {
-        return withStandardHeaders(
-          NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-          requestId,
-        );
-      }
-
-      const role = orgMembership.role;
-      const isManager = role === 'owner' || role === 'manager';
-      if (!isManager) {
-        return withStandardHeaders(
-          NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-          requestId,
-        );
-      }
+    const access = await requireImplicitBizAccessPatternB(request, {
+      supabase,
+      user,
+      queryBizId: payload.biz_id,
+    });
+    if (access instanceof NextResponse) {
+      return withStandardHeaders(access, requestId);
     }
+    if (access.membership.orgId !== payload.org_id) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    const isManager = access.role === 'owner' || access.role === 'manager' || access.role === 'admin';
+    if (!isManager) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+
+    const scopedBizId = payload.biz_id ? access.bizId : null;
 
     const admin = createAdminClient();
     let queryBuilder = admin

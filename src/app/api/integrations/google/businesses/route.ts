@@ -3,19 +3,10 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
-import { ACTIVE_ORG_COOKIE, parseCookieValue, resolveActiveMembership } from '@/lib/workspace/active-org';
 import { normalizeMemberRole } from '@/lib/roles';
-
-type MembershipRow = {
-  id: string;
-  org_id: string;
-  role: string;
-  is_default: boolean;
-  created_at: string | null;
-  accepted_at: string | null;
-};
 
 type BusinessRow = {
   id: string;
@@ -107,17 +98,13 @@ export async function GET(request: Request) {
       );
     }
 
-    const cookieOrgId = parseCookieValue(request.headers.get('cookie'), ACTIVE_ORG_COOKIE);
-
-    const { data: memberships, error: membershipsError } = await supabase
-      .from('memberships')
-      .select('id, org_id, role, is_default, created_at, accepted_at')
-      .eq('user_id', user.id)
-      .not('accepted_at', 'is', null)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (membershipsError || !memberships || memberships.length === 0) {
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireImplicitBizAccessPatternB(request, {
+      supabase,
+      user,
+      headerBizId: workspaceBizId,
+    });
+    if (access instanceof NextResponse) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -125,12 +112,7 @@ export async function GET(request: Request) {
         ),
       );
     }
-
-    const activeMembership = resolveActiveMembership(
-      memberships as MembershipRow[],
-      cookieOrgId,
-    );
-    if (!activeMembership) {
+    if (!access.membership.orgId) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -138,6 +120,7 @@ export async function GET(request: Request) {
         ),
       );
     }
+    const activeOrgId = access.membership.orgId;
 
     let businessRows: BusinessRow[] = [];
     let businessSelectError: SupabaseErrorLike | null = null;
@@ -145,7 +128,7 @@ export async function GET(request: Request) {
     const withGoogleFields = await supabase
       .from('businesses')
       .select('id, org_id, name, slug, city, google_location_id')
-      .eq('org_id', activeMembership.org_id)
+      .eq('org_id', activeOrgId)
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
@@ -154,7 +137,7 @@ export async function GET(request: Request) {
       const fallbackBusinesses = await supabase
         .from('businesses')
         .select('id, org_id, name, slug, city')
-        .eq('org_id', activeMembership.org_id)
+        .eq('org_id', activeOrgId)
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true });
@@ -187,27 +170,27 @@ export async function GET(request: Request) {
       );
     }
 
-    const normalizedRole = normalizeMemberRole(activeMembership.role);
+    const normalizedRole = normalizeMemberRole(access.role || 'staff');
     let accessibleBusinesses = businessRows;
 
     if (normalizedRole !== 'owner' && normalizedRole !== 'admin') {
       const assignments = await supabase
         .from('business_memberships')
         .select('business_id')
-        .eq('org_id', activeMembership.org_id)
-        .eq('user_id', user.id)
+        .eq('org_id', activeOrgId)
+        .eq('user_id', access.userId)
         .eq('is_active', true);
 
       if (assignments.error) {
         if (isMissingDependencyError(assignments.error)) {
           log.warn('business_memberships table missing, falling back to org business visibility', {
-            user_id: user.id,
-            org_id: activeMembership.org_id,
+            user_id: access.userId,
+            org_id: activeOrgId,
           });
         } else {
           log.warn('business_memberships query failed, returning empty list', {
-            user_id: user.id,
-            org_id: activeMembership.org_id,
+            user_id: access.userId,
+            org_id: activeOrgId,
             error_code: assignments.error.code || null,
             error: assignments.error.message || null,
           });
@@ -254,7 +237,7 @@ export async function GET(request: Request) {
           log.warn('google integrations fallback query failed', {
             error_code: fallbackIntegrations.error.code || null,
             error: fallbackIntegrations.error.message || null,
-            org_id: activeMembership.org_id,
+            org_id: activeOrgId,
           });
         }
       } else {
@@ -265,7 +248,7 @@ export async function GET(request: Request) {
         log.warn('google integrations query failed', {
           error_code: withStatus.error.code || null,
           error: withStatus.error.message || null,
-          org_id: activeMembership.org_id,
+          org_id: activeOrgId,
         });
       }
     } else {

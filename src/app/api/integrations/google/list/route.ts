@@ -3,19 +3,10 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
-import { ACTIVE_ORG_COOKIE, parseCookieValue, resolveActiveMembership } from '@/lib/workspace/active-org';
 import { normalizeMemberRole } from '@/lib/roles';
-
-type MembershipRow = {
-  id: string;
-  org_id: string;
-  role: string;
-  is_default: boolean;
-  created_at: string | null;
-  accepted_at: string | null;
-};
 
 type BusinessRow = {
   id: string;
@@ -95,16 +86,13 @@ export async function GET(request: Request) {
       );
     }
 
-    const cookieOrgId = parseCookieValue(request.headers.get('cookie'), ACTIVE_ORG_COOKIE);
-    const { data: memberships, error: membershipError } = await supabase
-      .from('memberships')
-      .select('id, org_id, role, is_default, created_at, accepted_at')
-      .eq('user_id', user.id)
-      .not('accepted_at', 'is', null)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
-
-    if (membershipError || !memberships || memberships.length === 0) {
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireImplicitBizAccessPatternB(request, {
+      supabase,
+      user,
+      headerBizId: workspaceBizId,
+    });
+    if (access instanceof NextResponse) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -112,12 +100,7 @@ export async function GET(request: Request) {
         ),
       );
     }
-
-    const activeMembership = resolveActiveMembership(
-      memberships as MembershipRow[],
-      cookieOrgId,
-    );
-    if (!activeMembership) {
+    if (!access.membership.orgId) {
       return withHeaders(
         NextResponse.json(
           { error: 'not_found', message: 'No disponible', request_id: requestId },
@@ -125,14 +108,15 @@ export async function GET(request: Request) {
         ),
       );
     }
+    const activeOrgId = access.membership.orgId;
 
-    const normalizedRole = normalizeMemberRole(activeMembership.role);
+    const normalizedRole = normalizeMemberRole(access.role || 'staff');
     let businesses = [] as BusinessRow[];
 
     const withGoogleLocation = await supabase
       .from('businesses')
       .select('id, org_id, name, slug, city, google_location_name')
-      .eq('org_id', activeMembership.org_id)
+      .eq('org_id', activeOrgId)
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
@@ -141,7 +125,7 @@ export async function GET(request: Request) {
       const fallbackBusinesses = await supabase
         .from('businesses')
         .select('id, org_id, name, slug, city')
-        .eq('org_id', activeMembership.org_id)
+        .eq('org_id', activeOrgId)
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true });
@@ -153,8 +137,8 @@ export async function GET(request: Request) {
       }
     } else if (withGoogleLocation.error) {
       log.warn('google list businesses query failed', {
-        user_id: user.id,
-        org_id: activeMembership.org_id,
+        user_id: access.userId,
+        org_id: activeOrgId,
         error_code: withGoogleLocation.error.code || null,
         error: withGoogleLocation.error.message || null,
       });
@@ -166,15 +150,15 @@ export async function GET(request: Request) {
       const assignments = await supabase
         .from('business_memberships')
         .select('business_id')
-        .eq('org_id', activeMembership.org_id)
-        .eq('user_id', user.id)
+        .eq('org_id', activeOrgId)
+        .eq('user_id', access.userId)
         .eq('is_active', true);
 
       if (assignments.error) {
         if (!isMissingDependencyError(assignments.error)) {
           log.warn('google list business assignments failed', {
-            user_id: user.id,
-            org_id: activeMembership.org_id,
+            user_id: access.userId,
+            org_id: activeOrgId,
             error_code: assignments.error.code || null,
             error: assignments.error.message || null,
           });

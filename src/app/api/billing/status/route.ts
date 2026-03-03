@@ -4,11 +4,10 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedOrgMembership } from '@/lib/authz';
 import { getOrgEntitlements } from '@/lib/billing/entitlements';
 import { getDraftUsage, getOrgPlanConfig } from '@/lib/ai/quota';
+import { requireImplicitBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
-import { normalizeMemberRole } from '@/lib/roles';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateQuery } from '@/lib/validations';
@@ -42,16 +41,25 @@ export async function GET(request: Request) {
 
     const [query, queryErr] = validateQuery(request, QuerySchema);
     if (queryErr) return withStandardHeaders(queryErr, requestId);
-    const orgId = query.org_id;
-
-    const membership = await getAcceptedOrgMembership({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim() || null;
+    const access = await requireImplicitBizAccessPatternB(request, {
       supabase,
-      userId: user.id,
-      orgId,
+      user,
+      headerBizId: workspaceBizId,
     });
-
-    const normalizedRole = membership ? normalizeMemberRole(membership.role) : null;
-    if (!membership || (normalizedRole !== 'owner' && normalizedRole !== 'manager')) {
+    if (access instanceof NextResponse) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.membership.orgId !== query.org_id) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+    if (access.role !== 'owner' && access.role !== 'manager' && access.role !== 'admin') {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
@@ -62,10 +70,10 @@ export async function GET(request: Request) {
       supabase
         .from('organizations')
         .select('id, plan, plan_code, billing_status, stripe_customer_id, stripe_subscription_id, stripe_price_id')
-        .eq('id', orgId)
+        .eq('id', access.membership.orgId)
         .maybeSingle(),
-      getOrgEntitlements({ supabase, orgId }),
-      getDraftUsage(supabase, orgId),
+      getOrgEntitlements({ supabase, orgId: access.membership.orgId }),
+      getDraftUsage(supabase, access.membership.orgId),
     ]);
 
     if (orgError || !orgData) {

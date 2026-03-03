@@ -12,6 +12,12 @@ import { createLogger, createRequestId } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAcceptedBusinessMembershipContext, hasAcceptedBusinessMembership } from '@/lib/authz';
+import { normalizeMemberRole } from '@/lib/roles';
+import {
+  ACTIVE_ORG_COOKIE,
+  parseCookieValue,
+  resolveActiveMembership,
+} from '@/lib/workspace/active-org';
 
 export interface ApiContext {
   user: { id: string; email?: string } | null;
@@ -54,12 +60,29 @@ export type PatternBAccessResult = PatternBAccessGranted | PatternBAccessDenied;
 
 export type PatternBAccessContext = PatternBAccessGranted;
 
+type PatternBImplicitBizSource = 'query' | 'header' | 'active';
+
+export type PatternBImplicitAccessGranted = PatternBAccessGranted & {
+  bizContextSource: PatternBImplicitBizSource;
+};
+
+export type PatternBImplicitAccessResult = PatternBImplicitAccessGranted | PatternBAccessDenied;
+
 type PatternBRequestOptions = {
   supabase?: SupabaseClient;
   user?: PatternBRequestUser;
   bodyBizId?: string | null | undefined;
   queryBizId?: string | null | undefined;
   headerBizId?: string | null | undefined;
+};
+
+type PatternBMembershipScopeRow = {
+  id: string;
+  org_id: string;
+  role: string;
+  is_default: boolean;
+  created_at: string | null;
+  accepted_at: string | null;
 };
 
 export enum ResourceTable {
@@ -202,6 +225,112 @@ function patternBNotFoundDenied(): PatternBAccessDenied {
   return toPatternBDenied(patternBNotFoundResponse());
 }
 
+function normalizeBizContextCandidate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function getQueryBizIdCandidate(
+  request: Request,
+  explicitValue?: string | null | undefined,
+): string | null {
+  if (typeof explicitValue === 'string') {
+    return normalizeBizContextCandidate(explicitValue);
+  }
+
+  const url = new URL(request.url);
+  return normalizeBizContextCandidate(
+    url.searchParams.get('biz_id')
+      ?? url.searchParams.get('business_id')
+      ?? url.searchParams.get('bizId')
+      ?? url.searchParams.get('businessId'),
+  );
+}
+
+function getHeaderBizIdCandidate(
+  request: Request,
+  explicitValue?: string | null | undefined,
+): string | null {
+  if (typeof explicitValue === 'string') {
+    return normalizeBizContextCandidate(explicitValue);
+  }
+
+  return normalizeBizContextCandidate(
+    request.headers.get('x-biz-id')
+      ?? request.headers.get('x-business-id'),
+  );
+}
+
+async function resolveActiveBizContextId(
+  request: Request,
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  const cookieOrgId = parseCookieValue(request.headers.get('cookie'), ACTIVE_ORG_COOKIE);
+
+  const { data: membershipRows, error: membershipError } = await supabase
+    .from('memberships')
+    .select('id, org_id, role, is_default, created_at, accepted_at')
+    .eq('user_id', userId)
+    .not('accepted_at', 'is', null)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (membershipError || !membershipRows || membershipRows.length === 0) {
+    return null;
+  }
+
+  const activeMembership = resolveActiveMembership(
+    membershipRows as PatternBMembershipScopeRow[],
+    cookieOrgId,
+  );
+
+  if (!activeMembership?.org_id) {
+    return null;
+  }
+
+  const orgId = parseBizId(activeMembership.org_id);
+  if (!orgId) {
+    return null;
+  }
+
+  const normalizedRole = normalizeMemberRole(activeMembership.role);
+  const isOrgWideRole = normalizedRole === 'owner' || normalizedRole === 'manager' || normalizedRole === 'admin';
+
+  if (!isOrgWideRole) {
+    const { data: assignment, error: assignmentError } = await supabase
+      .from('business_memberships')
+      .select('business_id')
+      .eq('org_id', orgId)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!assignmentError && assignment) {
+      const assignmentBizId = parseBizId((assignment as { business_id?: string | null }).business_id);
+      if (assignmentBizId) return assignmentBizId;
+    } else if (assignmentError && !isMissingRelationError(assignmentError)) {
+      return null;
+    }
+  }
+
+  const { data: businessData, error: businessError } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  if (businessError || !businessData) {
+    return null;
+  }
+
+  return parseBizId((businessData as { id?: string | null }).id);
+}
+
 async function resolveMembershipBizId(
   supabase: SupabaseClient,
   membershipId: string,
@@ -320,14 +449,15 @@ function resolvePatternBSources(
 
 async function requireBizAccessPatternBArgs(
   args: Parameters<typeof requireBizAccess>[0],
-): Promise<NextResponse | null> {
+): Promise<PatternBAccessDenied | null> {
   const result = await requireBizAccess(args);
   if (result !== null && result.status === 403) {
     // 403 BIZ_FORBIDDEN → 404: cross-tenant resource ≡ non-existent resource.
     // No revelem que el recurs existeix en un altre tenant.
-    return patternBNotFoundResponse();
+    return patternBNotFoundDenied();
   }
-  return result;
+  if (result === null) return null;
+  return toPatternBDenied(result);
 }
 
 /**
@@ -355,7 +485,7 @@ async function requireBizAccessPatternBArgs(
  */
 export async function requireBizAccessPatternB(
   args: Parameters<typeof requireBizAccess>[0],
-): Promise<NextResponse | null>;
+): Promise<PatternBAccessDenied | null>;
 export async function requireBizAccessPatternB(
   request: Request,
   bizId: string | null | undefined,
@@ -419,6 +549,67 @@ export async function requireBizAccessPatternB(
   };
 }
 
+export async function requireImplicitBizAccessPatternB(
+  request: Request,
+  options: Omit<PatternBRequestOptions, 'bodyBizId'> = {},
+): Promise<PatternBImplicitAccessResult> {
+  const supabase = options.supabase ?? createServerSupabaseClient();
+
+  let user = options.user ?? null;
+  if (!user) {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      return toPatternBDenied(
+        NextResponse.json(
+          { error: 'unauthorized', message: 'Auth required' },
+          { status: 401 },
+        ),
+      );
+    }
+    user = { id: authUser.id, email: authUser.email ?? undefined };
+  }
+
+  const queryBizId = getQueryBizIdCandidate(request, options.queryBizId);
+  const headerBizId = getHeaderBizIdCandidate(request, options.headerBizId);
+
+  if (queryBizId && headerBizId && queryBizId !== headerBizId) {
+    return patternBNotFoundDenied();
+  }
+
+  let resolvedBizId = queryBizId;
+  let source: PatternBImplicitBizSource = 'query';
+
+  if (!resolvedBizId && headerBizId) {
+    resolvedBizId = headerBizId;
+    source = 'header';
+  }
+
+  if (!resolvedBizId) {
+    resolvedBizId = await resolveActiveBizContextId(request, supabase, user.id);
+    source = 'active';
+  }
+
+  if (!resolvedBizId) {
+    return patternBNotFoundDenied();
+  }
+
+  const access = await requireBizAccessPatternB(request, resolvedBizId, {
+    supabase,
+    user,
+    queryBizId: queryBizId ?? undefined,
+    headerBizId: headerBizId ?? undefined,
+  });
+
+  if (access instanceof NextResponse) {
+    return access;
+  }
+
+  return {
+    ...access,
+    bizContextSource: source,
+  };
+}
+
 async function lookupBizIdFromResource(
   supabase: SupabaseClient,
   resourceId: string,
@@ -447,7 +638,9 @@ async function lookupBizIdFromResource(
 
     if (!data) continue;
 
-    const bizId = parseBizId((data as Record<string, unknown>)[spec.bizColumn] as string | null | undefined);
+    const row = data as unknown as Record<string, unknown>;
+    const rawBizId = row[spec.bizColumn];
+    const bizId = parseBizId(typeof rawBizId === 'string' ? rawBizId : null);
     return bizId;
   }
 
