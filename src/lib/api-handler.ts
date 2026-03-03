@@ -133,12 +133,15 @@ function checkRateLimit(key: string, maxPerMinute: number): boolean {
 
 // Cleanup stale entries every 5 minutes
 if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
+  const cleanupTimer = setInterval(() => {
     const now = Date.now();
     for (const [key, val] of rateLimitStore) {
       if (now > val.resetAt) rateLimitStore.delete(key);
     }
   }, 300_000);
+  if (typeof cleanupTimer.unref === 'function') {
+    cleanupTimer.unref();
+  }
 }
 
 // ============================================================

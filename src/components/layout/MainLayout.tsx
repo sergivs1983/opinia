@@ -32,7 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'lito', label: 'LITO', href: '/dashboard/lito', Icon: ShellIcons.Home },
   { key: 'planner', label: 'Planner', href: '/dashboard/planner', Icon: ShellIcons.Calendar },
   { key: 'arxiu', label: 'Arxiu', href: '/dashboard/arxiu', Icon: ShellIcons.Archive },
-  { key: 'settings', label: 'Config', href: '/dashboard/lito?modal=settings&panel=general', Icon: ShellIcons.Settings },
+  { key: 'settings', label: 'Config', href: '/dashboard/settings', Icon: ShellIcons.Settings },
 ];
 
 function navIsActive(pathname: string, key: NavItem['key'], settingsModalOpen: boolean): boolean {
@@ -98,10 +98,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const contentPadding = isLitoRoute ? '0' : '48px 24px 120px';
   const settingsModalOpen = isLitoRoute && searchParams.get('modal') === 'settings';
   const settingsPanel = normalizeSettingsModalPanel(searchParams.get('panel'));
-
-  const openSettingsModal = (panel: SettingsModalPanel = 'general') => {
-    router.push(`/dashboard/lito?modal=settings&panel=${panel}`);
-  };
 
   const closeSettingsModal = () => {
     router.replace('/dashboard/lito');
@@ -279,7 +275,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
               <button
                 type="button"
                 title="Configuració"
-                onClick={() => openSettingsModal('general')}
+                onClick={() => router.push('/dashboard/settings')}
                 style={{
                   width: 32,
                   height: 32,
