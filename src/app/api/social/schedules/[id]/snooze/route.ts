@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { buildGlobalProps } from '@/lib/analytics/properties';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { computeSnoozedAt } from '@/lib/social/schedules';
@@ -17,7 +18,7 @@ import {
   loadSchedule,
   notFound,
   refreshReminderQueue,
-  requireUserAndBizAccess,
+  unauthorized,
   withNoStore,
 } from '@/app/api/social/schedules/_shared';
 
@@ -53,16 +54,27 @@ export async function POST(
     return badRequest(requestId, parsedBody.error.issues[0]?.message || 'Body invàlid');
   }
 
-  const schedule = await loadSchedule(parsedParams.data.id);
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return unauthorized(requestId);
+
+  const gate = await requireResourceAccessPatternB(request, parsedParams.data.id, ResourceTable.SocialSchedules, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) return withNoStore(gate, requestId);
+
+  const schedule = await loadSchedule(parsedParams.data.id, gate.bizId);
   if (!schedule) {
     return notFound(requestId);
   }
 
-  const access = await requireUserAndBizAccess({ bizId: schedule.biz_id, requestId });
-  if (!access.ok) return access.response;
-
-  const canManage = access.role === 'owner' || access.role === 'manager';
-  if (!canManage) {
+  const canManage = gate.role === 'owner' || gate.role === 'manager';
+  const canSnoozeAssigned = gate.role === 'staff'
+    && schedule.assigned_user_id === gate.userId;
+  if (!canManage && !canSnoozeAssigned) {
     return notFound(requestId);
   }
 
@@ -138,18 +150,17 @@ export async function POST(
     });
   }
 
-  const supabase = createServerSupabaseClient();
   await trackEvent({
     supabase,
-    orgId: access.orgId,
-    userId: access.userId,
+    orgId: gate.membership.orgId,
+    userId: gate.userId,
     name: 'post_snoozed',
     props: {
       ...buildGlobalProps({
-        userId: access.userId,
+        userId: gate.userId,
         bizId: schedule.biz_id,
-        orgId: access.orgId,
-        role: access.role,
+        orgId: gate.membership.orgId,
+        role: gate.role,
         mode: 'basic',
         platform: 'web',
       }),

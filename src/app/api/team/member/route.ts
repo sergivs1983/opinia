@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { asMembershipRoleFilter, TEAM_MANAGEMENT_ROLES } from '@/lib/roles';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 
 /**
  * DELETE /api/team/member?id=xxx
@@ -22,15 +23,21 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+  const gate = await requireResourceAccessPatternB(request, id, ResourceTable.Memberships, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) return gate;
 
   // Load the target membership
   const { data: target } = await supabase
     .from('memberships')
     .select('id, user_id, org_id, role')
     .eq('id', id)
+    .eq('org_id', gate.membership.orgId)
     .single();
 
-  if (!target) return NextResponse.json({ error: 'Membership not found' }, { status: 404 });
+  if (!target) return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
 
   const isSelf = target.user_id === user.id;
   if (!isSelf) {
@@ -43,9 +50,9 @@ export async function DELETE(request: Request) {
 
     if (!canManageTeam) {
       return NextResponse.json({
-        error: 'forbidden',
-        message: "No tens permisos per eliminar membres d'aquest equip.",
-      }, { status: 403 });
+        error: 'not_found',
+        message: 'No disponible',
+      }, { status: 404 });
     }
   }
 
@@ -74,7 +81,7 @@ export async function DELETE(request: Request) {
 
   if (error) {
     if (error.code === '42501' || error.message.includes('policy')) {
-      return NextResponse.json({ error: 'forbidden', message: 'Only owners can remove members.' }, { status: 403 });
+      return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

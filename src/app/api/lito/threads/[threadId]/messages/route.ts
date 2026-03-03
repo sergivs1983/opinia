@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable, type PatternBAccessContext } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { buildMemorySummary, extractVoiceToneHint, getMemoryContext } from '@/lib/memory/context';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
@@ -50,6 +50,10 @@ type MessageRow = {
 };
 
 const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
+
+function hasLitoThreadAccessRole(role: string | null): role is (typeof LITO_ALLOWED_ROLES)[number] {
+  return role === 'owner' || role === 'manager' || role === 'staff';
+}
 
 type RecommendationTemplate = {
   format: string;
@@ -422,32 +426,59 @@ function buildGenericAssistantReply(params: {
 }
 
 async function loadThreadForUser(params: {
+  request: Request;
   supabase: ReturnType<typeof createServerSupabaseClient>;
-  userId: string;
+  user: { id: string; email?: string | undefined };
   threadId: string;
-}): Promise<{ thread: ThreadRow | null; allowed: boolean; orgId: string | null }> {
-  // Read thread with admin client to avoid false 404 from RLS drift on lito_threads.
-  // Authorization is still enforced immediately after via business membership check.
+  requestId: string;
+}): Promise<
+  | { ok: false; response: NextResponse }
+  | { ok: true; thread: ThreadRow; access: PatternBAccessContext }
+> {
+  const gate = await requireResourceAccessPatternB(params.request, params.threadId, ResourceTable.LitoThreads, {
+    supabase: params.supabase,
+    user: params.user,
+  });
+  if (gate instanceof NextResponse) {
+    return {
+      ok: false,
+      response: withStandardHeaders(gate, params.requestId),
+    };
+  }
+
+  if (!hasLitoThreadAccessRole(gate.role)) {
+    return {
+      ok: false,
+      response: withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: params.requestId }, { status: 404 }),
+        params.requestId,
+      ),
+    };
+  }
+
+  // Read thread with admin client, but always scoped by the guarded tenant.
   const admin = createAdminClient();
   const { data, error } = await admin
     .from('lito_threads')
     .select('id, biz_id, recommendation_id, title, status, created_at, updated_at')
     .eq('id', params.threadId)
+    .eq('biz_id', gate.bizId)
     .maybeSingle();
 
-  if (error || !data) return { thread: null, allowed: false, orgId: null };
-  const thread = data as ThreadRow;
-  const access = await hasAcceptedBusinessMembership({
-    supabase: params.supabase,
-    userId: params.userId,
-    businessId: thread.biz_id,
-    allowedRoles: [...LITO_ALLOWED_ROLES],
-  });
+  if (error || !data) {
+    return {
+      ok: false,
+      response: withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: params.requestId }, { status: 404 }),
+        params.requestId,
+      ),
+    };
+  }
 
   return {
-    thread,
-    allowed: access.allowed,
-    orgId: access.orgId,
+    ok: true,
+    thread: data as ThreadRow,
+    access: gate,
   };
 }
 
@@ -477,18 +508,15 @@ export async function GET(
     if (queryErr) return withStandardHeaders(queryErr, requestId);
     const limit = (query as z.infer<typeof ThreadMessagesQuerySchema>).limit ?? 200;
 
-    const { thread, allowed, orgId } = await loadThreadForUser({
+    const threadAccess = await loadThreadForUser({
+      request,
       supabase,
-      userId: user.id,
+      user: { id: user.id, email: user.email ?? undefined },
       threadId: routeParams.threadId,
+      requestId,
     });
-
-    if (!thread || !allowed) {
-      return withStandardHeaders(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
+    if (!threadAccess.ok) return threadAccess.response;
+    const { thread } = threadAccess;
 
     const admin = createAdminClient();
 
@@ -571,18 +599,15 @@ export async function POST(
     if (bodyErr) return withStandardHeaders(bodyErr, requestId);
     const payload = body as z.infer<typeof ThreadMessagesBodySchema>;
 
-    const { thread, allowed, orgId } = await loadThreadForUser({
+    const threadAccess = await loadThreadForUser({
+      request,
       supabase,
-      userId: user.id,
+      user: { id: user.id, email: user.email ?? undefined },
       threadId: routeParams.threadId,
+      requestId,
     });
-
-    if (!thread || !allowed) {
-      return withStandardHeaders(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
+    if (!threadAccess.ok) return threadAccess.response;
+    const { thread } = threadAccess;
 
     const admin = createAdminClient();
 
@@ -615,11 +640,11 @@ export async function POST(
     let assistantReply = buildGenericAssistantReply({
       userMessage: payload.content,
     });
-    if (orgId) {
+    if (threadAccess.access.membership.orgId) {
       const memoryContext = await getMemoryContext({
         admin,
         bizId: thread.biz_id,
-        orgId,
+        orgId: threadAccess.access.membership.orgId,
         policiesLimit: 4,
         eventsLimit: 4,
       });

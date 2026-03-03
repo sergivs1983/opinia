@@ -8,6 +8,7 @@ import { createLogger, createRequestId } from '@/lib/logger';
 import { bumpDailyMetric } from '@/lib/metrics';
 import { sendPlannerItemWebhook } from '@/lib/webhooks';
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { asMembershipRoleFilter, PUBLISH_ROLES } from '@/lib/roles';
 import {
   validateBody,
@@ -85,11 +86,17 @@ export async function PATCH(
     if (bodyErr) return withResponseRequestId(bodyErr);
 
     const payload = body as PlannerPatchBody;
+    const gate = await requireResourceAccessPatternB(request, routeParams.id, ResourceTable.PlannerItems, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withResponseRequestId(gate);
 
     const { data: existingData, error: existingError } = await supabase
       .from('content_planner_items')
       .select('id, business_id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
       .eq('id', routeParams.id)
+      .eq('business_id', gate.bizId)
       .single();
 
     if (existingError || !existingData) {
@@ -97,22 +104,15 @@ export async function PATCH(
     }
 
     const existingItem = existingData as PlannerExistingRow;
-    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
-
-    if (workspaceBusinessId && workspaceBusinessId !== existingItem.business_id) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Planner item does not belong to current workspace', request_id: requestId }, { status: 403 }),
-      );
-    }
 
     const { data: businessAccess, error: businessAccessError } = await supabase
       .from('businesses')
       .select('id, org_id, name, default_language, webhook_enabled, webhook_url, webhook_secret, webhook_channels')
-      .eq('id', existingItem.business_id)
+      .eq('id', gate.bizId)
       .single();
 
     if (businessAccessError || !businessAccess) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }));
+      return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }));
     }
     const business = businessAccess as BusinessWebhookRow;
 
@@ -125,12 +125,12 @@ export async function PATCH(
       const publishAccess = await hasAcceptedBusinessMembership({
         supabase,
         userId: user.id,
-        businessId: existingItem.business_id,
+        businessId: gate.bizId,
         allowedRoles: asMembershipRoleFilter(PUBLISH_ROLES),
       });
       if (!publishAccess.allowed) {
         return withResponseRequestId(
-          NextResponse.json({ error: 'forbidden', message: 'No tens permisos per publicar', request_id: requestId }, { status: 403 }),
+          NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         );
       }
     }
@@ -144,6 +144,7 @@ export async function PATCH(
       .from('content_planner_items')
       .update(updatePayload)
       .eq('id', routeParams.id)
+      .eq('business_id', gate.bizId)
       .select('id, scheduled_at, channel, item_type, title, status, suggestion_id, asset_id, text_post_id')
       .single();
 

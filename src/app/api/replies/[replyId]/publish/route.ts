@@ -29,8 +29,8 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
-import { asMembershipRoleFilter, PUBLISH_ROLES } from '@/lib/roles';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
+import { roleCanPublish } from '@/lib/roles';
 import { audit } from '@/lib/audit';
 import { writeAudit } from '@/lib/audit-log';
 import { createLogger } from '@/lib/logger';
@@ -83,12 +83,21 @@ export async function POST(
   } catch {
     return json({ error: 'validation_error', message: 'Invalid request body' }, { status: 400 });
   }
+  const gate = await requireResourceAccessPatternB(request, params.replyId, ResourceTable.Replies, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) {
+    log.warn('Access denied (Pattern B 404)', { reply_id: params.replyId });
+    return json({ error: 'not_found', message: 'Not found' }, { status: 404 });
+  }
 
   // ── 4. Load reply (Pattern B 404) ─────────────────────────────────────────
   const { data: reply } = await supabase
     .from('replies')
     .select('id, review_id, biz_id, org_id, status, content, is_edited, updated_at')
     .eq('id', params.replyId)
+    .eq('biz_id', gate.bizId)
     .single();
 
   if (!reply) {
@@ -97,13 +106,7 @@ export async function POST(
   }
 
   // ── 5. Authorise (Pattern B 404 on denial — never 403) ───────────────────
-  const { allowed } = await hasAcceptedBusinessMembership({
-    supabase,
-    userId: user.id,
-    businessId: reply.biz_id,
-    allowedRoles: asMembershipRoleFilter(PUBLISH_ROLES),
-  });
-  if (!allowed) {
+  if (!roleCanPublish(gate.role)) {
     log.warn('Access denied (Pattern B 404)', { reply_id: params.replyId });
     return json({ error: 'not_found', message: 'Not found' }, { status: 404 });
   }

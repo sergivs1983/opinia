@@ -33,6 +33,7 @@ export async function POST(
     const payload = body as z.infer<typeof BodySchema>;
 
     const ctx = await loadSocialDraftContext({
+      request,
       requestId,
       draftId: routeParams.id,
       route: 'POST /api/social/drafts/[id]/publish',

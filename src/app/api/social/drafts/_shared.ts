@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createLogger } from '@/lib/logger';
-import { getLitoBizAccess, type LitoBizAccess } from '@/lib/lito/action-drafts';
+import { requireResourceAccessPatternB, ResourceTable, type PatternBAccessContext } from '@/lib/api-handler';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -65,8 +65,8 @@ export type SocialDraftRow = {
 export type SocialDraftContext = {
   response?: NextResponse;
   userId?: string;
-  role?: LitoBizAccess['role'];
-  access?: LitoBizAccess;
+  role?: string | null;
+  access?: PatternBAccessContext;
   draft?: SocialDraftRow;
 };
 
@@ -120,6 +120,7 @@ export async function requireUser(requestId: string, route: string): Promise<{
 }
 
 export async function loadSocialDraftContext(params: {
+  request: Request;
   requestId: string;
   draftId: string;
   route: string;
@@ -139,11 +140,30 @@ export async function loadSocialDraftContext(params: {
     };
   }
 
+  const gate = await requireResourceAccessPatternB(params.request, params.draftId, ResourceTable.Drafts, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) {
+    return {
+      response: withStandardHeaders(gate, params.requestId),
+    };
+  }
+  if (!gate.role) {
+    return {
+      response: withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: params.requestId }, { status: 404 }),
+        params.requestId,
+      ),
+    };
+  }
+
   const admin = createAdminClient();
   const { data: draftData, error: draftErr } = await admin
     .from('social_drafts')
     .select(SOCIAL_DRAFT_SELECT)
     .eq('id', params.draftId)
+    .eq('biz_id', gate.bizId)
     .maybeSingle();
 
   if (draftErr || !draftData) {
@@ -156,13 +176,7 @@ export async function loadSocialDraftContext(params: {
   }
 
   const draft = draftData as unknown as SocialDraftRow;
-  const access = await getLitoBizAccess({
-    supabase,
-    userId: user.id,
-    bizId: draft.biz_id,
-  });
-
-  if (!access.allowed || !access.role || access.orgId !== draft.org_id) {
+  if (gate.membership.orgId !== draft.org_id) {
     return {
       response: withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: params.requestId }, { status: 404 }),
@@ -174,13 +188,13 @@ export async function loadSocialDraftContext(params: {
   log.info('social_draft_context_loaded', {
     draft_id: draft.id,
     biz_id: draft.biz_id,
-    role: access.role,
+    role: gate.role,
   });
 
   return {
     userId: user.id,
-    role: access.role,
-    access,
+    role: gate.role,
+    access: gate,
     draft,
   };
 }

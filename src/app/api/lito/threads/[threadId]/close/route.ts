@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -19,7 +19,9 @@ type ThreadScopeRow = {
   biz_id: string;
 };
 
-const LITO_ALLOWED_ROLES = ['owner', 'manager', 'staff'] as const;
+function hasLitoThreadAccessRole(role: string | null): boolean {
+  return role === 'owner' || role === 'manager' || role === 'staff';
+}
 
 function withStandardHeaders(response: NextResponse, requestId: string): NextResponse {
   response.headers.set('x-request-id', requestId);
@@ -50,10 +52,23 @@ export async function POST(
     const [routeParams, paramsErr] = validateParams(params, ThreadParamsSchema);
     if (paramsErr) return withStandardHeaders(paramsErr, requestId);
 
+    const gate = await requireResourceAccessPatternB(request, routeParams.threadId, ResourceTable.LitoThreads, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+    if (!hasLitoThreadAccessRole(gate.role)) {
+      return withStandardHeaders(
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
+        requestId,
+      );
+    }
+
     const { data: threadData, error: threadErr } = await supabase
       .from('lito_threads')
       .select('id, biz_id')
       .eq('id', routeParams.threadId)
+      .eq('biz_id', gate.bizId)
       .maybeSingle();
 
     if (threadErr || !threadData) {
@@ -64,23 +79,12 @@ export async function POST(
     }
 
     const thread = threadData as ThreadScopeRow;
-    const access = await hasAcceptedBusinessMembership({
-      supabase,
-      userId: user.id,
-      businessId: thread.biz_id,
-      allowedRoles: [...LITO_ALLOWED_ROLES],
-    });
-    if (!access.allowed) {
-      return withStandardHeaders(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-        requestId,
-      );
-    }
 
     const { error: updateErr } = await supabase
       .from('lito_threads')
       .update({ status: 'closed', updated_at: new Date().toISOString() })
-      .eq('id', thread.id);
+      .eq('id', thread.id)
+      .eq('biz_id', gate.bizId);
 
     if (updateErr) {
       log.error('lito_thread_close_failed', {

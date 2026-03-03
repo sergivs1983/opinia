@@ -9,8 +9,8 @@ import { audit } from '@/lib/audit';
 import { bumpDailyMetric } from '@/lib/metrics';
 import { dispatchEvent } from '@/lib/integrations';
 import { validateBody, ApproveReplySchema } from '@/lib/validations';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
-import { asMembershipRoleFilter, PUBLISH_ROLES } from '@/lib/roles';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
+import { roleCanPublish } from '@/lib/roles';
 
 export async function POST(
   request: Request,
@@ -31,12 +31,18 @@ export async function POST(
   // ── Validate ──
   const [body, err] = await validateBody(request, ApproveReplySchema);
   if (err) return err;
+  const gate = await requireResourceAccessPatternB(request, params.replyId, ResourceTable.Replies, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) return gate;
 
   // Get reply with status check
   const { data: reply } = await supabase
     .from('replies')
     .select('id, review_id, biz_id, org_id, status, content')
     .eq('id', params.replyId)
+    .eq('biz_id', gate.bizId)
     .single();
 
   if (!reply) {
@@ -44,16 +50,10 @@ export async function POST(
     return NextResponse.json({ error: 'not_found', message: 'Reply not found' }, { status: 404 });
   }
 
-  const publishAccess = await hasAcceptedBusinessMembership({
-    supabase,
-    userId: user.id,
-    businessId: reply.biz_id,
-    allowedRoles: asMembershipRoleFilter(PUBLISH_ROLES),
-  });
-  if (!publishAccess.allowed) {
+  if (!roleCanPublish(gate.role)) {
     return NextResponse.json(
-      { error: 'forbidden', message: 'No tens permisos per publicar respostes en aquesta organització.' },
-      { status: 403 },
+      { error: 'not_found', message: 'No disponible' },
+      { status: 404 },
     );
   }
 

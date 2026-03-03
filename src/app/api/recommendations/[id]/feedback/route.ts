@@ -4,7 +4,7 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { getAcceptedBusinessMembershipContext } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   ensureAndGetWeeklyRecommendations,
@@ -67,11 +67,17 @@ export async function POST(
 
     const [body, bodyError] = await validateBody(request, FeedbackBodySchema);
     if (bodyError) return withHeaders(bodyError);
+    const gate = await requireResourceAccessPatternB(request, routeParams.id, ResourceTable.RecommendationLog, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withHeaders(gate);
 
     const { data: logRowData, error: logRowError } = await supabase
       .from('recommendation_log')
       .select('id, biz_id, week_start, status')
       .eq('id', routeParams.id)
+      .eq('biz_id', gate.bizId)
       .single();
 
     if (logRowError || !logRowData) {
@@ -81,19 +87,9 @@ export async function POST(
     }
 
     const logRow = logRowData as RecommendationLogLookupRow;
-    const access = await getAcceptedBusinessMembershipContext({
-      supabase,
-      userId: user.id,
-      businessId: logRow.biz_id,
-    });
-    if (!access.allowed) {
-      return withHeaders(
-        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
-      );
-    }
-    const memberRole = access.role || 'responder';
+    const memberRole = gate.membership.normalizedRole || 'responder';
 
-    if (body.status === 'published' && memberRole === 'staff') {
+    if (body.status === 'published' && memberRole === 'responder') {
       return withHeaders(
         NextResponse.json(
           {

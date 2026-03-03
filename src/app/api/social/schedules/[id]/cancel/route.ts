@@ -4,15 +4,17 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import {
   badRequest,
   cancelPendingReminders,
   loadSchedule,
   notFound,
-  requireUserAndBizAccess,
+  unauthorized,
   withNoStore,
 } from '@/app/api/social/schedules/_shared';
 
@@ -32,15 +34,24 @@ export async function POST(
     return badRequest(requestId, parsedParams.error.issues[0]?.message || 'Paràmetres invàlids');
   }
 
-  const schedule = await loadSchedule(parsedParams.data.id);
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return unauthorized(requestId);
+
+  const gate = await requireResourceAccessPatternB(request, parsedParams.data.id, ResourceTable.SocialSchedules, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) return withNoStore(gate, requestId);
+
+  const schedule = await loadSchedule(parsedParams.data.id, gate.bizId);
   if (!schedule) {
     return notFound(requestId);
   }
 
-  const access = await requireUserAndBizAccess({ bizId: schedule.biz_id, requestId });
-  if (!access.ok) return access.response;
-
-  if (access.role !== 'owner' && access.role !== 'manager') {
+  if (gate.role !== 'owner' && gate.role !== 'manager') {
     return notFound(requestId);
   }
 

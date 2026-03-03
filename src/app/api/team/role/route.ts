@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { validateBody, TeamRoleSchema } from '@/lib/validations';
 import { asMembershipRoleFilter, normalizeMemberRole, TEAM_MANAGEMENT_ROLES } from '@/lib/roles';
 import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { assertRoleAllowedForOrgPlan, OrgRoleNotAllowedForPlanError } from '@/lib/seats';
 
 /**
@@ -23,15 +24,21 @@ export async function PATCH(request: Request) {
   // ── Validate ──
   const [body, err] = await validateBody(request, TeamRoleSchema);
   if (err) return err;
+  const gate = await requireResourceAccessPatternB(request, body.membership_id, ResourceTable.Memberships, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) return gate;
 
   // Prevent demoting last owner
   const { data: target } = await supabase
     .from('memberships')
     .select('id, user_id, org_id, role')
     .eq('id', body.membership_id)
+    .eq('org_id', gate.membership.orgId)
     .single();
 
-  if (!target) return NextResponse.json({ error: 'Membership not found' }, { status: 404 });
+  if (!target) return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
 
   const canManageRoles = await hasAcceptedOrgMembership({
     supabase,
@@ -42,9 +49,9 @@ export async function PATCH(request: Request) {
 
   if (!canManageRoles) {
     return NextResponse.json({
-      error: 'forbidden',
-      message: "No tens permisos per gestionar rols en aquest equip.",
-    }, { status: 403 });
+      error: 'not_found',
+      message: 'No disponible',
+    }, { status: 404 });
   }
 
   const normalizedRole = normalizeMemberRole(body.role);
@@ -90,7 +97,7 @@ export async function PATCH(request: Request) {
 
   if (error) {
     if (error.code === '42501' || error.message.includes('policy')) {
-      return NextResponse.json({ error: 'forbidden', message: 'Only owners can change roles.' }, { status: 403 });
+      return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -42,6 +42,7 @@ export async function POST(
     const payload = parseBody.data;
 
     const ctx = await loadSocialDraftContext({
+      request,
       requestId,
       draftId: routeParams.id,
       route: 'POST /api/social/drafts/[id]/submit',
@@ -52,7 +53,8 @@ export async function POST(
     }
 
     const isStaffOwner = ctx.role === 'staff' && ctx.draft.created_by === ctx.userId;
-    if (!isStaffOwner) {
+    const isOwnerManager = ctx.role === 'owner' || ctx.role === 'manager';
+    if (!isStaffOwner && !isOwnerManager) {
       return withStandardHeaders(
         NextResponse.json(
           { error: 'forbidden', message: 'No tens permisos per enviar a revisió', request_id: requestId },

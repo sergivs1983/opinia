@@ -125,13 +125,18 @@ export async function loadSocialDraftSnapshot(draftId: string): Promise<SocialDr
   return data as unknown as SocialDraftSnapshot;
 }
 
-export async function loadSchedule(scheduleId: string): Promise<SocialScheduleRow | null> {
+export async function loadSchedule(scheduleId: string, bizId?: string): Promise<SocialScheduleRow | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
+  let query = admin
     .from('social_schedules')
     .select('id, org_id, biz_id, draft_id, assigned_user_id, platform, scheduled_at, status, notified_at, published_at, snoozed_from, created_at, updated_at')
-    .eq('id', scheduleId)
-    .maybeSingle();
+    .eq('id', scheduleId);
+
+  if (bizId) {
+    query = query.eq('biz_id', bizId);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error || !data) return null;
   return data as SocialScheduleRow;

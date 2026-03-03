@@ -4,9 +4,9 @@ export const revalidate = 0;
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
-import { getLitoBizAccess } from '@/lib/lito/action-drafts';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { validateParams } from '@/lib/validations';
@@ -51,11 +51,18 @@ export async function DELETE(
       );
     }
 
+    const gate = await requireResourceAccessPatternB(request, routeParams.id, ResourceTable.Drafts, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withStandardHeaders(gate, requestId);
+
     const admin = createAdminClient();
     const { data: draftData, error: draftErr } = await admin
       .from('lito_action_drafts')
       .select('id, org_id, biz_id, created_by')
       .eq('id', routeParams.id)
+      .eq('biz_id', gate.bizId)
       .maybeSingle();
 
     if (draftErr) {
@@ -78,20 +85,15 @@ export async function DELETE(
     }
 
     const draft = draftData as VoiceDraftRow;
-    const access = await getLitoBizAccess({
-      supabase,
-      userId: user.id,
-      bizId: draft.biz_id,
-    });
-    if (!access.allowed || !access.role || access.orgId !== draft.org_id) {
+    if (gate.membership.orgId !== draft.org_id) {
       return withStandardHeaders(
         NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
 
-    const canDelete = access.role === 'owner'
-      || access.role === 'manager'
+    const canDelete = gate.role === 'owner'
+      || gate.role === 'manager'
       || draft.created_by === user.id;
     if (!canDelete) {
       return withStandardHeaders(
@@ -131,4 +133,3 @@ export async function DELETE(
     );
   }
 }
-

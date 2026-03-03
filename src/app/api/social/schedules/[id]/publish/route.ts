@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { buildGlobalProps } from '@/lib/analytics/properties';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -16,7 +17,7 @@ import {
   conflict,
   loadSchedule,
   notFound,
-  requireUserAndBizAccess,
+  unauthorized,
   withNoStore,
 } from '@/app/api/social/schedules/_shared';
 
@@ -36,17 +37,26 @@ export async function POST(
     return badRequest(requestId, parsedParams.error.issues[0]?.message || 'Paràmetres invàlids');
   }
 
-  const schedule = await loadSchedule(parsedParams.data.id);
+  const supabase = createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return unauthorized(requestId);
+
+  const gate = await requireResourceAccessPatternB(request, parsedParams.data.id, ResourceTable.SocialSchedules, {
+    supabase,
+    user,
+  });
+  if (gate instanceof NextResponse) return withNoStore(gate, requestId);
+
+  const schedule = await loadSchedule(parsedParams.data.id, gate.bizId);
   if (!schedule) {
     return notFound(requestId);
   }
 
-  const access = await requireUserAndBizAccess({ bizId: schedule.biz_id, requestId });
-  if (!access.ok) return access.response;
-
-  const canManage = access.role === 'owner' || access.role === 'manager';
-  const canPublishAssigned = access.role === 'staff'
-    && schedule.assigned_user_id === access.userId
+  const canManage = gate.role === 'owner' || gate.role === 'manager';
+  const canPublishAssigned = gate.role === 'staff'
+    && schedule.assigned_user_id === gate.userId
     && ['scheduled', 'notified', 'snoozed', 'published'].includes(schedule.status);
 
   if (!canManage && !canPublishAssigned) {
@@ -92,18 +102,17 @@ export async function POST(
 
   await cancelPendingReminders(schedule.id);
 
-  const supabase = createServerSupabaseClient();
   await trackEvent({
     supabase,
-    orgId: access.orgId,
-    userId: access.userId,
+    orgId: gate.membership.orgId,
+    userId: gate.userId,
     name: 'post_executed',
     props: {
       ...buildGlobalProps({
-        userId: access.userId,
+        userId: gate.userId,
         bizId: schedule.biz_id,
-        orgId: access.orgId,
-        role: access.role,
+        orgId: gate.membership.orgId,
+        role: gate.role,
         mode: 'basic',
         platform: 'web',
       }),

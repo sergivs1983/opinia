@@ -7,6 +7,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createLogger, createRequestId } from '@/lib/logger';
 import { sendPlannerItemWebhook, toWebhookTestResponse } from '@/lib/webhooks';
 import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireResourceAccessPatternB, ResourceTable } from '@/lib/api-handler';
 import { asMembershipRoleFilter, PUBLISH_ROLES } from '@/lib/roles';
 import {
   validateBody,
@@ -70,11 +71,17 @@ export async function POST(
     const [body, bodyErr] = await validateBody(request, PlannerSendSchema);
     if (bodyErr) return withResponseRequestId(bodyErr);
     const payload = body as PlannerSendBody;
+    const gate = await requireResourceAccessPatternB(request, routeParams.id, ResourceTable.PlannerItems, {
+      supabase,
+      user,
+    });
+    if (gate instanceof NextResponse) return withResponseRequestId(gate);
 
     const { data: plannerData, error: plannerError } = await supabase
       .from('content_planner_items')
       .select('id, business_id, scheduled_at, channel, title, suggestion_id, asset_id')
       .eq('id', routeParams.id)
+      .eq('business_id', gate.bizId)
       .single();
 
     if (plannerError || !plannerData) {
@@ -84,22 +91,16 @@ export async function POST(
     }
 
     const plannerItem = plannerData as PlannerItemRow;
-    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
-    if (workspaceBusinessId && workspaceBusinessId !== plannerItem.business_id) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Planner item does not belong to current workspace', request_id: requestId }, { status: 403 }),
-      );
-    }
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, org_id, name, default_language, webhook_enabled, webhook_url, webhook_secret, webhook_channels')
-      .eq('id', plannerItem.business_id)
+      .eq('id', gate.bizId)
       .single();
 
     if (businessError || !businessData) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No access to this business', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
@@ -107,12 +108,12 @@ export async function POST(
     const publishAccess = await hasAcceptedBusinessMembership({
       supabase,
       userId: user.id,
-      businessId: plannerItem.business_id,
+      businessId: gate.bizId,
       allowedRoles: asMembershipRoleFilter(PUBLISH_ROLES),
     });
     if (!publishAccess.allowed) {
       return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per publicar', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
