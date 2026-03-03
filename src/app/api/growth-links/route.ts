@@ -5,7 +5,7 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { validateBody, GrowthLinkCreateSchema } from '@/lib/validations';
-import { requireBizAccess, requireBizAccessPatternB, assertSingleBizId, withRequestContext } from '@/lib/api-handler';
+import { requireBizAccessPatternB, assertSingleBizId, withRequestContext } from '@/lib/api-handler';
 
 /**
  * GET /api/growth-links?biz_id=xxx
@@ -19,14 +19,13 @@ export const GET = withRequestContext(async function(request: Request) {
   const bizId = searchParams.get('biz_id');
   if (!bizId) return NextResponse.json({ error: 'bad_request', code: 'BIZ_ID_REQUIRED', message: 'biz_id és requerit' }, { status: 400 });
 
-  // ── Biz-level guard ──────────────────────────────────────────────────────
-  const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, bizId, { supabase, user });
+  if (access instanceof NextResponse) return access;
 
   const { data, error } = await supabase
     .from('growth_links')
     .select('*')
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -77,17 +76,16 @@ export const POST = withRequestContext(async function(request: Request) {
     body.biz_id,
   ]);
   if (ambigErr) return ambigErr;
-  // ── Biz-level guard ──────────────────────────────────────────────────────
-  const bizGuard = await requireBizAccess({ supabase, userId: user.id, bizId: resolvedBizId });
-  if (bizGuard) return bizGuard;
+  const access = await requireBizAccessPatternB(request, resolvedBizId, { supabase, user });
+  if (access instanceof NextResponse) return access;
 
   const slug = generateSlug();
 
   const { data, error } = await supabase
     .from('growth_links')
     .insert({
-      biz_id: body.biz_id,
-      org_id: body.org_id,
+      biz_id: access.bizId,
+      org_id: access.membership.orgId,
       target_url: body.target_url,
       slug,
       type: body.type,
@@ -112,21 +110,17 @@ export const DELETE = withRequestContext(async function(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+  const bizId = searchParams.get('biz_id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-  // ── Patró B: fetch biz_id from resource, then guard ──────────────────────
-  const { data: existing } = await supabase
+  const access = await requireBizAccessPatternB(request, bizId, { supabase, user });
+  if (access instanceof NextResponse) return access;
+
+  const { error } = await supabase
     .from('growth_links')
-    .select('biz_id')
+    .delete()
     .eq('id', id)
-    .single();
-  if (!existing) return NextResponse.json({ error: 'not_found', message: 'Enllaç no trobat' }, { status: 404 });
-
-  // Patró B: cross-tenant → 404 (no filtrar existència)
-  const bizGuard = await requireBizAccessPatternB({ supabase, userId: user.id, bizId: existing.biz_id });
-  if (bizGuard) return bizGuard;
-
-  const { error } = await supabase.from('growth_links').delete().eq('id', id);
+    .eq('biz_id', access.bizId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 });

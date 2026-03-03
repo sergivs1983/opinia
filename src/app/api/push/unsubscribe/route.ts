@@ -43,6 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const payload = parsed.data;
   const access = await requirePushBizAccess({
+    request,
     bizId: payload.biz_id,
     requestId,
     route: 'POST /api/push/unsubscribe',
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .update({ revoked_at: nowIso })
     .eq('user_id', access.userId)
     .eq('org_id', access.orgId)
-    .eq('biz_id', payload.biz_id)
+    .eq('biz_id', access.bizId)
     .is('revoked_at', null);
 
   if (payload.endpoint) {
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     log.error('push_unsubscribe_failed', {
       error_code: error.code || null,
       error: error.message || null,
-      biz_id: payload.biz_id,
+      biz_id: access.bizId,
       user_id: access.userId,
     });
     return withNoStore(

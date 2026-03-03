@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger } from '@/lib/logger';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -25,6 +25,7 @@ export function notFound(requestId: string): NextResponse {
 }
 
 export async function requirePushBizAccess(params: {
+  request: Request;
   bizId: string;
   requestId: string;
   route: string;
@@ -37,6 +38,8 @@ export async function requirePushBizAccess(params: {
     ok: true;
     userId: string;
     orgId: string;
+    bizId: string;
+    role: 'owner' | 'admin' | 'manager' | 'staff';
     supabase: ReturnType<typeof createServerSupabaseClient>;
   }
 > {
@@ -47,27 +50,31 @@ export async function requirePushBizAccess(params: {
 
   if (!user) return { ok: false, response: unauthorized(params.requestId) };
 
-  const access = await hasAcceptedBusinessMembership({
+  const gate = await requireBizAccessPatternB(params.request, params.bizId, {
     supabase,
-    userId: user.id,
-    businessId: params.bizId,
-    allowedRoles: ['owner', 'manager', 'staff'],
+    user,
   });
+  if (gate instanceof NextResponse) {
+    return { ok: false, response: notFound(params.requestId) };
+  }
 
-  if (!access.allowed || !access.orgId) {
+  if (!gate.membership.orgId) {
     return { ok: false, response: notFound(params.requestId) };
   }
 
   createLogger({ request_id: params.requestId, route: params.route }).info('push_biz_access_ok', {
-    biz_id: params.bizId,
+    biz_id: gate.bizId,
     user_id: user.id,
-    org_id: access.orgId,
+    org_id: gate.membership.orgId,
+    role: gate.role,
   });
 
   return {
     ok: true,
     userId: user.id,
-    orgId: access.orgId,
+    orgId: gate.membership.orgId,
+    bizId: gate.bizId,
+    role: gate.role,
     supabase,
   };
 }

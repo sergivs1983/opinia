@@ -8,7 +8,7 @@ import { getRequestIdFromHeaders } from '@/lib/request-id';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { trackEvent } from '@/lib/telemetry';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import {
   normalizeOrgRolesForPlan,
 } from '@/lib/seats';
@@ -50,15 +50,29 @@ export async function POST(
     }
     actorUserId = user.id;
 
-    const hasMembership = await hasAcceptedOrgMembership({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim();
+    const access = await requireBizAccessPatternB(request, workspaceBizId, {
       supabase,
-      userId: user.id,
-      orgId: routeParams.orgId,
-      allowedRoles: ['owner', 'manager'],
+      user,
+      headerBizId: workspaceBizId || null,
     });
+    if (access instanceof NextResponse) {
+      return access;
+    }
 
-    if (!hasMembership) {
-      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    if (access.role !== 'owner' && access.role !== 'manager') {
+      return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
+    }
+
+    const { data: scopedBusiness } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('id', access.bizId)
+      .eq('org_id', routeParams.orgId)
+      .maybeSingle();
+
+    if (!scopedBusiness) {
+      return NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 });
     }
   }
 

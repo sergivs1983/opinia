@@ -3,6 +3,7 @@ export const revalidate = 0;
 import { validateCsrf } from '@/lib/security/csrf';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { NextResponse } from 'next/server';
 import { validateBody, CompetitorCreateSchema } from '@/lib/validations';
 
@@ -16,12 +17,13 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const bizId = searchParams.get('biz_id');
-  if (!bizId) return NextResponse.json({ error: 'biz_id required' }, { status: 400 });
+  const access = await requireBizAccessPatternB(request, bizId, { supabase, user });
+  if (access instanceof NextResponse) return access;
 
   const { data, error } = await supabase
     .from('competitors')
     .select('*')
-    .eq('biz_id', bizId)
+    .eq('biz_id', access.bizId)
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
@@ -43,11 +45,14 @@ export async function POST(request: Request) {
   const [body, err] = await validateBody(request, CompetitorCreateSchema);
   if (err) return err;
 
+  const access = await requireBizAccessPatternB(request, body.biz_id, { supabase, user });
+  if (access instanceof NextResponse) return access;
+
   const { data, error } = await supabase
     .from('competitors')
     .insert({
-      biz_id: body.biz_id,
-      org_id: body.org_id,
+      biz_id: access.bizId,
+      org_id: access.membership.orgId,
       name: body.name,
       place_id: body.place_id ?? null,
       public_url: body.public_url ?? null,
@@ -73,9 +78,17 @@ export async function DELETE(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+  const bizId = searchParams.get('biz_id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-  const { error } = await supabase.from('competitors').delete().eq('id', id);
+  const access = await requireBizAccessPatternB(request, bizId, { supabase, user });
+  if (access instanceof NextResponse) return access;
+
+  const { error } = await supabase
+    .from('competitors')
+    .delete()
+    .eq('id', id)
+    .eq('biz_id', access.bizId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

@@ -5,14 +5,14 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { validateBody, TeamInviteSchema } from '@/lib/validations';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import {
   assertOrgHasSeat,
   assertRoleAllowedForOrgPlan,
   OrgRoleNotAllowedForPlanError,
   OrgSeatLimitError,
 } from '@/lib/seats';
-import { asMembershipRoleFilter, normalizeMemberRole, TEAM_MANAGEMENT_ROLES } from '@/lib/roles';
+import { normalizeMemberRole, roleCanManageTeam } from '@/lib/roles';
 
 /**
  * POST /api/team/invite
@@ -30,18 +30,33 @@ export async function POST(request: Request) {
   const [body, err] = await validateBody(request, TeamInviteSchema);
   if (err) return err;
 
-  const hasInvitePermission = await hasAcceptedOrgMembership({
+  const workspaceBizId = request.headers.get('x-biz-id')?.trim();
+  const access = await requireBizAccessPatternB(request, workspaceBizId, {
     supabase,
-    userId: user.id,
-    orgId: body.org_id,
-    allowedRoles: asMembershipRoleFilter(TEAM_MANAGEMENT_ROLES),
+    user,
+    headerBizId: workspaceBizId || null,
   });
+  if (access instanceof NextResponse) return access;
 
-  if (!hasInvitePermission) {
+  if (!roleCanManageTeam(access.role)) {
     return NextResponse.json({
-      error: 'forbidden',
-      message: "No tens permisos per convidar persones a aquest equip.",
-    }, { status: 403 });
+      error: 'not_found',
+      message: 'No disponible',
+    }, { status: 404 });
+  }
+
+  const { data: scopedBusiness } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('id', access.bizId)
+    .eq('org_id', body.org_id)
+    .maybeSingle();
+
+  if (!scopedBusiness) {
+    return NextResponse.json({
+      error: 'not_found',
+      message: 'No disponible',
+    }, { status: 404 });
   }
 
   const cleanEmail = body.email.trim().toLowerCase();

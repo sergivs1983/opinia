@@ -5,7 +5,7 @@ import { validateCsrf } from '@/lib/security/csrf';
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createRequestId } from '@/lib/logger';
-import { hasAcceptedOrgMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { validateBody } from '@/lib/validations';
 import { WorkspaceActiveOrgSchema } from '@/lib/validations';
 
@@ -31,15 +31,24 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, WorkspaceActiveOrgSchema);
     if (bodyErr) return withRequestId(bodyErr);
 
-    const hasMembership = await hasAcceptedOrgMembership({
+    const workspaceBizId = request.headers.get('x-biz-id')?.trim();
+    const access = await requireBizAccessPatternB(request, workspaceBizId, {
       supabase,
-      userId: user.id,
-      orgId: body.orgId,
+      user,
+      headerBizId: workspaceBizId || null,
     });
+    if (access instanceof NextResponse) return withRequestId(access);
 
-    if (!hasMembership) {
+    const { data: scopedBusiness } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('id', access.bizId)
+      .eq('org_id', body.orgId)
+      .maybeSingle();
+
+    if (!scopedBusiness) {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No tens accés a aquesta organització', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 

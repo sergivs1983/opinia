@@ -50,6 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const payload = parsed.data;
   const access = await requirePushBizAccess({
+    request,
     bizId: payload.biz_id,
     requestId,
     route: 'POST /api/push/subscribe',
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .upsert({
       user_id: access.userId,
       org_id: access.orgId,
-      biz_id: payload.biz_id,
+      biz_id: access.bizId,
       endpoint: payload.subscription.endpoint,
       p256dh: payload.subscription.keys.p256dh,
       auth: payload.subscription.keys.auth,
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     log.error('push_subscribe_upsert_failed', {
       error_code: error?.code || null,
       error: error?.message || null,
-      biz_id: payload.biz_id,
+      biz_id: access.bizId,
       user_id: access.userId,
     });
     return withNoStore(

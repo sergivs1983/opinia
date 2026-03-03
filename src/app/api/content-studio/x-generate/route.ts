@@ -4,6 +4,7 @@ import { validateCsrf } from '@/lib/security/csrf';
 
 import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
 import { createLogger, createRequestId } from '@/lib/logger';
 import {
   validateBody,
@@ -61,41 +62,42 @@ export async function POST(request: Request) {
     if (bodyErr) return withResponseRequestId(bodyErr);
 
     const payload = body as XGenerateBody;
+    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
+    const access = await requireBizAccessPatternB(request, workspaceBusinessId, {
+      supabase,
+      user,
+      headerBizId: workspaceBusinessId || null,
+    });
+    if (access instanceof NextResponse) return withResponseRequestId(access);
 
     const { data: suggestionData, error: suggestionError } = await supabase
       .from('content_suggestions')
       .select('id, business_id, insight_id, language, title, hook, caption, cta, best_time, shot_list, hashtags, evidence')
       .eq('id', payload.suggestionId)
-      .single();
+      .eq('business_id', access.bizId)
+      .maybeSingle();
 
     if (suggestionError || !suggestionData) {
       return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'Suggestion not found' }, { status: 404 }));
     }
 
     const suggestion = suggestionData as SuggestionTextRow;
-    const workspaceBusinessId = request.headers.get('x-biz-id')?.trim();
-
-    if (workspaceBusinessId && workspaceBusinessId !== suggestion.business_id) {
-      return withResponseRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'Suggestion does not belong to current workspace' }, { status: 403 }),
-      );
-    }
 
     // ── Bloc 8: Rate limit + AI daily quota ──
-    const rlKey = `${suggestion.business_id}:${user.id}`;
+    const rlKey = `${access.bizId}:${user.id}`;
     const rl = await rateLimitAI(rlKey);
     if (!rl.ok) return withResponseRequestId(rl.res);
-    const quota = await checkDailyAIQuota(suggestion.business_id, 'free');
+    const quota = await checkDailyAIQuota(access.bizId, 'free');
     if (!quota.ok) return withResponseRequestId(quota.res);
 
     const { data: businessData, error: businessError } = await supabase
       .from('businesses')
       .select('id, default_language')
-      .eq('id', suggestion.business_id)
+      .eq('id', access.bizId)
       .single();
 
     if (businessError || !businessData) {
-      return withResponseRequestId(NextResponse.json({ error: 'forbidden', message: 'No access to this business' }, { status: 403 }));
+      return withResponseRequestId(NextResponse.json({ error: 'not_found', message: 'No disponible' }, { status: 404 }));
     }
 
     const business = businessData as BusinessTextRow;

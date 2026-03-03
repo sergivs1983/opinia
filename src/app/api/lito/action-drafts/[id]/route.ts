@@ -46,14 +46,14 @@ export async function PATCH(
     const isStaffOwnDraft = ctx.role === 'staff' && ctx.draft.created_by === ctx.userId && ctx.draft.status === 'draft';
     if (!isManager && !isStaffOwnDraft) {
       return withStandardHeaders(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per editar aquest draft', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }
 
     if ((ctx.draft.status === 'executed' || ctx.draft.status === 'rejected') && !isManager) {
       return withStandardHeaders(
-        NextResponse.json({ error: 'forbidden', message: 'Aquest draft no es pot editar', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }

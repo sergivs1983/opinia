@@ -37,7 +37,7 @@ export async function POST(
 
     if (ctx.role !== 'staff' || ctx.draft.created_by !== ctx.userId || ctx.draft.status !== 'draft') {
       return withStandardHeaders(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per enviar a revisio', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }

@@ -37,7 +37,7 @@ export async function POST(
 
     if (ctx.role !== 'owner' && ctx.role !== 'manager') {
       return withStandardHeaders(
-        NextResponse.json({ error: 'forbidden', message: 'Cal owner o manager', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
         requestId,
       );
     }

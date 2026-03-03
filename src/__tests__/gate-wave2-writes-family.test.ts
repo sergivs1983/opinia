@@ -127,6 +127,24 @@ function run() {
   includes('team/role: uses memberships resource helper', teamRole, 'requireResourceAccessPatternB(request, body.membership_id, ResourceTable.Memberships');
   ordered('team/role: gate before memberships query', teamRole, 'requireResourceAccessPatternB(request, body.membership_id, ResourceTable.Memberships', ".from('memberships')");
 
+  const competitors = read('src/app/api/competitors/route.ts');
+  includes('competitors POST: uses biz gate', competitors, 'requireBizAccessPatternB(request, body.biz_id');
+  includes('competitors POST: insert scoped by access.bizId', competitors, 'biz_id: access.bizId');
+
+  const orgSetPlan = read('src/app/api/orgs/[orgId]/set-plan/route.ts');
+  includes('orgs/[orgId]/set-plan: uses biz gate', orgSetPlan, 'requireBizAccessPatternB(request, workspaceBizId');
+  includes('orgs/[orgId]/set-plan: role denial returns 404', orgSetPlan, "{ status: 404 }");
+  ordered('orgs/[orgId]/set-plan: gate before businesses scope query', orgSetPlan, 'requireBizAccessPatternB(request, workspaceBizId', ".from('businesses')");
+
+  const pushShared = read('src/app/api/push/_shared.ts');
+  includes('push shared: gate uses requireBizAccessPatternB', pushShared, 'requireBizAccessPatternB(params.request, params.bizId');
+  includes('push shared: denied gate returns 404 helper', pushShared, 'return { ok: false, response: notFound(params.requestId) }');
+
+  const xGenerate = read('src/app/api/content-studio/x-generate/route.ts');
+  includes('content-studio/x-generate: uses biz gate', xGenerate, 'requireBizAccessPatternB(request, workspaceBusinessId');
+  ordered('content-studio/x-generate: gate before suggestion query', xGenerate, 'requireBizAccessPatternB(request, workspaceBusinessId', ".from('content_suggestions')");
+  includes('content-studio/x-generate: suggestion query scoped by access.bizId', xGenerate, ".eq('business_id', access.bizId)");
+
   console.log(`\n=== RESULTS: ${pass}/${pass + fail} passed ===`);
   if (fail > 0) process.exit(1);
 }

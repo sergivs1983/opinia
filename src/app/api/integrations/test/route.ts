@@ -8,7 +8,8 @@ import { createLogger, createRequestId } from '@/lib/logger';
 import { dispatchEvent } from '@/lib/integrations';
 import { validateBody, IntegrationsTestSchema } from '@/lib/validations';
 import type { ConnectorRow } from '@/lib/integrations/connectors';
-import { hasAcceptedBusinessMembership } from '@/lib/authz';
+import { requireBizAccessPatternB } from '@/lib/api-handler';
+import { roleCanManageIntegrations } from '@/lib/roles';
 
 type TestBody = {
   connectorId: string;
@@ -47,16 +48,16 @@ export async function POST(request: Request) {
     const [body, bodyErr] = await validateBody(request, IntegrationsTestSchema);
     if (bodyErr) return withRequestId(bodyErr);
     const payload = body as TestBody;
-
-    const businessAccess = await hasAcceptedBusinessMembership({
+    const gate = await requireBizAccessPatternB(request, businessId, {
       supabase,
-      userId: user.id,
-      businessId,
-      allowedRoles: ['owner', 'admin'],
+      user,
+      headerBizId: businessId,
     });
-    if (!businessAccess.allowed) {
+    if (gate instanceof NextResponse) return withRequestId(gate);
+
+    if (!roleCanManageIntegrations(gate.role)) {
       return withRequestId(
-        NextResponse.json({ error: 'forbidden', message: 'No tens permisos per gestionar integracions', request_id: requestId }, { status: 403 }),
+        NextResponse.json({ error: 'not_found', message: 'No disponible', request_id: requestId }, { status: 404 }),
       );
     }
 
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
       .from('connectors')
       .select('id, business_id, type, enabled, url, secret, allowed_channels')
       .eq('id', payload.connectorId)
-      .eq('business_id', businessId)
+      .eq('business_id', gate.bizId)
       .single();
 
     if (connectorError || !connectorData) {
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     const connector = connectorData as ConnectorRow;
 
     const result = await dispatchEvent({
-      businessId,
+      businessId: gate.bizId,
       event: payload.event,
       data: {
         demo: true,
