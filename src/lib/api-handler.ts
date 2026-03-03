@@ -32,10 +32,13 @@ type HandlerFn<P = unknown> = (request: Request, ctx: ApiContext, params?: P) =>
 
 type PatternBRequestUser = { id: string; email?: string } | null;
 
-export type PatternBAccessContext = {
+export type PatternBAccessGranted = {
+  ok: true;
   supabase: SupabaseClient;
   user: { id: string; email?: string };
+  userId: string;
   bizId: string;
+  role: string | null;
   membership: {
     orgId: string;
     role: string | null;
@@ -43,12 +46,34 @@ export type PatternBAccessContext = {
   };
 };
 
+export type PatternBAccessDenied = NextResponse & {
+  response: NextResponse;
+};
+
+export type PatternBAccessResult = PatternBAccessGranted | PatternBAccessDenied;
+
+export type PatternBAccessContext = PatternBAccessGranted;
+
 type PatternBRequestOptions = {
   supabase?: SupabaseClient;
   user?: PatternBRequestUser;
   bodyBizId?: string | null | undefined;
   queryBizId?: string | null | undefined;
   headerBizId?: string | null | undefined;
+};
+
+export enum ResourceTable {
+  Reviews = 'reviews',
+  Drafts = 'drafts',
+  Signals = 'signals',
+  PublishJobs = 'publish_jobs',
+  KbEntries = 'kb_entries',
+}
+
+type ResourceLookupSpec = {
+  tables: string[];
+  idColumn: string;
+  bizColumn: string;
 };
 
 // ============================================================
@@ -159,6 +184,50 @@ function patternBNotFoundResponse(): NextResponse {
   );
 }
 
+function toPatternBDenied(response: NextResponse): PatternBAccessDenied {
+  const denied = response as PatternBAccessDenied;
+  denied.response = response;
+  return denied;
+}
+
+function patternBNotFoundDenied(): PatternBAccessDenied {
+  return toPatternBDenied(patternBNotFoundResponse());
+}
+
+const RESOURCE_LOOKUP: Record<ResourceTable, ResourceLookupSpec> = {
+  [ResourceTable.Reviews]: {
+    tables: ['reviews'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.Drafts]: {
+    tables: ['social_drafts', 'lito_action_drafts'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.Signals]: {
+    tables: ['biz_signals'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.PublishJobs]: {
+    tables: ['publish_jobs'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+  [ResourceTable.KbEntries]: {
+    tables: ['kb_entries'],
+    idColumn: 'id',
+    bizColumn: 'biz_id',
+  },
+};
+
+function isMissingRelationError(error: unknown): boolean {
+  const message = ((error as { message?: string })?.message || '').toLowerCase();
+  return message.includes('relation')
+    && message.includes('does not exist');
+}
+
 function resolvePatternBSources(
   request: Request,
   explicitBizId: string | null | undefined,
@@ -218,12 +287,12 @@ export async function requireBizAccessPatternB(
   request: Request,
   bizId: string | null | undefined,
   options?: PatternBRequestOptions,
-): Promise<PatternBAccessContext | NextResponse>;
+): Promise<PatternBAccessResult>;
 export async function requireBizAccessPatternB(
   arg1: Parameters<typeof requireBizAccess>[0] | Request,
   arg2?: string | null | undefined,
   arg3: PatternBRequestOptions = {},
-): Promise<PatternBAccessContext | NextResponse | null> {
+): Promise<PatternBAccessResult | null> {
   if (!(arg1 instanceof Request)) {
     return requireBizAccessPatternBArgs(arg1);
   }
@@ -236,19 +305,21 @@ export async function requireBizAccessPatternB(
   if (!user) {
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) {
-      return NextResponse.json(
-        { error: 'unauthorized', message: 'Auth required' },
-        { status: 401 },
+      return toPatternBDenied(
+        NextResponse.json(
+          { error: 'unauthorized', message: 'Auth required' },
+          { status: 401 },
+        ),
       );
     }
     user = { id: authUser.id, email: authUser.email ?? undefined };
   }
 
   const sourceCheck = assertSingleBizId(resolvePatternBSources(request, arg2, options));
-  if (sourceCheck.error) return patternBNotFoundResponse();
+  if (sourceCheck.error) return patternBNotFoundDenied();
 
   const normalizedBizId = parseBizId(sourceCheck.bizId);
-  if (!normalizedBizId) return patternBNotFoundResponse();
+  if (!normalizedBizId) return patternBNotFoundDenied();
 
   const membership = await getAcceptedBusinessMembershipContext({
     supabase,
@@ -257,19 +328,75 @@ export async function requireBizAccessPatternB(
   });
 
   if (!membership.allowed || !membership.orgId) {
-    return patternBNotFoundResponse();
+    return patternBNotFoundDenied();
   }
 
   return {
+    ok: true,
     supabase,
     user,
+    userId: user.id,
     bizId: normalizedBizId,
+    role: membership.role,
     membership: {
       orgId: membership.orgId,
       role: membership.role,
       normalizedRole: membership.normalizedRole,
     },
   };
+}
+
+async function lookupBizIdFromResource(
+  supabase: SupabaseClient,
+  resourceId: string,
+  resourceTable: ResourceTable,
+): Promise<string | null> {
+  const spec = RESOURCE_LOOKUP[resourceTable];
+  if (!spec) return null;
+
+  for (const table of spec.tables) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(spec.bizColumn)
+      .eq(spec.idColumn, resourceId)
+      .maybeSingle();
+
+    if (error) {
+      if (spec.tables.length > 1 && isMissingRelationError(error)) {
+        continue;
+      }
+      return null;
+    }
+
+    if (!data) continue;
+
+    const bizId = parseBizId((data as Record<string, unknown>)[spec.bizColumn] as string | null | undefined);
+    return bizId;
+  }
+
+  return null;
+}
+
+export async function requireResourceAccessPatternB(
+  request: Request,
+  resourceId: string | null | undefined,
+  resourceTable: ResourceTable,
+  options: Omit<PatternBRequestOptions, 'bodyBizId' | 'queryBizId' | 'headerBizId'> = {},
+): Promise<PatternBAccessResult> {
+  const normalizedResourceId = parseBizId(resourceId);
+  if (!normalizedResourceId) return patternBNotFoundDenied();
+
+  const supabase = options.supabase ?? createServerSupabaseClient();
+  const lookedUpBizId = await lookupBizIdFromResource(supabase, normalizedResourceId, resourceTable);
+  if (!lookedUpBizId) return patternBNotFoundDenied();
+
+  return requireBizAccessPatternB(request, lookedUpBizId, {
+    supabase,
+    user: options.user,
+    bodyBizId: lookedUpBizId,
+    queryBizId: lookedUpBizId,
+    headerBizId: lookedUpBizId,
+  });
 }
 
 /**

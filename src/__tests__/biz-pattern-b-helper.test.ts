@@ -60,7 +60,10 @@ async function run() {
 
     assert('Own biz => returns context (not NextResponse)', !(result instanceof NextResponse));
     if (!(result instanceof NextResponse)) {
+      assert('Own biz => ok true', result.ok === true);
       assert('Own biz => returns normalized bizId', result.bizId === BIZ_A);
+      assert('Own biz => returns userId', result.userId === USER_A);
+      assert('Own biz => returns role', result.role === 'owner');
       assert('Own biz => returns org membership context', result.membership.orgId === ORG_A);
     }
   }
@@ -85,6 +88,7 @@ async function run() {
 
     assert('Cross-tenant => NextResponse', result instanceof NextResponse);
     if (result instanceof NextResponse) {
+      assert('Cross-tenant => ok false', (result as NextResponse & { ok?: boolean }).ok === false);
       assert('Cross-tenant => 404', result.status === 404);
       crossBody = await result.json();
     }
@@ -106,6 +110,7 @@ async function run() {
 
     assert('Non-existent biz => NextResponse', result instanceof NextResponse);
     if (result instanceof NextResponse) {
+      assert('Non-existent biz => ok false', (result as NextResponse & { ok?: boolean }).ok === false);
       assert('Non-existent biz => 404', result.status === 404);
       missingBody = await result.json();
     }
